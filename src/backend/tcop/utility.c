@@ -39,6 +39,7 @@
 #include "commands/extension.h"
 #include "commands/matview.h"
 #include "commands/lockcmds.h"
+#include "commands/policy.h"
 #include "commands/portalcmds.h"
 #include "commands/prepare.h"
 #include "commands/proclang.h"
@@ -835,6 +836,16 @@ standard_ProcessUtility(Node *parsetree,
 				else
 					ExecAlterOwnerStmt(stmt);
 			}
+			break;
+
+		case T_CreatePolicyStmt:
+			CreatePolicy((CreatePolicyStmt *) parsetree);
+			break;
+		case T_AlterPolicyStmt:
+			AlterPolicy((AlterPolicyStmt *) parsetree);
+			break;
+		case T_DropPolicyStmt:
+			DropPolicy((DropPolicyStmt *) parsetree);
 			break;
 
 		default:
@@ -2436,6 +2447,16 @@ CreateCommandTag(Node *parsetree)
 						break;
 				}
 			}
+			break;
+
+		case T_CreatePolicyStmt:
+			tag = "CREATE POLICY";
+			break;
+		case T_AlterPolicyStmt:
+			tag = "ALTER POLICY";
+			break;
+		case T_DropPolicyStmt:
+			tag = "DROP POLICY";
 			break;
 
 		default:
