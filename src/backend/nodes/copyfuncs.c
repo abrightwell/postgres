@@ -3849,6 +3849,44 @@ _copyAlterTSConfigurationStmt(const AlterTSConfigurationStmt *from)
 	return newnode;
 }
 
+static CreatePolicyStmt *
+_copyCreatePolicyStmt(const CreatePolicyStmt *from)
+{
+	CreatePolicyStmt *newnode = makeNode(CreatePolicyStmt);
+
+	COPY_STRING_FIELD(policy_name);
+	COPY_NODE_FIELD(table);
+	COPY_SCALAR_FIELD(cmd);
+	COPY_NODE_FIELD(qual);
+
+	return newnode;
+}
+
+static AlterPolicyStmt *
+_copyAlterPolicyStmt(const AlterPolicyStmt *from)
+{
+	AlterPolicyStmt *newnode = makeNode(AlterPolicyStmt);
+
+	COPY_STRING_FIELD(policy_name);
+	COPY_NODE_FIELD(table);
+	COPY_SCALAR_FIELD(cmd);
+	COPY_NODE_FIELD(qual);
+
+	return newnode;
+}
+
+static DropPolicyStmt *
+_copyDropPolicyStmt(const DropPolicyStmt *from)
+{
+	DropPolicyStmt *newnode = makeNode(DropPolicyStmt);
+
+	COPY_STRING_FIELD(policy_name);
+	COPY_NODE_FIELD(table);
+	COPY_SCALAR_FIELD(cmd);
+
+	return newnode;
+}
+
 /* ****************************************************************
  *					pg_list.h copy functions
  * ****************************************************************
@@ -4560,6 +4598,15 @@ copyObject(const void *from)
 			break;
 		case T_AlterTSConfigurationStmt:
 			retval = _copyAlterTSConfigurationStmt(from);
+			break;
+		case T_CreatePolicyStmt:
+			retval = _copyCreatePolicyStmt(from);
+			break;
+		case T_AlterPolicyStmt:
+			retval = _copyAlterPolicyStmt(from);
+			break;
+		case T_DropPolicyStmt:
+			retval = _copyDropPolicyStmt(from);
 			break;
 
 		case T_A_Expr:

@@ -2008,6 +2008,38 @@ _equalAlterTSConfigurationStmt(const AlterTSConfigurationStmt *a,
 }
 
 static bool
+_equalCreatePolicyStmt(const CreatePolicyStmt *a, const CreatePolicyStmt *b)
+{
+	COMPARE_STRING_FIELD(policy_name);
+	COMPARE_NODE_FIELD(table);
+	COMPARE_SCALAR_FIELD(cmd);
+	COMPARE_NODE_FIELD(qual);
+
+	return true;
+}
+
+static bool
+_equalAlterPolicyStmt(const AlterPolicyStmt *a, const AlterPolicyStmt *b)
+{
+	COMPARE_STRING_FIELD(policy_name);
+	COMPARE_NODE_FIELD(table);
+	COMPARE_SCALAR_FIELD(cmd);
+	COMPARE_NODE_FIELD(qual);
+
+	return true;
+}
+
+static bool
+_equalDropPolicyStmt(const DropPolicyStmt *a, const DropPolicyStmt *b)
+{
+	COMPARE_STRING_FIELD(policy_name);
+	COMPARE_NODE_FIELD(table);
+	COMPARE_SCALAR_FIELD(cmd);
+
+	return true;
+}
+
+static bool
 _equalAExpr(const A_Expr *a, const A_Expr *b)
 {
 	COMPARE_SCALAR_FIELD(kind);
@@ -3024,6 +3056,15 @@ equal(const void *a, const void *b)
 			break;
 		case T_AlterTSConfigurationStmt:
 			retval = _equalAlterTSConfigurationStmt(a, b);
+			break;
+		case T_CreatePolicyStmt:
+			retval = _equalCreatePolicyStmt(a, b);
+			break;
+		case T_AlterPolicyStmt:
+			retval = _equalAlterPolicyStmt(a, b);
+			break;
+		case T_DropPolicyStmt:
+			retval = _equalDropPolicyStmt(a, b);
 			break;
 
 		case T_A_Expr:
