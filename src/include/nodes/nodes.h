@@ -366,6 +366,9 @@ typedef enum NodeTag
 	T_RefreshMatViewStmt,
 	T_ReplicaIdentityStmt,
 	T_AlterSystemStmt,
+	T_CreatePolicyStmt,
+	T_AlterPolicyStmt,
+	T_DropPolicyStmt,
 
 	/*
 	 * TAGS FOR PARSE TREE NODES (parsenodes.h)

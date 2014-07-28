@@ -231,7 +231,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 		AlterObjectSchemaStmt AlterOwnerStmt AlterSeqStmt AlterSystemStmt AlterTableStmt
 		AlterTblSpcStmt AlterExtensionStmt AlterExtensionContentsStmt AlterForeignTableStmt
 		AlterCompositeTypeStmt AlterUserStmt AlterUserMappingStmt AlterUserSetStmt
-		AlterRoleStmt AlterRoleSetStmt
+		AlterRoleStmt AlterRoleSetStmt AlterPolicyStmt
 		AlterDefaultPrivilegesStmt DefACLAction
 		AnalyzeStmt ClosePortalStmt ClusterStmt CommentStmt
 		ConstraintsSetStmt CopyStmt CreateAsStmt CreateCastStmt
@@ -240,10 +240,10 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 		CreateSchemaStmt CreateSeqStmt CreateStmt CreateTableSpaceStmt
 		CreateFdwStmt CreateForeignServerStmt CreateForeignTableStmt
 		CreateAssertStmt CreateTrigStmt CreateEventTrigStmt
-		CreateUserStmt CreateUserMappingStmt CreateRoleStmt
+		CreateUserStmt CreateUserMappingStmt CreateRoleStmt CreatePolicyStmt
 		CreatedbStmt DeclareCursorStmt DefineStmt DeleteStmt DiscardStmt DoStmt
 		DropGroupStmt DropOpClassStmt DropOpFamilyStmt DropPLangStmt DropStmt
-		DropAssertStmt DropTrigStmt DropRuleStmt DropCastStmt DropRoleStmt
+		DropAssertStmt DropTrigStmt DropRuleStmt DropCastStmt DropRoleStmt DropPolicyStmt
 		DropUserStmt DropdbStmt DropTableSpaceStmt DropFdwStmt
 		DropForeignServerStmt DropUserMappingStmt ExplainStmt FetchStmt
 		GrantStmt GrantRoleStmt ImportForeignSchemaStmt IndexStmt InsertStmt
@@ -269,6 +269,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 %type <node>	alter_table_cmd alter_type_cmd opt_collate_clause
 	   replica_identity
 %type <list>	alter_table_cmds alter_type_cmds
+%type <str>		row_security_cmd
 
 %type <dbehavior>	opt_drop_behavior
 
@@ -588,7 +589,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 	OBJECT_P OF OFF OFFSET OIDS ON ONLY OPERATOR OPTION OPTIONS OR
 	ORDER ORDINALITY OUT_P OUTER_P OVER OVERLAPS OVERLAY OWNED OWNER
 
-	PARSER PARTIAL PARTITION PASSING PASSWORD PLACING PLANS POSITION
+	PARSER PARTIAL PARTITION PASSING PASSWORD PLACING PLANS POLICY POSITION
 	PRECEDING PRECISION PRESERVE PREPARE PREPARED PRIMARY
 	PRIOR PRIVILEGES PROCEDURAL PROCEDURE PROGRAM
 
@@ -739,6 +740,7 @@ stmt :
 			| AlterGroupStmt
 			| AlterObjectSchemaStmt
 			| AlterOwnerStmt
+			| AlterPolicyStmt
 			| AlterSeqStmt
 			| AlterSystemStmt
 			| AlterTableStmt
@@ -773,6 +775,7 @@ stmt :
 			| CreateOpClassStmt
 			| CreateOpFamilyStmt
 			| AlterOpFamilyStmt
+			| CreatePolicyStmt
 			| CreatePLangStmt
 			| CreateSchemaStmt
 			| CreateSeqStmt
@@ -798,6 +801,7 @@ stmt :
 			| DropOpClassStmt
 			| DropOpFamilyStmt
 			| DropOwnedStmt
+			| DropPolicyStmt
 			| DropPLangStmt
 			| DropRuleStmt
 			| DropStmt
@@ -4393,6 +4397,58 @@ AlterUserMappingStmt: ALTER USER MAPPING FOR auth_ident SERVER name alter_generi
 					n->options = $8;
 					$$ = (Node *) n;
 				}
+		;
+
+/*****************************************************************************
+ *
+ *		QUERIES:
+ *				CREATE POLICY name ON table FOR cmd USING (qual)
+ *				ALTER POLICY name ON table FOR cmd USING (qual)
+ *				DROP POLICY name ON table FOR cmd
+ *
+ *****************************************************************************/
+
+CreatePolicyStmt:
+			CREATE POLICY name ON qualified_name FOR row_security_cmd USING '(' a_expr ')'
+				{
+					CreatePolicyStmt *n = makeNode(CreatePolicyStmt);
+					n->policy_name = $3;
+					n->table = $5;
+					n->cmd = $7;
+					n->qual = $10;
+					$$ = (Node *) n;
+				}
+		;
+
+AlterPolicyStmt:
+			ALTER POLICY name ON qualified_name FOR row_security_cmd USING '(' a_expr ')'
+				{
+					AlterPolicyStmt *n = makeNode(AlterPolicyStmt);
+					n->policy_name = $3;
+					n->table = $5;
+					n->cmd = $7;
+					n->qual = $10;
+					$$ = (Node *) n;
+				}
+		;
+
+DropPolicyStmt:
+			DROP POLICY name ON qualified_name FOR row_security_cmd
+				{
+					DropPolicyStmt *n = makeNode(DropPolicyStmt);
+					n->policy_name = $3;
+					n->table = $5;
+					n->cmd = $7;
+					$$ = (Node *) n;
+				}
+		;
+
+row_security_cmd:
+			ALL				{ $$ = "all"; }
+		|	SELECT			{ $$ = "select"; }
+		|	INSERT			{ $$ = "insert"; }
+		|	UPDATE			{ $$ = "update"; }
+		|	DELETE_P		{ $$ = "delete"; }
 		;
 
 /*****************************************************************************
@@ -13026,6 +13082,7 @@ unreserved_keyword:
 			| PASSING
 			| PASSWORD
 			| PLANS
+			| POLICY
 			| PRECEDING
 			| PREPARE
 			| PREPARED

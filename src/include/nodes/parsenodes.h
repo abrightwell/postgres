@@ -1854,6 +1854,44 @@ typedef struct ImportForeignSchemaStmt
 	List	   *options;		/* list of options to pass to FDW */
 } ImportForeignSchemaStmt;
 
+/*----------------------
+ *		Create POLICY Statement
+ *----------------------
+ */
+typedef struct CreatePolicyStmt
+{
+	NodeTag		type;
+	char	   *policy_name;
+	RangeVar   *table;
+	char	   *cmd;
+	Node	   *qual;
+} CreatePolicyStmt;
+
+/*----------------------
+ *		Alter POLICY Statement
+ *----------------------
+ */
+typedef struct AlterPolicyStmt
+{
+	NodeTag		type;
+	char	   *policy_name;
+	RangeVar   *table;
+	char	   *cmd;
+	Node	   *qual;
+} AlterPolicyStmt;
+
+/*----------------------
+ *		Drop POLICY Statement
+ *----------------------
+ */
+typedef struct DropPolicyStmt
+{
+	NodeTag		type;
+	char	   *policy_name;
+	RangeVar   *table;
+	char	   *cmd;
+} DropPolicyStmt;
+
 /* ----------------------
  *		Create TRIGGER Statement
  * ----------------------
