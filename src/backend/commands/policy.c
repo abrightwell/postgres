@@ -104,7 +104,7 @@ create_row_security_entry(Oid id, Expr *qual, MemoryContext context)
 	entry = MemoryContextAllocZero(context, sizeof(RowSecurityEntry));
 	entry->rsecid = id;
 	entry->qual = copyObject(qual);
-	entry->hassublinks = contain_subplans(entry->qual);
+	entry->hassublinks = contain_subplans((Node *) entry->qual);
 
 	return entry;
 }
