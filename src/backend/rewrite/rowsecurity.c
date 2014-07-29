@@ -23,6 +23,7 @@
 #include "rewrite/rewriteHandler.h"
 #include "rewrite/rewriteManip.h"
 #include "rewrite/rowsecurity.h"
+#include "utils/acl.h"
 #include "utils/lsyscache.h"
 #include "utils/rel.h"
 #include "utils/syscache.h"
@@ -98,6 +99,7 @@ pull_row_security_policy(CmdType cmd, Relation relation)
 {
 	List   *quals = NIL;
 	Expr   *qual = NULL;
+	char   *row_security_option;
 
 	/*
 	 * Pull the row-security policy configured with built-in features,
@@ -105,8 +107,16 @@ pull_row_security_policy(CmdType cmd, Relation relation)
 	 */
 	if (relation->rsdesc)
 	{
-		/* Should make this be dependent on a grantable right instead: */
-		if (!superuser())
+		/*
+		 * If Row Security is disabled, then we must check that the current
+		 * user has the privilege to bypass.  If the current user does not have
+		 * the ability to bypass, then an error is thrown.
+		 */
+		if (!is_rls_enabled() && !can_bypass_rls(GetUserId()))
+			ereport(ERROR,
+					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+					 errmsg("Insufficient privilege to bypass row security.")));
+		else
 		{
 			ListCell *item;
 			RowSecurityPolicy *policy;
@@ -169,4 +179,20 @@ pull_row_security_policy(CmdType cmd, Relation relation)
 	}
 
 	return quals;
+}
+
+bool
+can_bypass_rls(Oid role_id)
+{
+	return has_bypassrls_privilege(role_id);
+}
+
+bool
+is_rls_enabled()
+{
+	char *rls_option;
+
+	rls_option = GetConfigOption("row_security", true, false);
+
+	return (strcmp(rls_option, "on") == 0);
 }
