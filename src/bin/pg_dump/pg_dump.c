@@ -137,6 +137,7 @@ static int	no_security_labels = 0;
 static int	no_synchronized_snapshots = 0;
 static int	no_unlogged_table_data = 0;
 static int	serializable_deferrable = 0;
+static int	allow_row_security = 0;
 
 
 static void help(const char *progname);
@@ -341,6 +342,7 @@ main(int argc, char **argv)
 		/*
 		 * the following options don't have an equivalent short option letter
 		 */
+		{"allow-row-security", no_argument, &allow_row_security, 1},
 		{"attribute-inserts", no_argument, &column_inserts, 1},
 		{"binary-upgrade", no_argument, &binary_upgrade, 1},
 		{"column-inserts", no_argument, &column_inserts, 1},
@@ -894,6 +896,7 @@ help(const char *progname)
 	printf(_("  -t, --table=TABLE            dump the named table(s) only\n"));
 	printf(_("  -T, --exclude-table=TABLE    do NOT dump the named table(s)\n"));
 	printf(_("  -x, --no-privileges          do not dump privileges (grant/revoke)\n"));
+	printf(_("  --allow-row-security         allow execution of row level security\n"));
 	printf(_("  --binary-upgrade             for use by upgrade utilities only\n"));
 	printf(_("  --column-inserts             dump data as INSERT commands with column names\n"));
 	printf(_("  --disable-dollar-quoting     disable dollar quoting, use SQL standard quoting\n"));
@@ -1051,6 +1054,11 @@ setup_connection(Archive *AH, const char *dumpencoding, char *use_role)
 		else
 			AH->sync_snapshot_id = get_synchronized_snapshot(AH);
 	}
+
+	if (allow_row_security)
+		ExecuteSqlStatement(AH, "SET ROW SECURITY ON");
+	else
+		ExecuteSqlStatement(AH, "SET ROW SECURITY OFF");
 }
 
 static void
