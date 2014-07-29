@@ -1389,6 +1389,7 @@ pg_roles| SELECT pg_authid.rolname,
     pg_authid.rolconnlimit,
     '********'::text AS rolpassword,
     pg_authid.rolvaliduntil,
+    pg_authid.rolbypassrls,
     s.setconfig AS rolconfig,
     pg_authid.oid
    FROM (pg_authid

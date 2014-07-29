@@ -2529,6 +2529,11 @@ describeRoles(const char *pattern, bool verbose)
 			appendPQExpBufferStr(&buf, "\n, r.rolreplication");
 		}
 
+		if (pset.sversion >= 90500)
+		{
+			appendPQExpBufferStr(&buf, "\n, r.rolbypassrls");
+		}
+
 		appendPQExpBufferStr(&buf, "\nFROM pg_catalog.pg_roles r\n");
 
 		processSQLNamePattern(pset.db, &buf, pattern, false, false,

@@ -960,6 +960,10 @@ AlterOptRoleElem:
 						$$ = makeDefElem("canlogin", (Node *)makeInteger(TRUE));
 					else if (strcmp($1, "nologin") == 0)
 						$$ = makeDefElem("canlogin", (Node *)makeInteger(FALSE));
+					else if (strcmp($1, "bypassrls") == 0)
+						$$ = makeDefElem("bypassrls", (Node *)makeInteger(TRUE));
+					else if (strcmp($1, "nobypassrls") == 0)
+						$$ = makeDefElem("nobypassrls", (Node *)makeInteger(FALSE));
 					else if (strcmp($1, "noinherit") == 0)
 					{
 						/*

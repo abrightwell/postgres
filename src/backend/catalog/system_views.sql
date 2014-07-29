@@ -19,6 +19,7 @@ CREATE VIEW pg_roles AS
         rolconnlimit,
         '********'::text as rolpassword,
         rolvaliduntil,
+        rolbypassrls,
         setconfig as rolconfig,
         pg_authid.oid
     FROM pg_authid LEFT JOIN pg_db_role_setting s
