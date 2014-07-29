@@ -17,7 +17,7 @@
 
 #include "nodes/parsenodes.h"
 
-extern void RelationBuildPolicy(Relation relation);
+extern void RelationBuildRowSecurity(Relation relation);
 
 extern void RemovePolicyById(Oid policy_id);
 
