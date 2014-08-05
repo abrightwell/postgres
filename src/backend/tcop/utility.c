@@ -39,6 +39,7 @@
 #include "commands/extension.h"
 #include "commands/matview.h"
 #include "commands/lockcmds.h"
+#include "commands/permission.h"
 #include "commands/portalcmds.h"
 #include "commands/prepare.h"
 #include "commands/proclang.h"
@@ -183,6 +184,7 @@ check_xact_readonly(Node *parsetree)
 		case T_DropRoleStmt:
 		case T_GrantStmt:
 		case T_GrantRoleStmt:
+		case T_GrantPermissionStmt:
 		case T_AlterDefaultPrivilegesStmt:
 		case T_TruncateStmt:
 		case T_DropOwnedStmt:
@@ -559,6 +561,10 @@ standard_ProcessUtility(Node *parsetree,
 		case T_GrantRoleStmt:
 			/* no event triggers for global objects */
 			GrantRole((GrantRoleStmt *) parsetree);
+			break;
+
+		case T_GrantPermissionStmt:
+			GrantPermission((GrantPermissionStmt *) parsetree);
 			break;
 
 		case T_CreatedbStmt:
@@ -1999,6 +2005,14 @@ CreateCommandTag(Node *parsetree)
 				GrantStmt  *stmt = (GrantStmt *) parsetree;
 
 				tag = (stmt->is_grant) ? "GRANT" : "REVOKE";
+			}
+			break;
+
+		case T_GrantPermissionStmt:
+			{
+				GrantPermissionStmt *stmt = (GrantPermissionStmt *) parsetree;
+
+				tag = (stmt->is_grant) ? "GRANT PERMISSION" : "REVOKE PERMISSION";
 			}
 			break;
 
