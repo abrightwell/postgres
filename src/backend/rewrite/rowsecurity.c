@@ -108,15 +108,12 @@ pull_row_security_policy(CmdType cmd, Relation relation)
 	if (relation->rsdesc)
 	{
 		/*
-		 * If Row Security is disabled, then we must check that the current
-		 * user has the privilege to bypass.  If the current user does not have
-		 * the ability to bypass, then an error is thrown.
+		 * If Row Security is enabled, then it is applied to all queries on the
+		 * relation.  If Row Security is disabled, then we must check that the
+		 * current user has the privilege to bypass.  If the current user does
+		 * not have the ability to bypass, then an error is thrown.
 		 */
-		if (!is_rls_enabled() && !can_bypass_rls(GetUserId()))
-			ereport(ERROR,
-					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-					 errmsg("Insufficient privilege to bypass row security.")));
-		else
+		if (is_rls_enabled())
 		{
 			ListCell *item;
 			RowSecurityPolicy *policy;
@@ -161,6 +158,10 @@ pull_row_security_policy(CmdType cmd, Relation relation)
 				quals = lcons(qual, quals);
 			}
 		}
+		else if (!has_bypassrls_privilege(GetUserId()))
+			ereport(ERROR,
+					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+					 errmsg("Insufficient privilege to bypass row security.")));
 	}
 
 
@@ -179,12 +180,6 @@ pull_row_security_policy(CmdType cmd, Relation relation)
 	}
 
 	return quals;
-}
-
-bool
-can_bypass_rls(Oid role_id)
-{
-	return has_bypassrls_privilege(role_id);
 }
 
 bool
