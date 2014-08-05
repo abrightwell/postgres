@@ -47,6 +47,7 @@
 #include "catalog/pg_opclass.h"
 #include "catalog/pg_operator.h"
 #include "catalog/pg_opfamily.h"
+#include "catalog/pg_permission.h"
 #include "catalog/pg_proc.h"
 #include "catalog/pg_range.h"
 #include "catalog/pg_rewrite.h"
@@ -562,6 +563,17 @@ static const struct cachedesc cacheinfo[] = {
 			0,
 			0,
 			0
+		},
+		8
+	},
+	{PermissionRelationId,	/* PERMROLEIDPERMID */
+		PermissionRoleIdPermIndexId,
+		2,
+		{
+			Anum_pg_permission_permroleid,
+			Anum_pg_permission_permpermission,
+			0,
+			0,
 		},
 		8
 	},
