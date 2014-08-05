@@ -278,6 +278,7 @@ typedef enum NodeTag
 	T_AlterDomainStmt,
 	T_SetOperationStmt,
 	T_GrantStmt,
+	T_GrantPermissionStmt,
 	T_GrantRoleStmt,
 	T_AlterDefaultPrivilegesStmt,
 	T_ClosePortalStmt,

@@ -1476,6 +1476,18 @@ typedef struct GrantRoleStmt
 } GrantRoleStmt;
 
 /* ----------------------
+ *		Grant/Revoke Permission Statement
+ * ----------------------
+ */
+typedef struct GrantPermissionStmt
+{
+	NodeTag		type;
+	List	   *permissions;	/* list of permissions to be granted/revoked */
+	List	   *roles;			/* list of roles to granted/revoked permission */
+	bool		is_grant;		/* true = GRANT, false = REVOKE */
+} GrantPermissionStmt;
+
+/* ----------------------
  *	Alter Default Privileges Statement
  * ----------------------
  */

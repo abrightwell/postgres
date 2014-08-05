@@ -1045,6 +1045,16 @@ _equalGrantRoleStmt(const GrantRoleStmt *a, const GrantRoleStmt *b)
 }
 
 static bool
+_equalGrantPermissionStmt(const GrantPermissionStmt *a, const GrantPermissionStmt *b)
+{
+	COMPARE_NODE_FIELD(roles);
+	COMPARE_NODE_FIELD(permissions);
+	COMPARE_SCALAR_FIELD(is_grant);
+
+	return true;
+}
+
+static bool
 _equalAlterDefaultPrivilegesStmt(const AlterDefaultPrivilegesStmt *a, const AlterDefaultPrivilegesStmt *b)
 {
 	COMPARE_NODE_FIELD(options);
@@ -2754,6 +2764,9 @@ equal(const void *a, const void *b)
 			break;
 		case T_GrantRoleStmt:
 			retval = _equalGrantRoleStmt(a, b);
+			break;
+		case T_GrantPermissionStmt:
+			retval = _equalGrantPermissionStmt(a, b);
 			break;
 		case T_AlterDefaultPrivilegesStmt:
 			retval = _equalAlterDefaultPrivilegesStmt(a, b);

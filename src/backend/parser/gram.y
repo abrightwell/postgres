@@ -51,6 +51,7 @@
 
 #include "catalog/index.h"
 #include "catalog/namespace.h"
+#include "catalog/pg_permission.h"
 #include "catalog/pg_trigger.h"
 #include "commands/defrem.h"
 #include "commands/trigger.h"
@@ -322,6 +323,8 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 %type <str>		iso_level opt_encoding
 %type <node>	grantee
 %type <list>	grantee_list
+%type <ival>	permission
+%type <list>	permission_list
 %type <accesspriv> privilege
 %type <list>	privileges privilege_list
 %type <privtarget> privilege_target
@@ -6072,6 +6075,14 @@ GrantRoleStmt:
 					n->grantor = $6;
 					$$ = (Node*)n;
 				}
+			| GRANT permission_list TO role_list
+				{
+					GrantPermissionStmt *n = makeNode(GrantPermissionStmt);
+					n->is_grant = true;
+					n->permissions = $2;
+					n->roles = $4;
+					$$ = (Node*)n;
+				}
 		;
 
 RevokeRoleStmt:
@@ -6095,6 +6106,14 @@ RevokeRoleStmt:
 					n->behavior = $9;
 					$$ = (Node*)n;
 				}
+			| REVOKE permission_list FROM role_list
+				{
+					GrantPermissionStmt *n = makeNode(GrantPermissionStmt);
+					n->is_grant = false;
+					n->permissions = $2;
+					n->roles = $4;
+					$$ = (Node*)n;
+				}
 		;
 
 opt_grant_admin_option: WITH ADMIN OPTION				{ $$ = TRUE; }
@@ -6103,6 +6122,15 @@ opt_grant_admin_option: WITH ADMIN OPTION				{ $$ = TRUE; }
 
 opt_granted_by: GRANTED BY RoleId						{ $$ = $3; }
 			| /*EMPTY*/									{ $$ = NULL; }
+		;
+
+permission_list: permission						{ $$ = list_make1_int($1); }
+			| permission_list ',' permission	{ $$ = lappend_int($1, $3); }
+		;
+
+permission: CREATE DATABASE						{ $$ = PERM_CREATE_DATABASE; }
+			| CREATE ROLE						{ $$ = PERM_CREATE_ROLE; }
+			| /*EMPTY*/							{ $$ = PERM_INVALID; }
 		;
 
 /*****************************************************************************
