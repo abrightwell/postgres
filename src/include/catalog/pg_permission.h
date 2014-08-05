@@ -38,10 +38,14 @@ typedef FormData_pg_permission *Form_pg_permission;
  */
 #define Natts_pg_permission						2
 #define Anum_pg_permission_permroleid			1
-#define Anum_pg_permission_permpermission		1
+#define Anum_pg_permission_permpermission		2
 
-#define PERMISSION_CREATE_DB	0
-#define PERMISSION_CREATE_ROLE	1
+typedef enum Permission
+{
+	PERM_INVALID = -1,			/* Invalid Permission */
+	PERM_CREATE_DATABASE = 0,	/* CREATE DATABASE */
+	PERM_CREATE_ROLE			/* CREATE ROLE */
+} Permission;
 
 #endif   /* PG_PERMISSION_H */
 
