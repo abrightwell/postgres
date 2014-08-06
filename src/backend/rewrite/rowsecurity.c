@@ -153,9 +153,6 @@ pull_row_security_policy(CmdType cmd, Relation relation)
 						elog(ERROR, "unrecognized command type.");
 						break;
 				}
-
-				qual = copyObject(policy->rsall->qual);
-				quals = lcons(qual, quals);
 			}
 		}
 		else if (!has_bypassrls_privilege(GetUserId()))
