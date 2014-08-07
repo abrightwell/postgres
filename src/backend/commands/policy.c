@@ -575,7 +575,9 @@ AlterPolicy(AlterPolicyStmt *stmt)
 		recordDependencyOnExpr(&myself, qual, pstate->p_rtable,
 							   DEPENDENCY_NORMAL);
 	} else {
-		/* Error - Row Security Policy does not exist for table. */
+		elog(ERROR, "policy %s for %s does not exist on table %s",
+			 stmt->policy_name, stmt->cmd,
+			 RelationGetRelationName(target_table));
 	}
 
 	/* Invalidate Relation Cache */
