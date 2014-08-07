@@ -574,6 +574,8 @@ AlterPolicy(AlterPolicyStmt *stmt)
 
 		recordDependencyOnExpr(&myself, qual, pstate->p_rtable,
 							   DEPENDENCY_NORMAL);
+
+		heap_freetuple(new_tuple);
 	} else {
 		elog(ERROR, "policy %s for %s does not exist on table %s",
 			 stmt->policy_name, stmt->cmd,
@@ -585,7 +587,6 @@ AlterPolicy(AlterPolicyStmt *stmt)
 
 	/* Clean up. */
 	free_parsestate(pstate);
-	heap_freetuple(new_tuple);
 	systable_endscan(sscan);
 	relation_close(target_table, NoLock);
 	heap_close(pg_rowsecurity_rel, RowExclusiveLock);
