@@ -617,8 +617,6 @@ DropPolicy(DropPolicyStmt *stmt)
 										RangeVarCallbackForCreatePolicy,
 										(void *) stmt);
 
-	target_table = relation_open(table_id, NoLock);
-
 	pg_rowsecurity_rel = heap_open(RowSecurityRelationId, RowExclusiveLock);
 
 	/* Add key - row security policy name. */
@@ -644,12 +642,19 @@ DropPolicy(DropPolicyStmt *stmt)
 	rsec_tuple = systable_getnext(sscan);
 
 	if (HeapTupleIsValid(rsec_tuple))
-		simple_heap_delete(pg_rowsecurity_rel, &rsec_tuple->t_self);
+	{
+		ObjectAddress address;
+
+		address.classId = RowSecurityRelationId;
+		address.objectId = HeapTupleHeaderGetOid(rsec_tuple->t_data);
+		address.objectSubId = 0;
+
+		performDeletion(&address, DROP_RESTRICT, 0);
+	}
 	else
-		elog(INFO, "Relation %s has no row-security policy name \"%s\", skipped",
-			 RelationGetRelationName(target_table), stmt->policy_name);
+		elog(NOTICE, "Relation \"%s\" has no row-security policy named \"%s\" for %s, skipped",
+			 stmt->table->relname, stmt->policy_name, stmt->cmd);
 
 	systable_endscan(sscan);
-	relation_close(target_table, NoLock);
 	heap_close(pg_rowsecurity_rel, RowExclusiveLock);
 }
