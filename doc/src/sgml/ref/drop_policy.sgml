@@ -1,0 +1,118 @@
+<!--
+doc/src/sgml/ref/drop_policy.sgml
+PostgreSQL documentation
+-->
+
+<refentry id="SQL-DROPPOLICY">
+ <indexterm zone="sql-droprule">
+  <primary>DROP POLICY</primary>
+ </indexterm>
+
+ <refmeta>
+  <refentrytitle>DROP POLICY</refentrytitle>
+  <manvolnum>7</manvolnum>
+  <refmiscinfo>SQL - Language Statements</refmiscinfo>
+ </refmeta>
+
+ <refnamediv>
+  <refname>DROP POLICY</refname>
+  <refpurpose>remove a row-security policy</refpurpose>
+ </refnamediv>
+
+ <refsynopsisdiv>
+<synopsis>
+DROP POLICY [ IF EXISTS ] <replaceable class="parameter">policy_name</replaceable> ON <replaceable class="parameter">table_name</replaceable>
+    FOR <replaceable class="parameter">command</replaceable>
+
+<phrase>where <replaceable class="parameter">command</replaceable> can be one of:</phrase>
+
+    ALL | SELECT | INSERT | UPDATE | DELETE
+</synopsis>
+ </refsynopsisdiv>
+
+ <refsect1>
+  <title>Description</title>
+
+  <para>
+   <command>DROP POLICY</command> drops a row-security policy.
+  </para>
+ </refsect1>
+
+ <refsect1>
+  <title>Parameters</title>
+
+  <variablelist>
+
+   <varlistentry>
+    <term><literal>IF EXISTS</literal></term>
+    <listitem>
+     <para>
+      Do not throw an error if the policy does not exist. A notice is issued
+      in this case.
+     </para>
+    </listitem>
+   </varlistentry
+
+   <varlistentry>
+    <term><replaceable class="parameter">policy_name</replaceable></term>
+    <listitem>
+     <para>
+      The name of the policy to drop.
+     </para>
+    </listitem>
+   </varlistentry>
+
+   <varlistentry>
+    <term><replaceable class="parameter">table_name</replaceable></term>
+    <listitem>
+     <para>
+      The name (optionally schema-qualified) of the table that
+      the policy applies to.
+     </para>
+    </listitem>
+   </varlistentry>
+
+   <varlistentry>
+    <term><replaceable class="parameter">command</replaceable></term>
+    <listitem>
+     <para>
+      The command that the policy applies to.
+     </para>
+    </listitem>
+   </varlistentry>
+  </variablelist>
+ </refsect1>
+
+ <refsect1>
+  <title>Examples</title>
+
+  <para>
+   To drop the row-security policy called <literal>p1</literal> on the
+   table named <literal>my_table</literal> for the <literal>ALL</literal> command:
+
+   <programlisting>
+    DROP POLICY p1 ON my_table FOR ALL;
+   </programlisting>
+  </para>
+ </refsect1>
+
+ <refsect1>
+  <title>Compatibility</title>
+
+  <para>
+   <command>DROP POLICY</command> is a
+   <productname>PostgreSQL</productname> language extension, as is the
+   entire query rewrite system.
+  </para>
+ </refsect1>
+
+ <refsect1>
+  <title>See Also</title>
+
+  <simplelist type="inline">
+   <member><xref linkend="sql-createpolicy"></member>
+   <member><xref linkend="sql-alterpolicy"></member>
+  </simplelist>
+ </refsect1>
+
+</refentry>

@@ -1,0 +1,110 @@
+<!--
+doc/src/sgml/ref/alter_policy.sgml
+PostgreSQL documentation
+-->
+
+<refentry id="SQL-ALTERPOLICY">
+ <indexterm zone="sql-alterpolicy">
+  <primary>ALTER POLICY</primary>
+ </indexterm>
+
+ <refmeta>
+  <refentrytitle>ALTER POLICY</refentrytitle>
+  <manvolnum>7</manvolnum>
+  <refmiscinfo>SQL - Language Statements</refmiscinfo>
+ </refmeta>
+
+ <refnamediv>
+  <refname>ALTER POLICY</refname>
+  <refpurpose>change the condition of a row-security policy</refpurpose>
+ </refnamediv>
+
+ <refsynopsisdiv>
+<synopsis>
+ALTER POLICY <replaceable class="parameter">policy name</replaceable> ON <replaceable class="parameter">table_name</replaceable>
+    FOR <replaceable class="parameter">command</replaceable>
+    USING ( <replaceable class="parameter">condition</replaceable> )
+
+<phrase>where <replaceable class="parameter">command</replaceable> can be one of:</phrase>
+
+    ALL | SELECT | INSERT | UPDATE | DELETE
+</synopsis>
+ </refsynopsisdiv>
+
+ <refsect1>
+  <title>Description</title>
+
+  <para>
+   <command>ALTER POLICY</command> changes the <replaceable class="parameter">
+   condition</replaceable> of an existing row-security policy.
+  </para>
+
+  <para>
+   To use <command>ALTER POLICY</command>, you must own the table that
+   the policy applies to.
+  </para>
+ </refsect1>
+
+ <refsect1>
+  <title>Parameters</title>
+
+  <variablelist>
+   <varlistentry>
+    <term><replaceable class="parameter">policy_name</replaceable></term>
+    <listitem>
+     <para>
+      The name of an existing policy to alter.
+     </para>
+    </listitem>
+   </varlistentry>
+
+   <varlistentry>
+    <term><replaceable class="parameter">table_name</replaceable></term>
+    <listitem>
+     <para>
+      The name (optionally schema-qualified) of the table that the
+      policy applies to.
+     </para>
+    </listitem>
+   </varlistentry>
+
+   <varlistentry>
+    <term><replaceable class="parameter">command</replaceable></term>
+    <listitem>
+     <para>
+      The command that the policy applies to.
+     </para>
+    </listitem>
+   </varlistentry>
+
+   <varlistentry>
+    <term><replaceable class="parameter">condition</replaceable></term>
+    <listitem>
+     <para>
+      The new condition for the policy.
+     </para>
+    </listitem>
+   </varlistentry>
+  </variablelist>
+ </refsect1>
+
+ <refsect1>
+  <title>Compatibility</title>
+
+  <para>
+   <command>ALTER POLICY</command> is a
+   <productname>PostgreSQL</productname> language extension, as is the
+   entire query rewrite system.
+  </para>
+ </refsect1>
+
+ <refsect1>
+  <title>See Also</title>
+
+  <simplelist type="inline">
+   <member><xref linkend="sql-createpolicy"></member>
+   <member><xref linkend="sql-droppolicy"></member>
+  </simplelist>
+ </refsect1>
+
+</refentry>

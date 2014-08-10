@@ -1,0 +1,138 @@
+<!--
+doc/src/sgml/ref/create_policy.sgml
+PostgreSQL documentation
+-->
+
+<refentry id="SQL-CREATEPOLICY">
+ <indexterm zone="sql-createpolicy">
+  <primary>CREATE POLICY</primary>
+ </indexterm>
+
+ <refmeta>
+  <refentrytitle>CREATE POLICY</refentrytitle>
+  <manvolnum>7</manvolnum>
+  <refmiscinfo>SQL - Language Statements</refmiscinfo>
+ </refmeta>
+
+ <refnamediv>
+  <refname>CREATE POLICY</refname>
+  <refpurpose>define a new row-security policy</refpurpose>
+ </refnamediv>
+
+ <refsynopsisdiv>
+<synopsis>
+CREATE POLICY <replaceable class="parameter">policy_name</replaceable> ON <replaceable class="parameter">table_name</replaceable>
+    FOR <replaceable class="parameter">command</replaceable>
+    USING ( <replaceable class="parameter">condition</replaceable> )
+
+<phrase>where <replaceable class="parameter">command</replaceable> can be one of:</phrase>
+
+    ALL | SELECT | INSERT | UPDATE | DELETE
+</synopsis>
+ </refsynopsisdiv>
+
+ <refsect1>
+  <title>Description</title>
+
+  <para>
+   <command>CREATE POLICY</command> defines a new row-security policy applying to a specified table for a specific command.
+  </para>
+
+  <para>
+   The <productname>PostgreSQL</productname> row-security system allows
+   one to define per command row level security policies on a table. A policy
+   consists of a name, a table, a command and a qualifier expression.
+  </para>
+
+  <note>
+   <para>
+    A view that is simple enough to be automatically updatable (see <xref
+    linkend="sql-createview">) does not require a user-created rule in
+    order to be updatable.  While you can create an explicit rule anyway,
+    the automatic update transformation will generally outperform an
+    explicit rule.
+   </para>
+
+   <para>
+    Another alternative worth considering is to use <literal>INSTEAD OF</>
+    triggers (see <xref linkend="sql-createtrigger">) in place of rules.
+   </para>
+  </note>
+ </refsect1>
+
+ <refsect1>
+  <title>Parameters</title>
+
+  <variablelist>
+   <varlistentry>
+    <term><replaceable class="parameter">policy_name</replaceable></term>
+    <listitem>
+     <para>
+      The name of a policy to create.  This must be distinct from the
+      name of any other policy for the same table and command.
+     </para>
+    </listitem>
+   </varlistentry>
+
+   <varlistentry>
+    <term><replaceable class="parameter">table_name</replaceable></term>
+    <listitem>
+     <para>
+      The name (optionally schema-qualified) of the table the
+      policy applies to.
+     </para>
+    </listitem>
+   </varlistentry>
+
+   <varlistentry>
+    <term><replaceable class="parameter">command</replaceable></term>
+    <listitem>
+     <para>
+      The command or commands that the policy applies.  Valid
+      commands are <command>ALL</command>, <command>SELECT</command>,
+      <command>INSERT</command>, <command>UPDATE</command>,
+      or <command>DELETE</command>
+     </para>
+    </listitem>
+   </varlistentry>
+
+   <varlistentry>
+    <term><replaceable class="parameter">condition</replaceable></term>
+    <listitem>
+     <para>
+      Any <acronym>SQL</acronym> conditional expression (returning
+      <type>boolean</type>).  The condition expression cannot contain
+      any aggregate or window functions.
+     </para>
+    </listitem>
+   </varlistentry>
+  </variablelist>
+ </refsect1>
+
+ <refsect1>
+  <title>Notes</title>
+
+  <para>
+   You must be the owner of a table to create or change policies for it.
+  </para>
+
+ <refsect1>
+  <title>Compatibility</title>
+
+  <para>
+   <command>CREATE POLICY</command> is a
+   <productname>PostgreSQL</productname> language extension, as is the
+   entire query rewrite system.
+  </para>
+ </refsect1>
+
+ <refsect1>
+  <title>See Also</title>
+
+  <simplelist type="inline">
+   <member><xref linkend="sql-alterpolicy"></member>
+   <member><xref linkend="sql-droppolicy"></member>
+  </simplelist>
+ </refsect1>
+
+</refentry>
