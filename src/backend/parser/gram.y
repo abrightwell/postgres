@@ -4456,6 +4456,16 @@ DropPolicyStmt:
 					n->policy_name = $3;
 					n->table = $5;
 					n->cmd = $7;
+					n->missing_ok = FALSE;
+					$$ = (Node *) n;
+				}
+			| DROP POLICY IF_P EXISTS name ON qualified_name FOR row_security_cmd
+				{
+					DropPolicyStmt *n = makeNode(DropPolicyStmt);
+					n->policy_name = $5;
+					n->table = $7;
+					n->cmd = $9;
+					n->missing_ok = TRUE;
 					$$ = (Node *) n;
 				}
 		;

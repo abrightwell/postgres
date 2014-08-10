@@ -1861,10 +1861,10 @@ typedef struct ImportForeignSchemaStmt
 typedef struct CreatePolicyStmt
 {
 	NodeTag		type;
-	char	   *policy_name;
-	RangeVar   *table;
-	char	   *cmd;
-	Node	   *qual;
+	char	   *policy_name;	/* Policy's name */
+	RangeVar   *table;			/* the table name the policy applies to */
+	char	   *cmd;			/* the command name the policy applies to */
+	Node	   *qual;			/* the policy's condition */
 } CreatePolicyStmt;
 
 /*----------------------
@@ -1874,10 +1874,10 @@ typedef struct CreatePolicyStmt
 typedef struct AlterPolicyStmt
 {
 	NodeTag		type;
-	char	   *policy_name;
-	RangeVar   *table;
-	char	   *cmd;
-	Node	   *qual;
+	char	   *policy_name;	/* Policy's name */
+	RangeVar   *table;			/* the table name the policy applies to */
+	char	   *cmd;			/* the command name the policy applies to */
+	Node	   *qual;			/* the policy's condition */
 } AlterPolicyStmt;
 
 /*----------------------
@@ -1887,9 +1887,10 @@ typedef struct AlterPolicyStmt
 typedef struct DropPolicyStmt
 {
 	NodeTag		type;
-	char	   *policy_name;
-	RangeVar   *table;
-	char	   *cmd;
+	char	   *policy_name;	/* Policy's name */
+	RangeVar   *table;			/* the table name the policy applies to */
+	char	   *cmd;			/* the command name the policy applies to */
+	bool		missing_ok;		/* skip error if policy is missing. */
 } DropPolicyStmt;
 
 /* ----------------------

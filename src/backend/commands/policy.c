@@ -601,7 +601,6 @@ void
 DropPolicy(DropPolicyStmt *stmt)
 {
 	Relation		pg_rowsecurity_rel;
-	Relation		target_table;
 	Oid				table_id;
 	char			rseccmd;
 	ScanKeyData		skeys[3];
@@ -652,8 +651,23 @@ DropPolicy(DropPolicyStmt *stmt)
 		performDeletion(&address, DROP_RESTRICT, 0);
 	}
 	else
-		elog(NOTICE, "Relation \"%s\" has no row-security policy named \"%s\" for %s, skipped",
-			 stmt->table->relname, stmt->policy_name, stmt->cmd);
+	{
+		if (!stmt->missing_ok)
+		{
+			ereport(ERROR,
+					(errcode(ERRCODE_UNDEFINED_OBJECT),
+					 errmsg("row-security policy \"%s\" does not exist on table"
+							" \"%s\" for \"%s\"",
+							stmt->policy_name, stmt->table->relname, stmt->cmd)));
+		}
+		else
+		{
+			ereport(NOTICE,
+					(errmsg("row-security policy \"%s\" does not exist on table"
+							" \"%s\" for \"%s\", skipping",
+						   stmt->policy_name, stmt->table->relname, stmt->cmd)));
+		}
+	}
 
 	systable_endscan(sscan);
 	heap_close(pg_rowsecurity_rel, RowExclusiveLock);
