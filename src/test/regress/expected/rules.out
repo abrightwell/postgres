@@ -2019,7 +2019,8 @@ pg_tables| SELECT n.nspname AS schemaname,
     t.spcname AS tablespace,
     c.relhasindex AS hasindexes,
     c.relhasrules AS hasrules,
-    c.relhastriggers AS hastriggers
+    c.relhastriggers AS hastriggers,
+    c.relhasrowsecurity AS hasrowsecurity
    FROM ((pg_class c
      LEFT JOIN pg_namespace n ON ((n.oid = c.relnamespace)))
      LEFT JOIN pg_tablespace t ON ((t.oid = c.reltablespace)))
