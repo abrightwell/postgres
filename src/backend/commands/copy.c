@@ -785,6 +785,7 @@ DoCopy(const CopyStmt *stmt, const char *queryString, uint64 *processed)
 	bool		pipe = (stmt->filename == NULL);
 	Relation	rel;
 	Oid			relid;
+	SelectStmt *query = NULL;
 
 	/* Disallow COPY to/from file or program except to superusers. */
 	if (!pipe && !superuser())
@@ -818,43 +819,71 @@ DoCopy(const CopyStmt *stmt, const char *queryString, uint64 *processed)
 		rel = heap_openrv(stmt->relation,
 						  (is_from ? RowExclusiveLock : AccessShareLock));
 
-		relid = RelationGetRelid(rel);
-
 		/*
-		 * Test for row-security policy. If there's any policy for this relation,
-		 * we don't permit COPY on it.
+		 * If the relation has a row security policy, then perform a "query"
+		 * copy.  This will allow for the policies to be applied appropriately
+		 * to the relation.
 		 */
-		rowsecpolicy = pull_row_security_policy(CMD_UTILITY, rel);
-		if (rowsecpolicy != NIL)
-			ereport(ERROR,
-					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-					 errmsg("Cannot COPY a relation with a row-security policy as non-superuser")));
-
-		relid = RelationGetRelid(rel);
-		rte = makeNode(RangeTblEntry);
-		rte->rtekind = RTE_RELATION;
-		rte->relid = RelationGetRelid(rel);
-		rte->relkind = rel->rd_rel->relkind;
-		rte->requiredPerms = required_access;
-
-		tupDesc = RelationGetDescr(rel);
-		attnums = CopyGetAttnums(tupDesc, rel, stmt->attlist);
-		foreach(cur, attnums)
+		if (rel->rd_rel->relhasrowsecurity)
 		{
-			int			attno = lfirst_int(cur) -
-			FirstLowInvalidHeapAttributeNumber;
+			ColumnRef *cr;
+			ResTarget *target;
+			RangeVar *from;
 
-			if (is_from)
-				rte->modifiedCols = bms_add_member(rte->modifiedCols, attno);
-			else
-				rte->selectedCols = bms_add_member(rte->selectedCols, attno);
+			/* Build target list */
+			cr = makeNode(ColumnRef);
+			cr->fields = list_make1(makeNode(A_Star));
+			cr->location = 1;
+
+			target = makeNode(ResTarget);
+			target->name = NULL;
+			target->indirection = NIL;
+			target->val = cr;
+			target->location = 1;
+
+			/* Build FROM clause */
+			from = makeRangeVar(NULL, RelationGetRelationName(rel), 1);
+
+			/* Build query */
+			query = makeNode(SelectStmt);
+			query->targetList = list_make1(target);
+			query->fromClause = list_make1(from);
+
+			relid = InvalidOid;
+
+			/* Close the handle to the relation as it is no longer needed. */
+			heap_close(rel, (is_from ? RowExclusiveLock : AccessShareLock));
+			rel = NULL;
 		}
-		ExecCheckRTPerms(list_make1(rte), true);
+		else
+		{
+			relid = RelationGetRelid(rel);
+			rte = makeNode(RangeTblEntry);
+			rte->rtekind = RTE_RELATION;
+			rte->relid = RelationGetRelid(rel);
+			rte->relkind = rel->rd_rel->relkind;
+			rte->requiredPerms = required_access;
+
+			tupDesc = RelationGetDescr(rel);
+			attnums = CopyGetAttnums(tupDesc, rel, stmt->attlist);
+			foreach(cur, attnums)
+			{
+				int			attno = lfirst_int(cur) -
+				FirstLowInvalidHeapAttributeNumber;
+
+				if (is_from)
+					rte->modifiedCols = bms_add_member(rte->modifiedCols, attno);
+				else
+					rte->selectedCols = bms_add_member(rte->selectedCols, attno);
+			}
+			ExecCheckRTPerms(list_make1(rte), true);
+		}
 	}
 	else
 	{
 		Assert(stmt->query);
 
+		query = stmt->query;
 		relid = InvalidOid;
 		rel = NULL;
 	}
@@ -874,7 +903,7 @@ DoCopy(const CopyStmt *stmt, const char *queryString, uint64 *processed)
 	}
 	else
 	{
-		cstate = BeginCopyTo(rel, stmt->query, queryString,
+		cstate = BeginCopyTo(rel, query, queryString,
 							 stmt->filename, stmt->is_program,
 							 stmt->attlist, stmt->options);
 		*processed = DoCopyTo(cstate);	/* copy from database to file */
