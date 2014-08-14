@@ -37,6 +37,7 @@
 #include "optimizer/clauses.h"
 #include "optimizer/planner.h"
 #include "parser/parse_relation.h"
+#include "nodes/makefuncs.h"
 #include "rewrite/rewriteHandler.h"
 #include "rewrite/rowsecurity.h"
 #include "storage/fd.h"
@@ -785,7 +786,7 @@ DoCopy(const CopyStmt *stmt, const char *queryString, uint64 *processed)
 	bool		pipe = (stmt->filename == NULL);
 	Relation	rel;
 	Oid			relid;
-	SelectStmt *query = NULL;
+	Node	   *query = NULL;
 
 	/* Disallow COPY to/from file or program except to superusers. */
 	if (!pipe && !superuser())
@@ -811,7 +812,6 @@ DoCopy(const CopyStmt *stmt, const char *queryString, uint64 *processed)
 		RangeTblEntry *rte;
 		List	   *attnums;
 		ListCell   *cur;
-		List	   *rowsecpolicy;
 
 		Assert(!stmt->query);
 
@@ -826,9 +826,10 @@ DoCopy(const CopyStmt *stmt, const char *queryString, uint64 *processed)
 		 */
 		if (rel->rd_rel->relhasrowsecurity)
 		{
-			ColumnRef *cr;
-			ResTarget *target;
-			RangeVar *from;
+			SelectStmt *select;
+			ColumnRef  *cr;
+			ResTarget  *target;
+			RangeVar   *from;
 
 			/* Build target list */
 			cr = makeNode(ColumnRef);
@@ -838,16 +839,18 @@ DoCopy(const CopyStmt *stmt, const char *queryString, uint64 *processed)
 			target = makeNode(ResTarget);
 			target->name = NULL;
 			target->indirection = NIL;
-			target->val = cr;
+			target->val = (Node *) cr;
 			target->location = 1;
 
 			/* Build FROM clause */
 			from = makeRangeVar(NULL, RelationGetRelationName(rel), 1);
 
 			/* Build query */
-			query = makeNode(SelectStmt);
-			query->targetList = list_make1(target);
-			query->fromClause = list_make1(from);
+			select = makeNode(SelectStmt);
+			select->targetList = list_make1(target);
+			select->fromClause = list_make1(from);
+
+			query = (Node*) select;
 
 			relid = InvalidOid;
 

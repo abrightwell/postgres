@@ -40,6 +40,12 @@
 #include "utils/rel.h"
 #include "utils/syscache.h"
 
+static void RangeVarCallbackForCreatePolicy(const RangeVar *rv,
+				Oid relid, Oid oldrelid, void *arg);
+static const char parse_row_security_command(const char *cmd_name);
+static RowSecurityEntry* create_row_security_entry(Oid id, Expr *qual,
+				MemoryContext context);
+
 /*
  * Callback to RangeVarGetRelidExtended().
  *

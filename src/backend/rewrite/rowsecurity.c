@@ -73,7 +73,7 @@ prepend_row_security_quals(Query* root, RangeTblEntry* rte, int rt_index)
 			 * We rewrite the expression in-place.
 			 */
 			qualsAdded = true;
-			ChangeVarNodes(rowsecquals, 1, rt_index, 0);
+			ChangeVarNodes((Node *) rowsecquals, 1, rt_index, 0);
 			rte->securityQuals = list_concat(rowsecquals, rte->securityQuals);
 		}
 		heap_close(rel, NoLock);
@@ -98,8 +98,6 @@ List *
 pull_row_security_policy(CmdType cmd, Relation relation)
 {
 	List   *quals = NIL;
-	Expr   *qual = NULL;
-	char   *row_security_option;
 
 	/*
 	 * Pull the row-security policy configured with built-in features,
@@ -187,7 +185,7 @@ pull_row_security_policy(CmdType cmd, Relation relation)
 bool
 is_rls_enabled()
 {
-	char *rls_option;
+	char const *rls_option;
 
 	rls_option = GetConfigOption("row_security", true, false);
 

@@ -26,6 +26,6 @@ extern List *pull_row_security_policy(CmdType cmd, Relation relation);
 extern bool prepend_row_security_quals(Query* root, RangeTblEntry* rte,
 									   int rt_index);
 
-extern bool is_rls_enabled();
+extern bool is_rls_enabled(void);
 
 #endif	/* ROWSECURITY_H */
