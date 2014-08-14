@@ -190,15 +190,6 @@ RelationBuildRowSecurity(Relation relation)
 
 			policy_id = HeapTupleGetOid(tuple);
 
-			/* Currently only support ALL command.  Ignore all other policies. */
-			if (DatumGetChar(cmd_value) != ROWSECURITY_CMD_ALL)
-			{
-				ereport(WARNING,
-						(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-						 errmsg("Per-command row-security not implemented")));
-				continue;
-			}
-
 			/* Find policy description for policy based on policy name.*/
 			foreach(item, rsdesc->policies)
 			{
