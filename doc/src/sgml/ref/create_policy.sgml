@@ -44,20 +44,6 @@ CREATE POLICY <replaceable class="parameter">policy_name</replaceable> ON <repla
    consists of a name, a table, a command and a qualifier expression.
   </para>
 
-  <note>
-   <para>
-    A view that is simple enough to be automatically updatable (see <xref
-    linkend="sql-createview">) does not require a user-created rule in
-    order to be updatable.  While you can create an explicit rule anyway,
-    the automatic update transformation will generally outperform an
-    explicit rule.
-   </para>
-
-   <para>
-    Another alternative worth considering is to use <literal>INSTEAD OF</>
-    triggers (see <xref linkend="sql-createtrigger">) in place of rules.
-   </para>
-  </note>
  </refsect1>
 
  <refsect1>
@@ -88,8 +74,8 @@ CREATE POLICY <replaceable class="parameter">policy_name</replaceable> ON <repla
     <term><replaceable class="parameter">command</replaceable></term>
     <listitem>
      <para>
-      The command or commands that the policy applies.  Valid
-      commands are <command>ALL</command>, <command>SELECT</command>,
+      The command to which the policy applies.  Valid commands are
+      <command>ALL</command>, <command>SELECT</command>,
       <command>INSERT</command>, <command>UPDATE</command>,
       or <command>DELETE</command>
      </para>

@@ -40,6 +40,16 @@
 #include "utils/rel.h"
 #include "utils/syscache.h"
 
+/*
+ * Callback to RangeVarGetRelidExtended().
+ *
+ * Checks the following:
+ *  - the relation specified is a table.
+ *  - current user owns the table.
+ *  - the table is not a system table.
+ *
+ * If any of these checks fails then an error is raised.
+ */
 static void
 RangeVarCallbackForCreatePolicy(const RangeVar *rv, Oid relid, Oid oldrelid,
 								void *arg)
@@ -74,6 +84,15 @@ RangeVarCallbackForCreatePolicy(const RangeVar *rv, Oid relid, Oid oldrelid,
 	ReleaseSysCache(tuple);
 }
 
+/*
+ * parse_row_security_command -
+ *   helper function to convert full commands strings to their char
+ *   representation.
+ *
+ * cmd_name - full string command name. Valid values are 'all', 'select',
+ *			  'insert', 'update' and 'delete'.
+ *
+ */
 static const char
 parse_row_security_command(const char *cmd_name)
 {
@@ -96,6 +115,14 @@ parse_row_security_command(const char *cmd_name)
 	return cmd;
 }
 
+/*
+ * create_row_security_entry -
+ *   helper function to create a RowSecurityEntry.
+ *
+ * id - the oid of the row-security policy.
+ * qual - the qualifier expression of the row-security policy.
+ * context - the memory context to which the entry belongs.
+ */
 static RowSecurityEntry *
 create_row_security_entry(Oid id, Expr *qual, MemoryContext context)
 {
@@ -261,6 +288,13 @@ RelationBuildRowSecurity(Relation relation)
 	relation->rsdesc = rsdesc;
 }
 
+/*
+ * RemovePolicyById -
+ *   remove a row-security policy by its OID.  If a policy does not exist with
+ *   the provide oid, then an error is raised.
+ *
+ * policy_id - the oid of the row-security policy.
+ */
 void
 RemovePolicyById(Oid policy_id)
 {
@@ -283,12 +317,10 @@ RemovePolicyById(Oid policy_id)
 
 	tuple = systable_getnext(sscan);
 
+	/* If the policy exists, then remote it, otherwise raise an error. */
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "could not find tuple for row-security %u", policy_id);
 
-	/*
-	 * Open an exclusive-lock on the relation the row-security belongs to.
-	 */
 	relid = ((Form_pg_rowsecurity) GETSTRUCT(tuple))->rsecrelid;
 
 	rel = heap_open(relid, AccessExclusiveLock);
@@ -297,14 +329,17 @@ RemovePolicyById(Oid policy_id)
 
 	CacheInvalidateRelcache(rel);
 
+	/* Clean up */
 	heap_close(rel, AccessExclusiveLock);
-
 	systable_endscan(sscan);
 	heap_close(pg_rowsecurity_rel, RowExclusiveLock);
 }
 
 /*
- * CREATE POLICY
+ * CreatePolicy -
+ *   handles the execution of the CREATE POLICY command.
+ *
+ * stmt - the CreatePolicyStmt that describes the policy to create.
  */
 Oid
 CreatePolicy(CreatePolicyStmt *stmt)
@@ -379,6 +414,10 @@ CreatePolicy(CreatePolicyStmt *stmt)
 
 	rsec_tuple = systable_getnext(sscan);
 
+	/*
+	 * If the policy does not already exist, then create it.  Otherwise, raise
+	 * an error notifying that the policy already exists.
+	 */
 	if (!HeapTupleIsValid(rsec_tuple))
 	{
 		values[Anum_pg_rowsecurity_rsecrelid - 1]
@@ -454,7 +493,10 @@ CreatePolicy(CreatePolicyStmt *stmt)
 }
 
 /*
- * ALTER POLICY
+ * AlterPolicy -
+ *   handles the execution of the ALTER POLICY command.
+ *
+ * stmt - the AlterPolicyStmt that describes the policy and how to alter it.
  */
 Oid
 AlterPolicy(AlterPolicyStmt *stmt)
@@ -531,6 +573,7 @@ AlterPolicy(AlterPolicyStmt *stmt)
 
 	rsec_tuple = systable_getnext(sscan);
 
+	/* If the policy exists, then alter it.  Otherwise, raise an error. */
 	if (HeapTupleIsValid(rsec_tuple))
 	{
 		rowsec_id = HeapTupleGetOid(rsec_tuple);
@@ -586,7 +629,10 @@ AlterPolicy(AlterPolicyStmt *stmt)
 }
 
 /*
- * DROP POLICY
+ * DropPolicy -
+ *   handle the execution of the DROP POLICY command.
+ *
+ * stmt - the DropPolicyStmt that describes the policy to drop.
  */
 void
 DropPolicy(DropPolicyStmt *stmt)
@@ -631,6 +677,11 @@ DropPolicy(DropPolicyStmt *stmt)
 
 	rsec_tuple = systable_getnext(sscan);
 
+	/*
+	 * If the policy exists, then remove it.  If policy does not exists and
+	 * the statment uses IF EXISTS, then raise a notice.  If policy does not
+	 * exist and the statment does not use IF EXISTS, then raise an error.
+	 */
 	if (HeapTupleIsValid(rsec_tuple))
 	{
 		ObjectAddress address;
@@ -660,6 +711,7 @@ DropPolicy(DropPolicyStmt *stmt)
 		}
 	}
 
+	/* Clean up. */
 	systable_endscan(sscan);
 	heap_close(pg_rowsecurity_rel, RowExclusiveLock);
 }

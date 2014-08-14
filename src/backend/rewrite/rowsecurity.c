@@ -179,6 +179,11 @@ pull_row_security_policy(CmdType cmd, Relation relation)
 	return quals;
 }
 
+/*
+ * is_rls_enabled -
+ *   determines if row-security is enabled by checking the value of the system
+ *   configuration "row_security".
+ */
 bool
 is_rls_enabled()
 {

@@ -5380,21 +5380,21 @@
       <entry><structfield>rsecrelid</structfield></entry>
       <entry><type>oid</type></entry>
       <entry><literal><link linkend="catalog-pg-class"><structname>pg_class</structname></link>.oid</literal></entry>
-      <entry>The table this row-security is for</entry>
+      <entry>The table to which the row-security policy is applied</entry>
      </row>
 
      <row>
       <entry><structfield>rseccmd</structfield></entry>
       <entry><type>char</type></entry>
       <entry></entry>
-      <entry>The command this row-security is for. 'a' meaning all is only possible value right now.</entry>
+      <entry>The command to which the row-security policy is applied.</entry>
      </row>
 
      <row>
       <entry><structfield>rsecqual</structfield></entry>
       <entry><type>pg_node_tree</type></entry>
       <entry></entry>
-      <entry>An expression tree to be performed as row-security policy</entry>
+      <entry>An expression tree that describes what is to be performed by the row-security policy</entry>
      </row>
     </tbody>
    </tgroup>
