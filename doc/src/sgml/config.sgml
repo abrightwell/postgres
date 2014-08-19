@@ -2778,7 +2778,7 @@ include_dir 'conf.d'
       </listitem>
      </varlistentry>
 
-     <varlistentry id="guc-hot-standby-feedback" xreflabel="hot_standby">
+     <varlistentry id="guc-hot-standby-feedback" xreflabel="hot_standby_feedback">
       <term><varname>hot_standby_feedback</varname> (<type>boolean</type>)
       <indexterm>
        <primary><varname>hot_standby_feedback</> configuration parameter</primary>
@@ -4132,10 +4132,11 @@ local0.*    /var/log/postgresql
      </varlistentry>
 
      <varlistentry id="guc-cluster-name" xreflabel="cluster_name">
-      <term><varname>cluster_name</varname> (<type>string</type>)</term>
+      <term><varname>cluster_name</varname> (<type>string</type>)
       <indexterm>
        <primary><varname>cluster_name</> configuration parameter</primary>
       </indexterm>
+      </term>
       <listitem>
        <para>
         Sets the cluster name that appears in the process title for all

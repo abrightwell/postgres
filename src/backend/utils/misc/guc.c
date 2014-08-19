@@ -126,9 +126,6 @@ extern char *default_tablespace;
 extern char *temp_tablespaces;
 extern bool ignore_checksum_failure;
 extern bool synchronize_seqscans;
-extern char *SSLCipherSuites;
-extern char *SSLECDHCurve;
-extern bool SSLPreferServerCiphers;
 
 #ifdef TRACE_SORT
 extern bool trace_sort;
@@ -4371,6 +4368,13 @@ SelectConfigFiles(const char *userDoption, const char *progname)
 		return false;
 	}
 
+	/*
+	 * Read the configuration file for the first time. This time only
+	 * data_directory parameter is picked up to determine the data directory
+	 * so that we can read PG_AUTOCONF_FILENAME file next time. Then don't
+	 * forget to read the configuration file again later to pick up all the
+	 * parameters.
+	 */
 	ProcessConfigFile(PGC_POSTMASTER);
 
 	/*

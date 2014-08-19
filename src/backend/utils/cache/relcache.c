@@ -3663,6 +3663,7 @@ RelationGetIndexList(Relation relation)
 	ScanKeyData skey;
 	HeapTuple	htup;
 	List	   *result;
+	List	   *oldlist;
 	char		replident = relation->rd_rel->relreplident;
 	Oid			oidIndex = InvalidOid;
 	Oid			pkeyIndex = InvalidOid;
@@ -3754,6 +3755,7 @@ RelationGetIndexList(Relation relation)
 
 	/* Now save a copy of the completed list in the relcache entry. */
 	oldcxt = MemoryContextSwitchTo(CacheMemoryContext);
+	oldlist = relation->rd_indexlist;
 	relation->rd_indexlist = list_copy(result);
 	relation->rd_oidindex = oidIndex;
 	if (replident == REPLICA_IDENTITY_DEFAULT && OidIsValid(pkeyIndex))
@@ -3764,6 +3766,9 @@ RelationGetIndexList(Relation relation)
 		relation->rd_replidindex = InvalidOid;
 	relation->rd_indexvalid = 1;
 	MemoryContextSwitchTo(oldcxt);
+
+	/* Don't leak the old list, if there is one */
+	list_free(oldlist);
 
 	return result;
 }
@@ -4157,6 +4162,14 @@ RelationGetIndexAttrBitmap(Relation relation, IndexAttrBitmapKind attrKind)
 	}
 
 	list_free(indexoidlist);
+
+	/* Don't leak the old values of these bitmaps, if any */
+	bms_free(relation->rd_indexattr);
+	relation->rd_indexattr = NULL;
+	bms_free(relation->rd_keyattr);
+	relation->rd_keyattr = NULL;
+	bms_free(relation->rd_idattr);
+	relation->rd_idattr = NULL;
 
 	/*
 	 * Now save copies of the bitmaps in the relcache entry.  We intentionally
