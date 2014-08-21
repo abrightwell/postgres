@@ -53,12 +53,14 @@
 #include "catalog/namespace.h"
 #include "executor/executor.h"
 #include "executor/spi.h"
+#include "miscadmin.h"
 #include "nodes/nodeFuncs.h"
 #include "optimizer/cost.h"
 #include "optimizer/planmain.h"
 #include "optimizer/prep.h"
 #include "parser/analyze.h"
 #include "parser/parsetree.h"
+#include "rewrite/rowsecurity.h"
 #include "storage/lmgr.h"
 #include "tcop/pquery.h"
 #include "tcop/utility.h"
@@ -151,6 +153,8 @@ CreateCachedPlan(Node *raw_parse_tree,
 	CachedPlanSource *plansource;
 	MemoryContext source_context;
 	MemoryContext oldcxt;
+	Oid user_id;
+	int security_context;
 
 	Assert(query_string != NULL);		/* required as of 8.4 */
 
@@ -172,6 +176,8 @@ CreateCachedPlan(Node *raw_parse_tree,
 	 * Most fields are just left empty for the moment.
 	 */
 	oldcxt = MemoryContextSwitchTo(source_context);
+
+	GetUserIdAndSecContext(&user_id, &security_context);
 
 	plansource = (CachedPlanSource *) palloc0(sizeof(CachedPlanSource));
 	plansource->magic = CACHEDPLANSOURCE_MAGIC;
@@ -201,6 +207,10 @@ CreateCachedPlan(Node *raw_parse_tree,
 	plansource->generic_cost = -1;
 	plansource->total_custom_cost = 0;
 	plansource->num_custom_plans = 0;
+	plansource->has_rls = false;
+	plansource->targetRelId = InvalidOid;
+	plansource->rowSecurityDisabled
+		= (security_context & SECURITY_ROW_LEVEL_DISABLED) != 0;
 
 	MemoryContextSwitchTo(oldcxt);
 
@@ -371,7 +381,9 @@ CompleteCachedPlan(CachedPlanSource *plansource,
 		 */
 		extract_query_dependencies((Node *) querytree_list,
 								   &plansource->relationOids,
-								   &plansource->invalItems);
+								   &plansource->invalItems,
+								   &plansource->has_rls,
+								   &plansource->targetRelId);
 
 		/*
 		 * Also save the current search_path in the query_context.  (This
@@ -582,6 +594,19 @@ RevalidateCachedQuery(CachedPlanSource *plansource)
 		}
 	}
 
+	if (plansource->is_valid
+		&& !plansource->rowSecurityDisabled
+		&& (plansource->targetRelId != InvalidOid))
+	{
+		Relation rel = RelationIdGetRelation(plansource->targetRelId);
+
+		if (rel->rd_rel->relhasrowsecurity
+			&& (plansource->has_rls != is_rls_enabled()))
+			plansource->is_valid = false;
+
+		RelationClose(rel);
+	}
+
 	/*
 	 * If the query is currently valid, acquire locks on the referenced
 	 * objects; then check again.  We need to do it this way to cover the race
@@ -723,7 +748,9 @@ RevalidateCachedQuery(CachedPlanSource *plansource)
 	 */
 	extract_query_dependencies((Node *) qlist,
 							   &plansource->relationOids,
-							   &plansource->invalItems);
+							   &plansource->invalItems,
+							   &plansource->has_rls,
+							   &plansource->targetRelId);
 
 	/*
 	 * Also save the current search_path in the query_context.  (This should

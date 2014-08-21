@@ -67,6 +67,10 @@ typedef struct PlannedStmt
 	List	   *invalItems;		/* other dependencies, as PlanInvalItems */
 
 	int			nParamExec;		/* number of PARAM_EXEC Params used */
+
+	bool		has_rls;		/* row-security applied? */
+
+	Oid			targetRelId;	/* Oid of the target relation */
 } PlannedStmt;
 
 /* macro for fetching the Plan associated with a SubPlan node */

@@ -51,7 +51,7 @@ prepend_row_security_quals(Query* root, RangeTblEntry* rte, int rt_index)
 	bool			qualsAdded = false;
 
 	GetUserIdAndSecContext(&userid, &sec_context);
-	
+
 	if (rte->relid >= FirstNormalObjectId
 		&& rte->relkind == RELKIND_RELATION
 		&& !(sec_context & SECURITY_ROW_LEVEL_DISABLED))
@@ -78,6 +78,8 @@ prepend_row_security_quals(Query* root, RangeTblEntry* rte, int rt_index)
 		}
 		heap_close(rel, NoLock);
 	}
+
+	root->hasRowSecurity = qualsAdded;
 
 	return qualsAdded;
 }

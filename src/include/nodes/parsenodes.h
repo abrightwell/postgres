@@ -120,6 +120,7 @@ typedef struct Query
 	bool		hasRecursive;	/* WITH RECURSIVE was specified */
 	bool		hasModifyingCTE;	/* has INSERT/UPDATE/DELETE in WITH */
 	bool		hasForUpdate;	/* FOR [KEY] UPDATE/SHARE was specified */
+	bool		hasRowSecurity;	/* Row-security policy is applied */
 
 	List	   *cteList;		/* WITH list (of CommonTableExpr's) */
 
