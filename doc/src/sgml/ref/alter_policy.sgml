@@ -23,6 +23,7 @@ PostgreSQL documentation
 <synopsis>
 ALTER POLICY <replaceable class="parameter">policy name</replaceable> ON <replaceable class="parameter">table_name</replaceable>
     FOR <replaceable class="parameter">command</replaceable>
+    TO { <replaceable class="parameter">role_name</replaceable> | PUBLIC } [, ...]
     USING ( <replaceable class="parameter">condition</replaceable> )
 
 <phrase>where <replaceable class="parameter">command</replaceable> can be one of:</phrase>
@@ -73,6 +74,15 @@ ALTER POLICY <replaceable class="parameter">policy name</replaceable> ON <replac
     <listitem>
      <para>
       The command that the policy applies to.
+     </para>
+    </listitem>
+   </varlistentry>
+
+   <varlistentry>
+    <term><replaceable class="parameter">role_name</replaceable></term>
+    <listitem>
+     <para>
+      The role to which the policy applies.  Multiple roles can be specified at one time.  To apply the policy to all roles, use PUBLIC.
      </para>
     </listitem>
    </varlistentry>

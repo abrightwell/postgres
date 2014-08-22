@@ -3858,6 +3858,7 @@ _copyCreatePolicyStmt(const CreatePolicyStmt *from)
 	COPY_STRING_FIELD(policy_name);
 	COPY_NODE_FIELD(table);
 	COPY_SCALAR_FIELD(cmd);
+	COPY_NODE_FIELD(roles);
 	COPY_NODE_FIELD(qual);
 
 	return newnode;
@@ -3871,6 +3872,7 @@ _copyAlterPolicyStmt(const AlterPolicyStmt *from)
 	COPY_STRING_FIELD(policy_name);
 	COPY_NODE_FIELD(table);
 	COPY_SCALAR_FIELD(cmd);
+	COPY_NODE_FIELD(roles);
 	COPY_NODE_FIELD(qual);
 
 	return newnode;

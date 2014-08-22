@@ -64,6 +64,7 @@ INSERT INTO document VALUES
     ( 8, 44, 1, 'rls_regress_user2', 'great manga');
 -- user's security level must be higher that or equal to document's
 CREATE POLICY p1 ON document FOR ALL
+    TO PUBLIC
     USING (dlevel <= (SELECT seclv FROM uaccount WHERE pguser = current_user));
 -- viewpoint from rls_regress_user1
 SET SESSION AUTHORIZATION rls_regress_user1;
@@ -166,12 +167,12 @@ EXPLAIN (COSTS OFF) SELECT * FROM document NATURAL JOIN category WHERE f_leak(dt
 (11 rows)
 
 -- only owner can change row-level security
-ALTER POLICY p1 ON document FOR ALL USING (true);    --fail
+ALTER POLICY p1 ON document FOR ALL TO PUBLIC USING (true);    --fail
 ERROR:  must be owner of relation document
 DROP POLICY p1 ON document FOR ALL;                  --fail
 ERROR:  must be owner of relation document
 SET SESSION AUTHORIZATION rls_regress_user0;
-ALTER POLICY p1 ON document FOR ALL USING (dauthor = current_user);
+ALTER POLICY p1 ON document FOR ALL TO PUBLIC USING (dauthor = current_user);
 -- viewpoint from rls_regress_user1 again
 SET SESSION AUTHORIZATION rls_regress_user1;
 SELECT * FROM document WHERE f_leak(dtitle) ORDER BY did;
@@ -252,6 +253,7 @@ EXPLAIN (COSTS OFF) SELECT * FROM document NATURAL JOIN category WHERE f_leak(dt
 -- interaction of FK/PK constraints
 SET SESSION AUTHORIZATION rls_regress_user0;
 CREATE POLICY p2 ON category FOR ALL
+    TO PUBLIC
     USING (CASE WHEN current_user = 'rls_regress_user1' THEN cid IN (11, 33)
            WHEN current_user = 'rls_regress_user2' THEN cid IN (22, 44)
            ELSE false END);
@@ -371,8 +373,8 @@ COPY t2 FROM stdin WITH (oids);
 CREATE TABLE t3 (c text, b text, a int) WITH OIDS;
 ALTER TABLE t3 INHERIT t1;
 COPY t3(a,b,c) FROM stdin WITH (oids);
-CREATE POLICY p1 ON t1 FOR ALL USING (a % 2 = 0); -- be even number
-CREATE POLICY p2 ON t2 FOR ALL USING (a % 2 = 1); -- be odd number
+CREATE POLICY p1 ON t1 FOR ALL TO PUBLIC USING (a % 2 = 0); -- be even number
+CREATE POLICY p2 ON t2 FOR ALL TO PUBLIC USING (a % 2 = 1); -- be odd number
 SELECT * FROM t1;
  a |  b  
 ---+-----
@@ -618,7 +620,9 @@ SET SESSION AUTHORIZATION rls_regress_user0;
 SET row_security TO ON;
 CREATE TABLE dependee (x integer, y integer);
 CREATE TABLE dependent (x integer, y integer);
-CREATE POLICY d1 ON dependent FOR ALL USING (x = (SELECT d.x FROM dependee d WHERE d.y = y));
+CREATE POLICY d1 ON dependent FOR ALL
+    TO PUBLIC
+    USING (x = (SELECT d.x FROM dependee d WHERE d.y = y));
 DROP TABLE dependee; -- Should fail without CASCADE due to dependency on row-security qual?
 ERROR:  cannot drop table dependee because other objects depend on it
 DETAIL:  row-security of table dependent FOR ALL depends on table dependee
@@ -637,6 +641,7 @@ EXPLAIN (COSTS OFF) SELECT * FROM dependent; -- After drop, should be unqualifie
 --
 CREATE TABLE rec1 (x integer, y integer);
 CREATE POLICY r1 ON rec1 FOR ALL
+    TO PUBLIC
     USING (x = (SELECT r.x FROM rec1 r WHERE y = r.y));
 SELECT * FROM rec1; -- fail, direct recursion
 ERROR:  infinite recursion detected in row-security policy for relation "rec1"
@@ -644,8 +649,12 @@ ERROR:  infinite recursion detected in row-security policy for relation "rec1"
 -- Mutual recursion
 --
 CREATE TABLE rec2 (a integer, b integer);
-ALTER POLICY r1 ON rec1 FOR ALL USING (x = (SELECT a FROM rec2 WHERE b = y));
-CREATE POLICY r2 ON rec2 FOR ALL USING (a = (SELECT x FROM rec1 WHERE y = b));
+ALTER POLICY r1 ON rec1 FOR ALL
+    TO PUBLIC
+    USING (x = (SELECT a FROM rec2 WHERE b = y));
+CREATE POLICY r2 ON rec2 FOR ALL
+    TO PUBLIC
+    USING (a = (SELECT x FROM rec1 WHERE y = b));
 SELECT * FROM rec1;    -- fail, mutual recursion
 ERROR:  infinite recursion detected in row-security policy for relation "rec1"
 --
@@ -653,8 +662,12 @@ ERROR:  infinite recursion detected in row-security policy for relation "rec1"
 --
 CREATE VIEW rec1v AS SELECT * FROM rec1;
 CREATE VIEW rec2v AS SELECT * FROM rec2;
-ALTER POLICY r1 ON rec1 FOR ALL USING (x = (SELECT a FROM rec2v WHERE b = y));
-ALTER POLICY r2 ON rec2 FOR ALL USING (a = (SELECT x FROM rec1v WHERE y = b));
+ALTER POLICY r1 ON rec1 FOR ALL
+    TO PUBLIC
+    USING (x = (SELECT a FROM rec2v WHERE b = y));
+ALTER POLICY r2 ON rec2 FOR ALL
+    TO PUBLIC
+    USING (a = (SELECT x FROM rec1v WHERE y = b));
 SELECT * FROM rec1;    -- fail, mutual recursion via views
 ERROR:  infinite recursion detected in row-security policy for relation "rec1"
 --
@@ -666,8 +679,12 @@ DETAIL:  drop cascades to row-security of table rec1 FOR ALL
 drop cascades to row-security of table rec2 FOR ALL
 CREATE VIEW rec1v WITH (security_barrier) AS SELECT * FROM rec1;
 CREATE VIEW rec2v WITH (security_barrier) AS SELECT * FROM rec2;
-CREATE POLICY r1 ON rec1 FOR ALL USING (x = (SELECT a FROM rec2v WHERE b = y));
-CREATE POLICY r2 ON rec2 FOR ALL USING (a = (SELECT x FROM rec1v WHERE y = b));
+CREATE POLICY r1 ON rec1 FOR ALL
+    TO PUBLIC
+    USING (x = (SELECT a FROM rec2v WHERE b = y));
+CREATE POLICY r2 ON rec2 FOR ALL
+    TO PUBLIC
+    USING (a = (SELECT x FROM rec1v WHERE y = b));
 SELECT * FROM rec1;    -- fail, mutual recursion via s.b. views
 ERROR:  infinite recursion detected in row-security policy for relation "rec1"
 --
@@ -679,12 +696,14 @@ CREATE TABLE s2 (x int, y text);
 INSERT INTO s2 (SELECT x, md5(x::text) FROM generate_series(-6,6) x);
 CREATE VIEW v2 AS SELECT * FROM s2 WHERE y like '%af%';
 CREATE POLICY p1 ON s1 FOR ALL
-   USING (a in (select x from s2 where y like '%2f%'));
+    TO PUBLIC
+    USING (a in (select x from s2 where y like '%2f%'));
 CREATE POLICY p2 ON s2 FOR ALL
-   USING (x in (select a from s1 where b like '%22%'));
+    TO PUBLIC
+    USING (x in (select a from s1 where b like '%22%'));
 SELECT * FROM s1 WHERE f_leak(b);	-- fail (infinite recursion)
 ERROR:  infinite recursion detected in row-security policy for relation "s1"
-ALTER POLICY p2 ON s2 FOR ALL USING (x % 2 = 0);
+ALTER POLICY p2 ON s2 FOR ALL TO PUBLIC USING (x % 2 = 0);
 SELECT * FROM s1 WHERE f_leak(b);	-- OK
 NOTICE:  f_leak => c81e728d9d4c2f636f067f89cc14862c
 NOTICE:  f_leak => a87ff679a2f3e71d9181a67b7542122c
@@ -712,7 +731,8 @@ EXPLAIN SELECT * FROM only s1 WHERE f_leak(b);
 (12 rows)
 
 ALTER POLICY p1 ON s1 FOR ALL
-   USING (a in (select x from v2));		-- using VIEW in RLS policy
+    TO PUBLIC
+    USING (a in (select x from v2));		-- using VIEW in RLS policy
 SELECT * FROM s1 WHERE f_leak(b);	-- OK
 NOTICE:  f_leak => 0267aaf632e87a63288a08331f22c7c3
 NOTICE:  f_leak => 1679091c5a880faf6fb5e6087eb1b2dc
@@ -768,7 +788,8 @@ EXPLAIN (COSTS OFF) SELECT (SELECT x FROM s1 LIMIT 1) xx, * FROM s2 WHERE y like
 (15 rows)
 
 ALTER POLICY p2 ON s2 FOR ALL
-   USING (x in (select a from s1 where b like '%d2%'));
+    TO PUBLIC
+    USING (x in (select a from s1 where b like '%d2%'));
 SELECT * FROM s1 WHERE f_leak(b);	-- fail (infinite recursion via view)
 ERROR:  infinite recursion detected in row-security policy for relation "s1"
 -- prepared statement with rls_regress_user0 privilege

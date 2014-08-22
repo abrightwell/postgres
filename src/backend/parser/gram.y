@@ -4419,32 +4419,34 @@ AlterUserMappingStmt: ALTER USER MAPPING FOR auth_ident SERVER name alter_generi
 /*****************************************************************************
  *
  *		QUERIES:
- *				CREATE POLICY name ON table FOR cmd USING (qual)
- *				ALTER POLICY name ON table FOR cmd USING (qual)
+ *				CREATE POLICY name ON table FOR cmd TO role USING (qual)
+ *				ALTER POLICY name ON table FOR cmd TO role USING (qual)
  *				DROP POLICY name ON table FOR cmd
  *
  *****************************************************************************/
 
 CreatePolicyStmt:
-			CREATE POLICY name ON qualified_name FOR row_security_cmd USING '(' a_expr ')'
+			CREATE POLICY name ON qualified_name FOR row_security_cmd TO role_list USING '(' a_expr ')'
 				{
 					CreatePolicyStmt *n = makeNode(CreatePolicyStmt);
 					n->policy_name = $3;
 					n->table = $5;
 					n->cmd = $7;
-					n->qual = $10;
+					n->roles = $9;
+					n->qual = $12;
 					$$ = (Node *) n;
 				}
 		;
 
 AlterPolicyStmt:
-			ALTER POLICY name ON qualified_name FOR row_security_cmd USING '(' a_expr ')'
+			ALTER POLICY name ON qualified_name FOR row_security_cmd TO role_list USING '(' a_expr ')'
 				{
 					AlterPolicyStmt *n = makeNode(AlterPolicyStmt);
 					n->policy_name = $3;
 					n->table = $5;
 					n->cmd = $7;
-					n->qual = $10;
+					n->roles = $9;
+					n->qual = $12;
 					$$ = (Node *) n;
 				}
 		;

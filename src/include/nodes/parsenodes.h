@@ -1865,6 +1865,7 @@ typedef struct CreatePolicyStmt
 	char	   *policy_name;	/* Policy's name */
 	RangeVar   *table;			/* the table name the policy applies to */
 	char	   *cmd;			/* the command name the policy applies to */
+	List	   *roles;			/* the roles associated with the policy */
 	Node	   *qual;			/* the policy's condition */
 } CreatePolicyStmt;
 
@@ -1878,6 +1879,7 @@ typedef struct AlterPolicyStmt
 	char	   *policy_name;	/* Policy's name */
 	RangeVar   *table;			/* the table name the policy applies to */
 	char	   *cmd;			/* the command name the policy applies to */
+	List	   *roles;			/* the roles associated with the policy */
 	Node	   *qual;			/* the policy's condition */
 } AlterPolicyStmt;
 

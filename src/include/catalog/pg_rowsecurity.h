@@ -28,7 +28,8 @@ CATALOG(pg_rowsecurity,5000)
 	char			rseccmd;		/* One of ROWSECURITY_CMD_* below */
 
 #ifdef CATALOG_VARLEN
-	pg_node_tree	rsecqual;	/* Policy quals. */
+	Oid				rsecroles[1]	/* Roles associated with policy */
+	pg_node_tree	rsecqual;		/* Policy quals. */
 #endif
 } FormData_pg_rowsecurity;
 
@@ -43,11 +44,12 @@ typedef FormData_pg_rowsecurity *Form_pg_rowsecurity;
  * 		compiler constants for pg_rowsecurity
  * ----------------
  */
-#define Natts_pg_rowsecurity				4
+#define Natts_pg_rowsecurity				5
 #define Anum_pg_rowsecurity_rsecpolname		1
 #define Anum_pg_rowsecurity_rsecrelid		2
 #define Anum_pg_rowsecurity_rseccmd			3
-#define Anum_pg_rowsecurity_rsecqual		4
+#define Anum_pg_rowsecurity_rsecroles		4
+#define Anum_pg_rowsecurity_rsecqual		5
 
 #define ROWSECURITY_CMD_ALL			'a'
 #define ROWSECURITY_CMD_SELECT		's'

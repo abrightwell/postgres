@@ -45,6 +45,7 @@ static void RangeVarCallbackForCreatePolicy(const RangeVar *rv,
 static const char parse_row_security_command(const char *cmd_name);
 static RowSecurityEntry* create_row_security_entry(Oid id, Expr *qual,
 				MemoryContext context);
+static ArrayType* parse_role_ids(List *roles);
 
 /*
  * Callback to RangeVarGetRelidExtended().
@@ -119,6 +120,49 @@ parse_row_security_command(const char *cmd_name)
 		/* error unrecognized command */
 
 	return cmd;
+}
+
+/*
+ * parse_role_ids
+ *   helper function to convert a list of role names in to an array of
+ *   role ids.
+ *
+ * Note: If the PUBLIC is provided as a role name, then ACL_PUBLIC_ID is
+ *       used as the role id.
+ *
+ * roles - the list of role names to convert.
+ */
+ArrayType *
+parse_role_ids(List *roles)
+{
+	ArrayType  *role_ids;
+	Datum	   *temp_array;
+	Oid			role_id;
+	int			num_roles;
+	int			i;
+
+	num_roles = length(roles);
+
+	temp_array = (Datum *) palloc(num_roles * sizeof(Datum));
+
+	for (i = 0; i < num_roles; i++)
+	{
+		char *role_name = strVal(list_nth(roles, i));
+
+		/*
+		 * If PUBLIC was provided then use ALC_ID_PUBLIC as the id role id.
+		 */
+		if (strcmp(role_name, "public") == 0)
+			role_id = ACL_ID_PUBLIC;
+		else
+			role_id = get_role_oid(role_name, false);
+
+		temp_array[i] = ObjectIdGetDatum(role_id);
+	}
+
+	role_ids = construct_array(temp_array, num_roles, OIDOID, sizeof(Oid), true, 'i');
+
+	return role_ids;
 }
 
 /*
@@ -355,6 +399,7 @@ CreatePolicy(CreatePolicyStmt *stmt)
 	Relation		target_table;
 	Oid				table_id;
 	char			rseccmd;
+	ArrayType	   *role_ids;
 	ParseState	   *pstate;
 	RangeTblEntry  *rte;
 	Node		   *qual;
@@ -368,6 +413,9 @@ CreatePolicy(CreatePolicyStmt *stmt)
 
 	/* Parse command */
 	rseccmd = parse_row_security_command(stmt->cmd);
+
+	/* Collect role ids */
+	role_ids = parse_role_ids(stmt->roles);
 
 	/* Parse the supplied clause */
 	pstate = make_parsestate(NULL);
@@ -432,7 +480,9 @@ CreatePolicy(CreatePolicyStmt *stmt)
 			= CStringGetDatum(stmt->policy_name);
 		values[Anum_pg_rowsecurity_rseccmd - 1]
 			= CharGetDatum(rseccmd);
-		values[Anum_pg_rowsecurity_rsecqual -1]
+		values[Anum_pg_rowsecurity_rsecroles - 1]
+			= PointerGetDatum(role_ids);
+		values[Anum_pg_rowsecurity_rsecqual - 1]
 			= CStringGetTextDatum(nodeToString(qual));
 		rsec_tuple = heap_form_tuple(RelationGetDescr(pg_rowsecurity_rel),
 									 values, isnull);
@@ -512,6 +562,7 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	Relation		target_table;
 	Oid				table_id;
 	char			rseccmd;
+	ArrayType	   *role_ids;
 	ParseState	   *pstate;
 	RangeTblEntry  *rte;
 	Node		   *qual;
@@ -527,6 +578,9 @@ AlterPolicy(AlterPolicyStmt *stmt)
 
 	/* Parse command */
 	rseccmd = parse_row_security_command(stmt->cmd);
+
+	/* Parse role_ids */
+	role_ids = parse_role_ids(stmt->roles);
 
 	/* Get id of table. */
 	table_id = RangeVarGetRelidExtended(stmt->table, AccessExclusiveLock,
@@ -584,7 +638,12 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	{
 		rowsec_id = HeapTupleGetOid(rsec_tuple);
 
+		replaces[Anum_pg_rowsecurity_rsecroles - 1] = true;
+
 		replaces[Anum_pg_rowsecurity_rsecqual - 1] = true;
+
+		values[Anum_pg_rowsecurity_rsecroles - 1]
+			= PointerGetDatum(role_ids);
 
 		values[Anum_pg_rowsecurity_rsecqual -1]
 			= CStringGetTextDatum(nodeToString(qual));

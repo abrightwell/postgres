@@ -77,6 +77,7 @@ INSERT INTO document VALUES
 
 -- user's security level must be higher that or equal to document's
 CREATE POLICY p1 ON document FOR ALL
+    TO PUBLIC
     USING (dlevel <= (SELECT seclv FROM uaccount WHERE pguser = current_user));
 
 -- viewpoint from rls_regress_user1
@@ -93,11 +94,11 @@ EXPLAIN (COSTS OFF) SELECT * FROM document WHERE f_leak(dtitle);
 EXPLAIN (COSTS OFF) SELECT * FROM document NATURAL JOIN category WHERE f_leak(dtitle);
 
 -- only owner can change row-level security
-ALTER POLICY p1 ON document FOR ALL USING (true);    --fail
+ALTER POLICY p1 ON document FOR ALL TO PUBLIC USING (true);    --fail
 DROP POLICY p1 ON document FOR ALL;                  --fail
 
 SET SESSION AUTHORIZATION rls_regress_user0;
-ALTER POLICY p1 ON document FOR ALL USING (dauthor = current_user);
+ALTER POLICY p1 ON document FOR ALL TO PUBLIC USING (dauthor = current_user);
 
 -- viewpoint from rls_regress_user1 again
 SET SESSION AUTHORIZATION rls_regress_user1;
@@ -115,6 +116,7 @@ EXPLAIN (COSTS OFF) SELECT * FROM document NATURAL JOIN category WHERE f_leak(dt
 -- interaction of FK/PK constraints
 SET SESSION AUTHORIZATION rls_regress_user0;
 CREATE POLICY p2 ON category FOR ALL
+    TO PUBLIC
     USING (CASE WHEN current_user = 'rls_regress_user1' THEN cid IN (11, 33)
            WHEN current_user = 'rls_regress_user2' THEN cid IN (22, 44)
            ELSE false END);
@@ -186,8 +188,8 @@ COPY t3(a,b,c) FROM stdin WITH (oids);
 303	3	zzz	Z
 \.
 
-CREATE POLICY p1 ON t1 FOR ALL USING (a % 2 = 0); -- be even number
-CREATE POLICY p2 ON t2 FOR ALL USING (a % 2 = 1); -- be odd number
+CREATE POLICY p1 ON t1 FOR ALL TO PUBLIC USING (a % 2 = 0); -- be even number
+CREATE POLICY p2 ON t2 FOR ALL TO PUBLIC USING (a % 2 = 1); -- be odd number
 
 SELECT * FROM t1;
 EXPLAIN (COSTS OFF) SELECT * FROM t1;
@@ -229,7 +231,9 @@ SET row_security TO ON;
 CREATE TABLE dependee (x integer, y integer);
 
 CREATE TABLE dependent (x integer, y integer);
-CREATE POLICY d1 ON dependent FOR ALL USING (x = (SELECT d.x FROM dependee d WHERE d.y = y));
+CREATE POLICY d1 ON dependent FOR ALL
+    TO PUBLIC
+    USING (x = (SELECT d.x FROM dependee d WHERE d.y = y));
 
 DROP TABLE dependee; -- Should fail without CASCADE due to dependency on row-security qual?
 
@@ -244,6 +248,7 @@ EXPLAIN (COSTS OFF) SELECT * FROM dependent; -- After drop, should be unqualifie
 --
 CREATE TABLE rec1 (x integer, y integer);
 CREATE POLICY r1 ON rec1 FOR ALL
+    TO PUBLIC
     USING (x = (SELECT r.x FROM rec1 r WHERE y = r.y));
 
 SELECT * FROM rec1; -- fail, direct recursion
@@ -252,8 +257,12 @@ SELECT * FROM rec1; -- fail, direct recursion
 -- Mutual recursion
 --
 CREATE TABLE rec2 (a integer, b integer);
-ALTER POLICY r1 ON rec1 FOR ALL USING (x = (SELECT a FROM rec2 WHERE b = y));
-CREATE POLICY r2 ON rec2 FOR ALL USING (a = (SELECT x FROM rec1 WHERE y = b));
+ALTER POLICY r1 ON rec1 FOR ALL
+    TO PUBLIC
+    USING (x = (SELECT a FROM rec2 WHERE b = y));
+CREATE POLICY r2 ON rec2 FOR ALL
+    TO PUBLIC
+    USING (a = (SELECT x FROM rec1 WHERE y = b));
 
 SELECT * FROM rec1;    -- fail, mutual recursion
 
@@ -262,8 +271,12 @@ SELECT * FROM rec1;    -- fail, mutual recursion
 --
 CREATE VIEW rec1v AS SELECT * FROM rec1;
 CREATE VIEW rec2v AS SELECT * FROM rec2;
-ALTER POLICY r1 ON rec1 FOR ALL USING (x = (SELECT a FROM rec2v WHERE b = y));
-ALTER POLICY r2 ON rec2 FOR ALL USING (a = (SELECT x FROM rec1v WHERE y = b));
+ALTER POLICY r1 ON rec1 FOR ALL
+    TO PUBLIC
+    USING (x = (SELECT a FROM rec2v WHERE b = y));
+ALTER POLICY r2 ON rec2 FOR ALL
+    TO PUBLIC
+    USING (a = (SELECT x FROM rec1v WHERE y = b));
 
 SELECT * FROM rec1;    -- fail, mutual recursion via views
 
@@ -274,8 +287,12 @@ SELECT * FROM rec1;    -- fail, mutual recursion via views
 DROP VIEW rec1v, rec2v CASCADE;
 CREATE VIEW rec1v WITH (security_barrier) AS SELECT * FROM rec1;
 CREATE VIEW rec2v WITH (security_barrier) AS SELECT * FROM rec2;
-CREATE POLICY r1 ON rec1 FOR ALL USING (x = (SELECT a FROM rec2v WHERE b = y));
-CREATE POLICY r2 ON rec2 FOR ALL USING (a = (SELECT x FROM rec1v WHERE y = b));
+CREATE POLICY r1 ON rec1 FOR ALL
+    TO PUBLIC
+    USING (x = (SELECT a FROM rec2v WHERE b = y));
+CREATE POLICY r2 ON rec2 FOR ALL
+    TO PUBLIC
+    USING (a = (SELECT x FROM rec1v WHERE y = b));
 
 SELECT * FROM rec1;    -- fail, mutual recursion via s.b. views
 
@@ -290,20 +307,23 @@ INSERT INTO s2 (SELECT x, md5(x::text) FROM generate_series(-6,6) x);
 CREATE VIEW v2 AS SELECT * FROM s2 WHERE y like '%af%';
 
 CREATE POLICY p1 ON s1 FOR ALL
-   USING (a in (select x from s2 where y like '%2f%'));
+    TO PUBLIC
+    USING (a in (select x from s2 where y like '%2f%'));
 
 CREATE POLICY p2 ON s2 FOR ALL
-   USING (x in (select a from s1 where b like '%22%'));
+    TO PUBLIC
+    USING (x in (select a from s1 where b like '%22%'));
 
 SELECT * FROM s1 WHERE f_leak(b);	-- fail (infinite recursion)
 
-ALTER POLICY p2 ON s2 FOR ALL USING (x % 2 = 0);
+ALTER POLICY p2 ON s2 FOR ALL TO PUBLIC USING (x % 2 = 0);
 
 SELECT * FROM s1 WHERE f_leak(b);	-- OK
 EXPLAIN SELECT * FROM only s1 WHERE f_leak(b);
 
 ALTER POLICY p1 ON s1 FOR ALL
-   USING (a in (select x from v2));		-- using VIEW in RLS policy
+    TO PUBLIC
+    USING (a in (select x from v2));		-- using VIEW in RLS policy
 SELECT * FROM s1 WHERE f_leak(b);	-- OK
 EXPLAIN (COSTS OFF) SELECT * FROM s1 WHERE f_leak(b);
 
@@ -311,7 +331,8 @@ SELECT (SELECT x FROM s1 LIMIT 1) xx, * FROM s2 WHERE y like '%28%';
 EXPLAIN (COSTS OFF) SELECT (SELECT x FROM s1 LIMIT 1) xx, * FROM s2 WHERE y like '%28%';
 
 ALTER POLICY p2 ON s2 FOR ALL
-   USING (x in (select a from s1 where b like '%d2%'));
+    TO PUBLIC
+    USING (x in (select a from s1 where b like '%d2%'));
 SELECT * FROM s1 WHERE f_leak(b);	-- fail (infinite recursion via view)
 
 -- prepared statement with rls_regress_user0 privilege
