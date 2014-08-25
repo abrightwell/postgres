@@ -29,6 +29,8 @@
 #include "utils/syscache.h"
 #include "tcop/utility.h"
 
+static bool check_role_for_policy(RowSecurityEntry *entry);
+
 /* hook to allow extensions to apply their own security policy */
 row_security_policy_hook_type	row_security_policy_hook = NULL;
 
@@ -115,38 +117,44 @@ pull_row_security_policy(CmdType cmd, Relation relation)
 		 */
 		if (is_rls_enabled())
 		{
-			ListCell *item;
-			RowSecurityPolicy *policy;
+			ListCell		   *item;
+			RowSecurityPolicy  *policy;
 
 			foreach(item, relation->rsdesc->policies)
 			{
 				policy = (RowSecurityPolicy *) lfirst(item);
 
 				/* Always add ALL policy if exists. */
-				if (policy->rsall != NULL)
+				if (policy->rsall != NULL && check_role_for_policy(policy->rsall))
 					quals = lcons(copyObject(policy->rsall->qual), quals);
 
 				/* Build list of quals, merging when appropriate. */
 				switch(cmd)
 				{
 					case CMD_SELECT:
-						if (policy->rsselect != NULL)
+						if (policy->rsselect != NULL
+							&& check_role_for_policy(policy->rsselect))
 							quals = lcons(copyObject(policy->rsselect->qual), quals);
 						break;
 					case CMD_INSERT:
-						if (policy->rsinsert != NULL)
+						if (policy->rsinsert != NULL
+							&& check_role_for_policy(policy->rsinsert))
 							quals = lcons(copyObject(policy->rsinsert->qual), quals);
 						break;
 					case CMD_UPDATE:
-						if (policy->rsselect != NULL)
+						if (policy->rsselect != NULL
+							&& check_role_for_policy(policy->rsselect))
 							quals = lcons(copyObject(policy->rsselect->qual), quals);
-						if (policy->rsupdate != NULL)
+						if (policy->rsupdate != NULL
+							&& check_role_for_policy(policy->rsupdate))
 							quals = lcons(copyObject(policy->rsupdate->qual), quals);
 						break;
 					case CMD_DELETE:
-						if (policy->rsselect != NULL)
+						if (policy->rsselect != NULL
+							&& check_role_for_policy(policy->rsselect))
 							quals = lcons(copyObject(policy->rsselect->qual), quals);
-						if (policy->rsdelete != NULL)
+						if (policy->rsdelete != NULL
+							&& check_role_for_policy(policy->rsdelete))
 							quals = lcons(copyObject(policy->rsdelete->qual), quals);
 						break;
 					default:
@@ -192,4 +200,37 @@ is_rls_enabled()
 	rls_option = GetConfigOption("row_security", true, false);
 
 	return (strcmp(rls_option, "on") == 0);
+}
+
+bool
+check_role_for_policy(RowSecurityEntry *entry)
+{
+	bool		result = false;
+	Oid		   *role_data;
+	Oid			user_id;
+	Oid			role_id;
+	int			i;
+	int			num_roles;
+
+	user_id = GetUserId();
+
+	num_roles = ARR_SIZE(entry->roles);
+	role_data = (Oid *) ARR_DATA_PTR(entry->roles);
+
+	for(i = 0; i < ARR_SIZE(entry->roles); i++)
+	{
+		role_id = role_data[i];
+
+		/* If role id is ACL_ID_PUBLIC then always return true */
+		if (role_id == ACL_ID_PUBLIC)
+			return true;
+
+		if(user_id == role_id || is_member_of_role(user_id, role_id))
+		{
+			result = true;
+			break;
+		}
+	}
+
+	return result;
 }

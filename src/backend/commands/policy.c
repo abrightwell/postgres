@@ -34,6 +34,7 @@
 #include "parser/parse_relation.h"
 #include "storage/lock.h"
 #include "utils/acl.h"
+#include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/fmgroids.h"
 #include "utils/inval.h"
@@ -43,8 +44,8 @@
 static void RangeVarCallbackForCreatePolicy(const RangeVar *rv,
 				Oid relid, Oid oldrelid, void *arg);
 static const char parse_row_security_command(const char *cmd_name);
-static RowSecurityEntry* create_row_security_entry(Oid id, Expr *qual,
-				MemoryContext context);
+static RowSecurityEntry* create_row_security_entry(Oid id, ArrayType *roles,
+				Expr *qual, MemoryContext context);
 static ArrayType* parse_role_ids(List *roles);
 
 /*
@@ -174,12 +175,15 @@ parse_role_ids(List *roles)
  * context - the memory context to which the entry belongs.
  */
 static RowSecurityEntry *
-create_row_security_entry(Oid id, Expr *qual, MemoryContext context)
+create_row_security_entry(Oid id, ArrayType *roles, Expr *qual,
+						  MemoryContext context)
 {
 	RowSecurityEntry *entry;
 
 	entry = MemoryContextAllocZero(context, sizeof(RowSecurityEntry));
 	entry->rsecid = id;
+	entry->roles = construct_array(PointerGetDatum(roles), ARR_SIZE(roles),
+								   OIDOID, sizeof(Oid), true, 'i');
 	entry->qual = copyObject(qual);
 	entry->hassublinks = contain_subplans((Node *) entry->qual);
 
@@ -220,16 +224,17 @@ RelationBuildRowSecurity(Relation relation)
 		 */
 		while (HeapTupleIsValid(tuple = systable_getnext(sscan)))
 		{
-			Datum		value_datum;
-			char		cmd_value;
-			char	   *qual_value;
-			Expr	   *qual_expr;
-			char	   *policy_name_value;
-			Oid			policy_id;
-			ListCell   *item;
-			bool		isnull;
-			RowSecurityPolicy *policy = NULL;
-			RowSecurityPolicy *temp_policy;
+			Datum				value_datum;
+			char				cmd_value;
+			ArrayType		   *roles;
+			char			   *qual_value;
+			Expr			   *qual_expr;
+			char			   *policy_name_value;
+			Oid					policy_id;
+			ListCell		   *item;
+			bool				isnull;
+			RowSecurityPolicy  *policy = NULL;
+			RowSecurityPolicy  *temp_policy;
 
 			/*
 			 * Set up the memory context inside our loop to ensure we are only
@@ -257,6 +262,12 @@ RelationBuildRowSecurity(Relation relation)
 										RelationGetDescr(catalog), &isnull);
 			Assert(!isnull);
 			policy_name_value = DatumGetCString(value_datum);
+
+			/* Get policy roles */
+			value_datum = heap_getattr(tuple, Anum_pg_rowsecurity_rsecroles,
+										RelationGetDescr(catalog), &isnull);
+			Assert(!isnull);
+			roles = DatumGetArrayTypeP(value_datum);
 
 			/* Get policy qual */
 			value_datum = heap_getattr(tuple, Anum_pg_rowsecurity_rsecqual,
@@ -296,23 +307,23 @@ RelationBuildRowSecurity(Relation relation)
 			switch (cmd_value)
 			{
 				case ROWSECURITY_CMD_ALL:
-					policy->rsall = create_row_security_entry(policy_id,
+					policy->rsall = create_row_security_entry(policy_id, roles,
 											qual_expr, rscxt);
 					break;
 				case ROWSECURITY_CMD_SELECT:
-					policy->rsselect = create_row_security_entry(policy_id,
+					policy->rsselect = create_row_security_entry(policy_id, roles,
 											qual_expr, rscxt);
 					break;
 				case ROWSECURITY_CMD_INSERT:
-					policy->rsinsert = create_row_security_entry(policy_id,
+					policy->rsinsert = create_row_security_entry(policy_id, roles,
 											qual_expr, rscxt);
 					break;
 				case ROWSECURITY_CMD_UPDATE:
-					policy->rsupdate = create_row_security_entry(policy_id,
+					policy->rsupdate = create_row_security_entry(policy_id, roles,
 											qual_expr, rscxt);
 					break;
 				case ROWSECURITY_CMD_DELETE:
-					policy->rsdelete = create_row_security_entry(policy_id,
+					policy->rsdelete = create_row_security_entry(policy_id, roles,
 											qual_expr, rscxt);
 					break;
 				default:

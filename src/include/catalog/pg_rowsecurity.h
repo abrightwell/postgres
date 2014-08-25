@@ -11,6 +11,7 @@
 
 #include "catalog/genbki.h"
 #include "nodes/primnodes.h"
+#include "utils/array.h"
 #include "utils/memutils.h"
 #include "utils/relcache.h"
 
@@ -59,9 +60,10 @@ typedef FormData_pg_rowsecurity *Form_pg_rowsecurity;
 
 typedef struct
 {
-	Oid			rsecid;
-	Expr	   *qual;
-	bool		hassublinks;
+	Oid				rsecid;
+	ArrayType	   *roles;
+	Expr		   *qual;
+	bool			hassublinks;
 } RowSecurityEntry;
 
 typedef struct
