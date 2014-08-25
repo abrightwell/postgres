@@ -161,8 +161,8 @@ SET SESSION AUTHORIZATION rls_regress_user0;
 
 SET row_security TO ON;
 
-CREATE TABLE t1 (a int, b text) WITH OIDS;
--- ALTER TABLE t1 DROP COLUMN junk1;    -- just a disturbing factor
+CREATE TABLE t1 (a int, junk1 text, b text) WITH OIDS;
+ALTER TABLE t1 DROP COLUMN junk1;    -- just a disturbing factor
 GRANT ALL ON t1 TO public;
 
 COPY t1 FROM stdin WITH (oids);
@@ -376,9 +376,11 @@ UPDATE t1 SET b = b WHERE f_leak(b) RETURNING *;
 UPDATE t1 SET b = b WHERE f_leak(b) RETURNING oid, *, t1;
 
 RESET SESSION AUTHORIZATION;
+SET ROW SECURITY OFF;
 SELECT * FROM t1;
 
 SET SESSION AUTHORIZATION rls_regress_user0;
+SET ROW SECURITY ON;
 EXPLAIN (COSTS OFF) DELETE FROM only t1 WHERE f_leak(b);
 EXPLAIN (COSTS OFF) DELETE FROM t1 WHERE f_leak(b);
 

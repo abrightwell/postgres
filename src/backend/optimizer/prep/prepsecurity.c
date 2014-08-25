@@ -399,6 +399,7 @@ security_barrier_replace_vars_walker(Node *node,
 				{
 					/* Map the variable onto this subquery targetlist entry */
 					var->varattno = attno;
+					context->vars_processed = lappend(context->vars_processed, var);
 					return false;
 				}
 			}
