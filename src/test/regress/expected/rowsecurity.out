@@ -712,20 +712,20 @@ NOTICE:  f_leak => a87ff679a2f3e71d9181a67b7542122c
  4 | a87ff679a2f3e71d9181a67b7542122c
 (2 rows)
 
-EXPLAIN SELECT * FROM only s1 WHERE f_leak(b);
-                                      QUERY PLAN                                       
----------------------------------------------------------------------------------------
- Subquery Scan on s1  (cost=28.55..61.67 rows=205 width=36)
+EXPLAIN (COSTS OFF) SELECT * FROM only s1 WHERE f_leak(b);
+                        QUERY PLAN                        
+----------------------------------------------------------
+ Subquery Scan on s1
    Filter: f_leak(s1.b)
-   ->  Hash Join  (cost=28.55..55.52 rows=615 width=36)
+   ->  Hash Join
          Hash Cond: (s1_1.a = s2.x)
-         ->  Seq Scan on s1 s1_1  (cost=0.00..22.30 rows=1230 width=36)
-         ->  Hash  (cost=28.54..28.54 rows=1 width=4)
-               ->  HashAggregate  (cost=28.53..28.54 rows=1 width=4)
+         ->  Seq Scan on s1 s1_1
+         ->  Hash
+               ->  HashAggregate
                      Group Key: s2.x
-                     ->  Subquery Scan on s2  (cost=0.00..28.52 rows=1 width=4)
+                     ->  Subquery Scan on s2
                            Filter: (s2.y ~~ '%2f%'::text)
-                           ->  Seq Scan on s2 s2_1  (cost=0.00..28.45 rows=6 width=36)
+                           ->  Seq Scan on s2 s2_1
                                  Filter: ((x % 2) = 0)
 (12 rows)
 

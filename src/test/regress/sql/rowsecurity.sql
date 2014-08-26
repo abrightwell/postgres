@@ -318,7 +318,7 @@ SELECT * FROM s1 WHERE f_leak(b);	-- fail (infinite recursion)
 ALTER POLICY p2 ON s2 FOR ALL TO PUBLIC USING (x % 2 = 0);
 
 SELECT * FROM s1 WHERE f_leak(b);	-- OK
-EXPLAIN SELECT * FROM only s1 WHERE f_leak(b);
+EXPLAIN (COSTS OFF) SELECT * FROM only s1 WHERE f_leak(b);
 
 ALTER POLICY p1 ON s1 FOR ALL
     TO PUBLIC
