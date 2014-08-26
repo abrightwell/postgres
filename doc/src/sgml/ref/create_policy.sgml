@@ -22,8 +22,8 @@ PostgreSQL documentation
  <refsynopsisdiv>
 <synopsis>
 CREATE POLICY <replaceable class="parameter">policy_name</replaceable> ON <replaceable class="parameter">table_name</replaceable>
-    FOR <replaceable class="parameter">command</replaceable>
-    TO { <replaceable class="paramater">role_name</replaceable> | PUBLIC } [, ...]
+    [ FOR <replaceable class="parameter">command</replaceable> ]
+    [ TO { <replaceable class="parameter">role_name</replaceable> | PUBLIC } [, ...] ]
     USING ( <replaceable class="parameter">condition</replaceable> )
 
 <phrase>where <replaceable class="parameter">command</replaceable> can be one of:</phrase>
@@ -78,7 +78,8 @@ CREATE POLICY <replaceable class="parameter">policy_name</replaceable> ON <repla
       The command to which the policy applies.  Valid commands are
       <command>ALL</command>, <command>SELECT</command>,
       <command>INSERT</command>, <command>UPDATE</command>,
-      or <command>DELETE</command>
+      or <command>DELETE</command>. If no command is provided, then
+      <command>ALL</command> is the default.
      </para>
     </listitem>
    </varlistentry>
@@ -87,7 +88,9 @@ CREATE POLICY <replaceable class="parameter">policy_name</replaceable> ON <repla
     <term><replaceable class="parameter">role_name</replaceable></term>
     <listitem>
      <para>
-      The role to which the policy applies.  Multiple roles can be specified at one time.  If the desire is to apply the policy to all uses, then use the value PUBLIC.
+      The role to which the policy applies.  Multiple roles can be specified at
+      one time.  To apply the policy to all users, then use <literal>PUBLIC</literal>.
+      If no roles are provided then, <literal>PUBLIC</literal> is the default.
      </para>
     </listitem>
    </varlistentry>

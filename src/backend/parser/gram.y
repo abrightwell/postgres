@@ -269,7 +269,6 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 %type <node>	alter_table_cmd alter_type_cmd opt_collate_clause
 	   replica_identity
 %type <list>	alter_table_cmds alter_type_cmds
-%type <str>		row_security_cmd
 
 %type <dbehavior>	opt_drop_behavior
 
@@ -320,7 +319,10 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 
 %type <str>		all_Op MathOp
 
-%type <str>		iso_level opt_encoding row_security_option
+%type <str>		row_security_option row_security_cmd RowSecurityForCmd
+%type <list>	RowSecurityToRole
+
+%type <str>		iso_level opt_encoding
 %type <node>	grantee
 %type <list>	grantee_list
 %type <accesspriv> privilege
@@ -4426,50 +4428,62 @@ AlterUserMappingStmt: ALTER USER MAPPING FOR auth_ident SERVER name alter_generi
  *****************************************************************************/
 
 CreatePolicyStmt:
-			CREATE POLICY name ON qualified_name FOR row_security_cmd TO role_list USING '(' a_expr ')'
+			CREATE POLICY name ON qualified_name RowSecurityForCmd RowSecurityToRole
+				USING '(' a_expr ')'
 				{
 					CreatePolicyStmt *n = makeNode(CreatePolicyStmt);
 					n->policy_name = $3;
 					n->table = $5;
-					n->cmd = $7;
-					n->roles = $9;
-					n->qual = $12;
+					n->cmd = $6;
+					n->roles = $7;
+					n->qual = $10;
 					$$ = (Node *) n;
 				}
 		;
 
 AlterPolicyStmt:
-			ALTER POLICY name ON qualified_name FOR row_security_cmd TO role_list USING '(' a_expr ')'
+			ALTER POLICY name ON qualified_name RowSecurityForCmd RowSecurityToRole
+				USING '(' a_expr ')'
 				{
 					AlterPolicyStmt *n = makeNode(AlterPolicyStmt);
 					n->policy_name = $3;
 					n->table = $5;
-					n->cmd = $7;
-					n->roles = $9;
-					n->qual = $12;
+					n->cmd = $6;
+					n->roles = $7;
+					n->qual = $10;
 					$$ = (Node *) n;
 				}
 		;
 
 DropPolicyStmt:
-			DROP POLICY name ON qualified_name FOR row_security_cmd
+			DROP POLICY name ON qualified_name RowSecurityForCmd
 				{
 					DropPolicyStmt *n = makeNode(DropPolicyStmt);
 					n->policy_name = $3;
 					n->table = $5;
-					n->cmd = $7;
+					n->cmd = $6;
 					n->missing_ok = FALSE;
 					$$ = (Node *) n;
 				}
-			| DROP POLICY IF_P EXISTS name ON qualified_name FOR row_security_cmd
+			| DROP POLICY IF_P EXISTS name ON qualified_name RowSecurityForCmd
 				{
 					DropPolicyStmt *n = makeNode(DropPolicyStmt);
 					n->policy_name = $5;
 					n->table = $7;
-					n->cmd = $9;
+					n->cmd = $8;
 					n->missing_ok = TRUE;
 					$$ = (Node *) n;
 				}
+		;
+
+RowSecurityToRole:
+			TO role_list			{ $$ = $2; }
+			| /* EMPTY */			{ $$ = list_make1(makeString("public")); }
+		;
+
+RowSecurityForCmd:
+			FOR row_security_cmd	{ $$ = $2; }
+			| /* EMPTY */			{ $$ = "all"; }
 		;
 
 row_security_cmd:

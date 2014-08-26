@@ -22,8 +22,8 @@ PostgreSQL documentation
  <refsynopsisdiv>
 <synopsis>
 ALTER POLICY <replaceable class="parameter">policy name</replaceable> ON <replaceable class="parameter">table_name</replaceable>
-    FOR <replaceable class="parameter">command</replaceable>
-    TO { <replaceable class="parameter">role_name</replaceable> | PUBLIC } [, ...]
+    [ FOR <replaceable class="parameter">command</replaceable> ]
+    [ TO { <replaceable class="parameter">role_name</replaceable> | PUBLIC } [, ...] ]
     USING ( <replaceable class="parameter">condition</replaceable> )
 
 <phrase>where <replaceable class="parameter">command</replaceable> can be one of:</phrase>
@@ -73,7 +73,8 @@ ALTER POLICY <replaceable class="parameter">policy name</replaceable> ON <replac
     <term><replaceable class="parameter">command</replaceable></term>
     <listitem>
      <para>
-      The command that the policy applies to.
+      The command that the policy applies to. If no command is provided, then
+      <command>ALL</command> is the default.
      </para>
     </listitem>
    </varlistentry>
@@ -82,7 +83,9 @@ ALTER POLICY <replaceable class="parameter">policy name</replaceable> ON <replac
     <term><replaceable class="parameter">role_name</replaceable></term>
     <listitem>
      <para>
-      The role to which the policy applies.  Multiple roles can be specified at one time.  To apply the policy to all roles, use PUBLIC.
+      The role to which the policy applies.  Multiple roles can be specified at one time.
+      To apply the policy to all roles, use <literal>PUBLIC</literal>. If no
+      role is provided, then <literal>PUBLIC</literal> is the default.
      </para>
     </listitem>
    </varlistentry>

@@ -76,8 +76,7 @@ INSERT INTO document VALUES
     ( 8, 44, 1, 'rls_regress_user2', 'great manga');
 
 -- user's security level must be higher that or equal to document's
-CREATE POLICY p1 ON document FOR ALL
-    TO PUBLIC
+CREATE POLICY p1 ON document
     USING (dlevel <= (SELECT seclv FROM uaccount WHERE pguser = current_user));
 
 -- viewpoint from rls_regress_user1

@@ -22,7 +22,7 @@ PostgreSQL documentation
  <refsynopsisdiv>
 <synopsis>
 DROP POLICY [ IF EXISTS ] <replaceable class="parameter">policy_name</replaceable> ON <replaceable class="parameter">table_name</replaceable>
-    FOR <replaceable class="parameter">command</replaceable>
+    [ FOR <replaceable class="parameter">command</replaceable> ]
 
 <phrase>where <replaceable class="parameter">command</replaceable> can be one of:</phrase>
 
@@ -51,7 +51,7 @@ DROP POLICY [ IF EXISTS ] <replaceable class="parameter">policy_name</replaceabl
       in this case.
      </para>
     </listitem>
-   </varlistentry
+   </varlistentry>
 
    <varlistentry>
     <term><replaceable class="parameter">policy_name</replaceable></term>
@@ -76,7 +76,8 @@ DROP POLICY [ IF EXISTS ] <replaceable class="parameter">policy_name</replaceabl
     <term><replaceable class="parameter">command</replaceable></term>
     <listitem>
      <para>
-      The command that the policy applies to.
+      The command that the policy applies to. If no command is provided, then
+      <command>ALL</command> is the default.
      </para>
     </listitem>
    </varlistentry>
