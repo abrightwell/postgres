@@ -2138,7 +2138,7 @@ extract_query_dependencies_walker(Node *node, PlannerInfo *context)
 		/* Collect Target Relation Information */
 		if (query->rtable != NULL)
 		{
-			if (length(query->rtable) > query->resultRelation)
+			if (list_length(query->rtable) > query->resultRelation)
 			{
 				ListCell *targetCell = list_nth_cell(query->rtable, query->resultRelation);
 				RangeTblEntry *rte = (RangeTblEntry *) lfirst(targetCell);

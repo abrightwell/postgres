@@ -142,7 +142,7 @@ parse_role_ids(List *roles)
 	int			num_roles;
 	int			i;
 
-	num_roles = length(roles);
+	num_roles = list_length(roles);
 
 	temp_array = (Datum *) palloc(num_roles * sizeof(Datum));
 
@@ -178,12 +178,16 @@ static RowSecurityEntry *
 create_row_security_entry(Oid id, ArrayType *roles, Expr *qual,
 						  MemoryContext context)
 {
-	RowSecurityEntry *entry;
+	RowSecurityEntry   *entry;
+	Datum				roles_datum;
+
+	roles_datum = PointerGetDatum(roles);
 
 	entry = MemoryContextAllocZero(context, sizeof(RowSecurityEntry));
 	entry->rsecid = id;
-	entry->roles = construct_array(PointerGetDatum(roles), ARR_SIZE(roles),
-								   OIDOID, sizeof(Oid), true, 'i');
+	entry->roles = construct_array(&roles_datum, ARR_SIZE(roles), OIDOID,
+								   sizeof(Oid), true, 'i');
+
 	entry->qual = copyObject(qual);
 	entry->hassublinks = contain_subplans((Node *) entry->qual);
 

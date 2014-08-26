@@ -210,11 +210,9 @@ check_role_for_policy(RowSecurityEntry *entry)
 	Oid			user_id;
 	Oid			role_id;
 	int			i;
-	int			num_roles;
 
 	user_id = GetUserId();
 
-	num_roles = ARR_SIZE(entry->roles);
 	role_data = (Oid *) ARR_DATA_PTR(entry->roles);
 
 	for(i = 0; i < ARR_SIZE(entry->roles); i++)
