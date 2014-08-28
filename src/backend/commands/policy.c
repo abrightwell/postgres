@@ -44,9 +44,8 @@
 static void RangeVarCallbackForCreatePolicy(const RangeVar *rv,
 				Oid relid, Oid oldrelid, void *arg);
 static const char parse_row_security_command(const char *cmd_name);
-static RowSecurityEntry* create_row_security_entry(Oid id, ArrayType *roles,
-				Expr *qual, MemoryContext context);
 static ArrayType* parse_role_ids(List *roles);
+static void check_permissions(Relation rel);
 
 /*
  * Callback to RangeVarGetRelidExtended().
@@ -133,7 +132,7 @@ parse_row_security_command(const char *cmd_name)
  *
  * roles - the list of role names to convert.
  */
-ArrayType *
+static ArrayType *
 parse_role_ids(List *roles)
 {
 	ArrayType  *role_ids;
@@ -167,31 +166,21 @@ parse_role_ids(List *roles)
 }
 
 /*
- * create_row_security_entry -
- *   helper function to create a RowSecurityEntry.
+ * check_permissions
+ *   helper function to check access permissions for creating and modifying
+ *   policies.
  *
- * id - the oid of the row-security policy.
- * qual - the qualifier expression of the row-security policy.
- * context - the memory context to which the entry belongs.
+ * rel - the relation associated with the policy.
  */
-static RowSecurityEntry *
-create_row_security_entry(Oid id, ArrayType *roles, Expr *qual,
-						  MemoryContext context)
+static void
+check_permissions(Relation rel)
 {
-	RowSecurityEntry   *entry;
-	Datum				roles_datum;
-
-	roles_datum = PointerGetDatum(roles);
-
-	entry = MemoryContextAllocZero(context, sizeof(RowSecurityEntry));
-	entry->rsecid = id;
-	entry->roles = construct_array(&roles_datum, ARR_SIZE(roles), OIDOID,
-								   sizeof(Oid), true, 'i');
-
-	entry->qual = copyObject(qual);
-	entry->hassublinks = contain_subplans((Node *) entry->qual);
-
-	return entry;
+	if (!superuser())
+	{
+		if (!pg_class_ownercheck(RelationGetRelid(rel), GetUserId()))
+			aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_CLASS,
+						   RelationGetRelationName(rel));
+	}
 }
 
 /*
@@ -222,9 +211,7 @@ RelationBuildRowSecurity(Relation relation)
 	{
 		/*
 		 * Loop through the row-level security entries for this relation, if
-		 * any.  While we currently only support one command type for row-level
-		 * security, eventually we will support multiple types and we will
-		 * need to find the correct one (or possibly merge them?).
+		 * any.
 		 */
 		while (HeapTupleIsValid(tuple = systable_getnext(sscan)))
 		{
@@ -254,6 +241,8 @@ RelationBuildRowSecurity(Relation relation)
 				rsdesc = MemoryContextAllocZero(rscxt, sizeof(RowSecurityDesc));
 				rsdesc->rscxt = rscxt;
 			}
+
+			oldcxt = MemoryContextSwitchTo(rscxt);
 
 			/* Get policy command */
 			value_datum = heap_getattr(tuple, Anum_pg_rowsecurity_rseccmd,
@@ -294,8 +283,6 @@ RelationBuildRowSecurity(Relation relation)
 				}
 			}
 
-			oldcxt = MemoryContextSwitchTo(rscxt);
-
 			/*
 			 * If no policy was found in the list, create a new one and add it
 			 * to the list.
@@ -307,32 +294,11 @@ RelationBuildRowSecurity(Relation relation)
 				rsdesc->policies = lcons(policy, rsdesc->policies);
 			}
 
-			/* Set policy information by command */
-			switch (cmd_value)
-			{
-				case ROWSECURITY_CMD_ALL:
-					policy->rsall = create_row_security_entry(policy_id, roles,
-											qual_expr, rscxt);
-					break;
-				case ROWSECURITY_CMD_SELECT:
-					policy->rsselect = create_row_security_entry(policy_id, roles,
-											qual_expr, rscxt);
-					break;
-				case ROWSECURITY_CMD_INSERT:
-					policy->rsinsert = create_row_security_entry(policy_id, roles,
-											qual_expr, rscxt);
-					break;
-				case ROWSECURITY_CMD_UPDATE:
-					policy->rsupdate = create_row_security_entry(policy_id, roles,
-											qual_expr, rscxt);
-					break;
-				case ROWSECURITY_CMD_DELETE:
-					policy->rsdelete = create_row_security_entry(policy_id, roles,
-											qual_expr, rscxt);
-					break;
-				default:
-					elog(ERROR, "Unregonized command for row-security policy");
-			}
+			policy->rsecid = policy_id;
+			policy->cmd = cmd_value;
+			policy->roles = roles;
+			policy->qual = copyObject(qual_expr);
+			policy->hassublinks = contain_subplans((Node *) qual_expr);
 
 			MemoryContextSwitchTo(oldcxt);
 
@@ -418,7 +384,7 @@ CreatePolicy(CreatePolicyStmt *stmt)
 	ParseState	   *pstate;
 	RangeTblEntry  *rte;
 	Node		   *qual;
-	ScanKeyData		skeys[3];
+	ScanKeyData		skeys[2];
 	SysScanDesc		sscan;
 	HeapTuple		rsec_tuple;
 	Datum			values[Natts_pg_rowsecurity];
@@ -448,6 +414,8 @@ CreatePolicy(CreatePolicyStmt *stmt)
 	/* Open target_table to build qual. No lock is necessary.*/
 	target_table = relation_open(table_id, NoLock);
 
+	/* Permissions checks */
+	check_permissions(target_table);
 
 	rte = addRangeTableEntryForRelation(pstate, target_table,
 										NULL, false, false);
@@ -472,14 +440,8 @@ CreatePolicy(CreatePolicyStmt *stmt)
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(table_id));
 
-	/* Set key - row security command. */
-	ScanKeyInit(&skeys[2],
-				Anum_pg_rowsecurity_rseccmd,
-				BTEqualStrategyNumber, F_CHAREQ,
-				CharGetDatum(rseccmd));
-
 	sscan = systable_beginscan(pg_rowsecurity_rel, RowSecurityRelidIndexId,
-							   true, NULL, 3, skeys);
+							   true, NULL, 2, skeys);
 
 	rsec_tuple = systable_getnext(sscan);
 
@@ -577,11 +539,11 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	Relation		target_table;
 	Oid				table_id;
 	char			rseccmd;
-	ArrayType	   *role_ids;
+	ArrayType	   *role_ids = NULL;
 	ParseState	   *pstate;
 	RangeTblEntry  *rte;
 	Node		   *qual;
-	ScanKeyData		skeys[3];
+	ScanKeyData		skeys[2];
 	SysScanDesc		sscan;
 	HeapTuple		rsec_tuple;
 	HeapTuple		new_tuple;
@@ -592,10 +554,14 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	ObjectAddress myself;
 
 	/* Parse command */
-	rseccmd = parse_row_security_command(stmt->cmd);
+	if (stmt->cmd != NULL)
+		rseccmd = parse_row_security_command(stmt->cmd);
+	else
+		rseccmd = ROWSECURITY_CMD_UNDEFINED;
 
 	/* Parse role_ids */
-	role_ids = parse_role_ids(stmt->roles);
+	if (stmt->roles != NULL)
+		role_ids = parse_role_ids(stmt->roles);
 
 	/* Get id of table. */
 	table_id = RangeVarGetRelidExtended(stmt->table, AccessExclusiveLock,
@@ -604,6 +570,9 @@ AlterPolicy(AlterPolicyStmt *stmt)
 										(void *) stmt);
 
 	target_table = relation_open(table_id, NoLock);
+
+	/* Permissions checks */
+	check_permissions(target_table);
 
 	/* Parse the row-security clause */
 	pstate = make_parsestate(NULL);
@@ -637,14 +606,8 @@ AlterPolicy(AlterPolicyStmt *stmt)
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(table_id));
 
-	/* Set key - row security command. */
-	ScanKeyInit(&skeys[2],
-				Anum_pg_rowsecurity_rseccmd,
-				BTEqualStrategyNumber, F_CHAREQ,
-				CharGetDatum(rseccmd));
-
 	sscan = systable_beginscan(pg_rowsecurity_rel, RowSecurityRelidIndexId,
-							   true, NULL, 3, skeys);
+							   true, NULL, 2, skeys);
 
 	rsec_tuple = systable_getnext(sscan);
 
@@ -653,13 +616,19 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	{
 		rowsec_id = HeapTupleGetOid(rsec_tuple);
 
-		replaces[Anum_pg_rowsecurity_rsecroles - 1] = true;
+		if (role_ids != NULL)
+		{
+			replaces[Anum_pg_rowsecurity_rsecroles - 1] = true;
+			values[Anum_pg_rowsecurity_rsecroles - 1] = PointerGetDatum(role_ids);
+		}
+
+		if (rseccmd != ROWSECURITY_CMD_UNDEFINED)
+		{
+			replaces[Anum_pg_rowsecurity_rseccmd - 1] = true;
+			values[Anum_pg_rowsecurity_rseccmd - 1] = CharGetDatum(rseccmd);
+		}
 
 		replaces[Anum_pg_rowsecurity_rsecqual - 1] = true;
-
-		values[Anum_pg_rowsecurity_rsecroles - 1]
-			= PointerGetDatum(role_ids);
-
 		values[Anum_pg_rowsecurity_rsecqual -1]
 			= CStringGetTextDatum(nodeToString(qual));
 
@@ -691,9 +660,8 @@ AlterPolicy(AlterPolicyStmt *stmt)
 
 		heap_freetuple(new_tuple);
 	} else {
-		elog(ERROR, "policy %s for %s does not exist on table %s",
-			 stmt->policy_name, stmt->cmd,
-			 RelationGetRelationName(target_table));
+		elog(ERROR, "policy '%s' for does not exist on table %s",
+			 stmt->policy_name, RelationGetRelationName(target_table));
 	}
 
 	/* Invalidate Relation Cache */
@@ -718,20 +686,22 @@ void
 DropPolicy(DropPolicyStmt *stmt)
 {
 	Relation		pg_rowsecurity_rel;
+	Relation		target_table;
 	Oid				table_id;
-	char			rseccmd;
-	ScanKeyData		skeys[3];
+	ScanKeyData		skeys[2];
 	SysScanDesc		sscan;
 	HeapTuple		rsec_tuple;
-
-	/* Parse command */
-	rseccmd = parse_row_security_command(stmt->cmd);
 
 	/* Get id of target table. */
 	table_id = RangeVarGetRelidExtended(stmt->table, AccessExclusiveLock,
 										false, false,
 										RangeVarCallbackForCreatePolicy,
 										(void *) stmt);
+
+	target_table = relation_open(table_id, NoLock);
+
+	/* Permissions checks */
+	check_permissions(target_table);
 
 	pg_rowsecurity_rel = heap_open(RowSecurityRelationId, RowExclusiveLock);
 
@@ -747,13 +717,8 @@ DropPolicy(DropPolicyStmt *stmt)
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(table_id));
 
-	ScanKeyInit(&skeys[2],
-				Anum_pg_rowsecurity_rseccmd,
-				BTEqualStrategyNumber, F_CHAREQ,
-				CharGetDatum(rseccmd));
-
 	sscan = systable_beginscan(pg_rowsecurity_rel, RowSecurityRelidIndexId,
-							   true, NULL, 3, skeys);
+							   true, NULL, 2, skeys);
 
 	rsec_tuple = systable_getnext(sscan);
 
@@ -779,19 +744,20 @@ DropPolicy(DropPolicyStmt *stmt)
 			ereport(ERROR,
 					(errcode(ERRCODE_UNDEFINED_OBJECT),
 					 errmsg("row-security policy \"%s\" does not exist on table"
-							" \"%s\" for \"%s\"",
-							stmt->policy_name, stmt->table->relname, stmt->cmd)));
+							" \"%s\"",
+							stmt->policy_name, stmt->table->relname)));
 		}
 		else
 		{
 			ereport(NOTICE,
 					(errmsg("row-security policy \"%s\" does not exist on table"
-							" \"%s\" for \"%s\", skipping",
-						   stmt->policy_name, stmt->table->relname, stmt->cmd)));
+							" \"%s\", skipping",
+						   stmt->policy_name, stmt->table->relname)));
 		}
 	}
 
 	/* Clean up. */
 	systable_endscan(sscan);
+	relation_close(target_table, NoLock);
 	heap_close(pg_rowsecurity_rel, RowExclusiveLock);
 }

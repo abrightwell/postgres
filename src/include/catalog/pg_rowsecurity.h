@@ -57,23 +57,16 @@ typedef FormData_pg_rowsecurity *Form_pg_rowsecurity;
 #define ROWSECURITY_CMD_INSERT		'i'
 #define ROWSECURITY_CMD_UPDATE		'u'
 #define ROWSECURITY_CMD_DELETE		'd'
+#define ROWSECURITY_CMD_UNDEFINED	'\0'
 
 typedef struct
 {
-	Oid				rsecid;
-	ArrayType	   *roles;
-	Expr		   *qual;
-	bool			hassublinks;
-} RowSecurityEntry;
-
-typedef struct
-{
+	Oid					rsecid;
 	char			   *policy_name;
-	RowSecurityEntry   *rsall;		/* row-security policy for ALL */
-	RowSecurityEntry   *rsselect;	/* row-security policy for SELECT */
-	RowSecurityEntry   *rsinsert;	/* row-security policy for INSERT */
-	RowSecurityEntry   *rsupdate;	/* row-security policy for UPDATE */
-	RowSecurityEntry   *rsdelete;	/* row-security policy for DELETE */
+	char				cmd;
+	ArrayType		   *roles;
+	Expr			   *qual;
+	bool				hassublinks;
 } RowSecurityPolicy;
 
 typedef struct

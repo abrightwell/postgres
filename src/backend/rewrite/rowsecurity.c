@@ -29,7 +29,7 @@
 #include "utils/syscache.h"
 #include "tcop/utility.h"
 
-static bool check_role_for_policy(RowSecurityEntry *entry);
+static bool check_role_for_policy(RowSecurityPolicy *policy);
 
 /* hook to allow extensions to apply their own security policy */
 row_security_policy_hook_type	row_security_policy_hook = NULL;
@@ -125,37 +125,34 @@ pull_row_security_policy(CmdType cmd, Relation relation)
 				policy = (RowSecurityPolicy *) lfirst(item);
 
 				/* Always add ALL policy if exists. */
-				if (policy->rsall != NULL && check_role_for_policy(policy->rsall))
-					quals = lcons(copyObject(policy->rsall->qual), quals);
+				if (policy->cmd == ROWSECURITY_CMD_ALL
+					&& check_role_for_policy(policy))
+					quals = lcons(copyObject(policy->qual), quals);
 
 				/* Build list of quals, merging when appropriate. */
 				switch(cmd)
 				{
 					case CMD_SELECT:
-						if (policy->rsselect != NULL
-							&& check_role_for_policy(policy->rsselect))
-							quals = lcons(copyObject(policy->rsselect->qual), quals);
+						if (policy->cmd == ROWSECURITY_CMD_SELECT
+							&& check_role_for_policy(policy))
+							quals = lcons(copyObject(policy->qual), quals);
 						break;
 					case CMD_INSERT:
-						if (policy->rsinsert != NULL
-							&& check_role_for_policy(policy->rsinsert))
-							quals = lcons(copyObject(policy->rsinsert->qual), quals);
+						if (policy->cmd == ROWSECURITY_CMD_INSERT
+							&& check_role_for_policy(policy))
+							quals = lcons(copyObject(policy->qual), quals);
 						break;
 					case CMD_UPDATE:
-						if (policy->rsselect != NULL
-							&& check_role_for_policy(policy->rsselect))
-							quals = lcons(copyObject(policy->rsselect->qual), quals);
-						if (policy->rsupdate != NULL
-							&& check_role_for_policy(policy->rsupdate))
-							quals = lcons(copyObject(policy->rsupdate->qual), quals);
+						if ((policy->cmd == ROWSECURITY_CMD_SELECT
+							|| policy->cmd == ROWSECURITY_CMD_UPDATE)
+							&& check_role_for_policy(policy))
+							quals = lcons(copyObject(policy->qual), quals);
 						break;
 					case CMD_DELETE:
-						if (policy->rsselect != NULL
-							&& check_role_for_policy(policy->rsselect))
-							quals = lcons(copyObject(policy->rsselect->qual), quals);
-						if (policy->rsdelete != NULL
-							&& check_role_for_policy(policy->rsdelete))
-							quals = lcons(copyObject(policy->rsdelete->qual), quals);
+						if ((policy->cmd == ROWSECURITY_CMD_SELECT
+							|| policy->cmd == ROWSECURITY_CMD_DELETE)
+							&& check_role_for_policy(policy))
+							quals = lcons(copyObject(policy->qual), quals);
 						break;
 					default:
 						elog(ERROR, "unrecognized command type.");
@@ -203,21 +200,20 @@ is_rls_enabled()
 }
 
 bool
-check_role_for_policy(RowSecurityEntry *entry)
+check_role_for_policy(RowSecurityPolicy *policy)
 {
 	bool		result = false;
-	Oid		   *role_data;
 	Oid			user_id;
 	Oid			role_id;
 	int			i;
 
+	Oid		   *roles = (Oid *) ARR_DATA_PTR(policy->roles);
+
 	user_id = GetUserId();
 
-	role_data = (Oid *) ARR_DATA_PTR(entry->roles);
-
-	for(i = 0; i < ARR_SIZE(entry->roles); i++)
+	for(i = 0; i < ARR_DIMS(policy->roles)[0]; i++)
 	{
-		role_id = role_data[i];
+		role_id = roles[i];
 
 		/* If role id is ACL_ID_PUBLIC then always return true */
 		if (role_id == ACL_ID_PUBLIC)
