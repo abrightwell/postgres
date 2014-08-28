@@ -11,6 +11,8 @@ DROP USER IF EXISTS rls_regress_user0;
 DROP USER IF EXISTS rls_regress_user1;
 DROP USER IF EXISTS rls_regress_user2;
 DROP USER IF EXISTS rls_regress_exempt_user;
+DROP ROLE IF EXISTS rls_regress_group1;
+DROP ROLE IF EXISTS rls_regress_group2;
 
 DROP SCHEMA IF EXISTS rls_regress_schema CASCADE;
 
@@ -21,6 +23,11 @@ CREATE USER rls_regress_user0;
 CREATE USER rls_regress_user1;
 CREATE USER rls_regress_user2;
 CREATE USER rls_regress_exempt_user BYPASSRLS;
+CREATE ROLE rls_regress_group1 NOLOGIN;
+CREATE ROLE rls_regress_group2 NOLOGIN;
+
+GRANT rls_regress_group1 TO rls_regress_user1;
+GRANT rls_regress_group2 TO rls_regress_user2;
 
 CREATE SCHEMA rls_regress_schema;
 GRANT ALL ON SCHEMA rls_regress_schema to public;
@@ -94,7 +101,7 @@ EXPLAIN (COSTS OFF) SELECT * FROM document NATURAL JOIN category WHERE f_leak(dt
 
 -- only owner can change row-level security
 ALTER POLICY p1 ON document FOR ALL TO PUBLIC USING (true);    --fail
-DROP POLICY p1 ON document FOR ALL;                  --fail
+DROP POLICY p1 ON document;                  --fail
 
 SET SESSION AUTHORIZATION rls_regress_user0;
 ALTER POLICY p1 ON document FOR ALL TO PUBLIC USING (dauthor = current_user);
@@ -387,9 +394,87 @@ DELETE FROM only t1 WHERE f_leak(b) RETURNING oid, *, t1;
 DELETE FROM t1 WHERE f_leak(b) RETURNING oid, *, t1;
 
 --
+-- ROLE/GROUP
+--
+SET SESSION AUTHORIZATION rls_regress_user0;
+
+CREATE TABLE z1 (a int, b text) WITH OIDS;
+GRANT ALL ON z1 TO PUBLIC;
+
+COPY z1 FROM STDIN WITH (OIDS);
+101	1	aaa
+102	2	bbb
+103	3	ccc
+104	4	ddd
+\.
+
+CREATE POLICY p1 ON z1 TO rls_regress_group1
+    USING (a % 2 = 0);
+CREATE POLICY p2 ON z1 TO rls_regress_group2
+    USING (a % 2 = 1);
+
+SET SESSION AUTHORIZATION rls_regress_user1;
+SELECT * FROM z1 WHERE f_leak(b);
+
+SET ROLE rls_regress_group1;
+SELECT * FROM z1 WHERE f_leak(b);
+
+SET SESSION AUTHORIZATION rls_regress_user2;
+SELECT * FROM z1 WHERE f_leak(b);
+
+SET ROLE rls_regress_group2;
+SELECT * FROM z1 WHERE f_leak(b);
+
+--
+-- Command specific
+--
+SET SESSION AUTHORIZATION rls_regress_user0;
+
+CREATE TABLE x1 (a int, b text, c text);
+GRANT ALL ON x1 TO PUBLIC;
+
+INSERT INTO x1 VALUES
+    (1, 'abc', 'rls_regress_user1'),
+    (2, 'bcd', 'rls_regress_user1'),
+    (3, 'cde', 'rls_regress_user2'),
+    (4, 'def', 'rls_regress_user2'),
+    (5, 'efg', 'rls_regress_user1'),
+    (6, 'fgh', 'rls_regress_user1'),
+    (7, 'fgh', 'rls_regress_user2'),
+    (8, 'fgh', 'rls_regress_user2');
+
+CREATE POLICY p0 ON x1 FOR ALL USING (c = current_user);
+CREATE POLICY p1 ON x1 FOR SELECT USING (a % 2 = 0);
+CREATE POLICY p2 ON x1 FOR INSERT USING (a % 2 = 1);
+CREATE POLICY p3 ON x1 FOR UPDATE USING (a > 0);
+CREATE POLICY p4 ON x1 FOR DELETE USING (a < COUNT(x1));
+
+SET SESSION AUTHORIZATION rls_regress_user1;
+SELECT * FROM x1;
+UPDATE x1 SET b = b || '_updt' RETURNING *;
+DELETE FROM x1 WHERE f_leak(b) RETURNING *;
+
+SET SESSION AUTHORIZATION rls_regress_user2;
+SELECT * FROM x1;
+UPDATE x1 SET b = b || '_updt' RETURNING *;
+DELETE FROM x1 WHERE f_leak(b) RETURNING *;
+
+--
+-- Duplicate Policy Names
+--
+SET SESSION AUTHORIZATION rls_regress_user0;
+CREATE TABLE y1 (a int, b int);
+CREATE TABLE y2 (a int, b int);
+
+CREATE POLICY p1 ON y1 FOR ALL USING (a % 2 = 0);
+CREATE POLICY p1 ON y1 FOR SELECT USING (a % 2 = 1);  --fail
+CREATE POLICY p1 ON y2 FOR ALL USING (a % 2 = 0);  --OK
+
+--
 -- Test psql \dt+ command
 --
-DROP POLICY p2 ON category FOR ALL;  -- too long qual
+SET SESSION AUTHORIZATION rls_regress_user0;
+DROP POLICY p2 ON category;  -- too long qual
 \dt+
 
 --
