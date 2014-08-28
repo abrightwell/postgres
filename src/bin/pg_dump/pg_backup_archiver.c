@@ -316,6 +316,7 @@ RestoreArchive(Archive *AHX)
 		AH->noTocComments = 1;
 	}
 
+
 	/*
 	 * Work out if we have an implied data-only restore. This can happen if
 	 * the dump was data only or if the user has used a toc list to exclude
@@ -372,6 +373,14 @@ RestoreArchive(Archive *AHX)
 		else
 			ahprintf(AH, "BEGIN;\n\n");
 	}
+
+	/*
+	 * Enable row-security if necessary.
+	 */
+	if (!ropt->enable_row_security)
+		ahprintf(AH, "SET row_security = off\n");
+	else
+		ahprintf(AH, "SET row_security = on\n");
 
 	/*
 	 * Establish important parameter values right away.

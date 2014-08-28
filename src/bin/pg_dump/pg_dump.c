@@ -137,7 +137,7 @@ static int	no_security_labels = 0;
 static int	no_synchronized_snapshots = 0;
 static int	no_unlogged_table_data = 0;
 static int	serializable_deferrable = 0;
-static int	allow_row_security = 0;
+static int	enable_row_security = 0;
 
 
 static void help(const char *progname);
@@ -342,12 +342,12 @@ main(int argc, char **argv)
 		/*
 		 * the following options don't have an equivalent short option letter
 		 */
-		{"allow-row-security", no_argument, &allow_row_security, 1},
 		{"attribute-inserts", no_argument, &column_inserts, 1},
 		{"binary-upgrade", no_argument, &binary_upgrade, 1},
 		{"column-inserts", no_argument, &column_inserts, 1},
 		{"disable-dollar-quoting", no_argument, &disable_dollar_quoting, 1},
 		{"disable-triggers", no_argument, &disable_triggers, 1},
+		{"enable-row-security", no_argument, &enable_row_security, 1},
 		{"exclude-table-data", required_argument, NULL, 4},
 		{"if-exists", no_argument, &if_exists, 1},
 		{"inserts", no_argument, &dump_inserts, 1},
@@ -828,6 +828,7 @@ main(int argc, char **argv)
 	ropt->noTablespace = outputNoTablespaces;
 	ropt->disable_triggers = disable_triggers;
 	ropt->use_setsessauth = use_setsessauth;
+	ropt->enable_row_security = enable_row_security;
 
 	if (compressLevel == -1)
 		ropt->compression = 0;
@@ -896,11 +897,11 @@ help(const char *progname)
 	printf(_("  -t, --table=TABLE            dump the named table(s) only\n"));
 	printf(_("  -T, --exclude-table=TABLE    do NOT dump the named table(s)\n"));
 	printf(_("  -x, --no-privileges          do not dump privileges (grant/revoke)\n"));
-	printf(_("  --allow-row-security         allow execution of row level security\n"));
 	printf(_("  --binary-upgrade             for use by upgrade utilities only\n"));
 	printf(_("  --column-inserts             dump data as INSERT commands with column names\n"));
 	printf(_("  --disable-dollar-quoting     disable dollar quoting, use SQL standard quoting\n"));
 	printf(_("  --disable-triggers           disable triggers during data-only restore\n"));
+	printf(_("  --enable-row-security        enable row level security\n"));
 	printf(_("  --exclude-table-data=TABLE   do NOT dump data for the named table(s)\n"));
 	printf(_("  --if-exists                  use IF EXISTS when dropping objects\n"));
 	printf(_("  --inserts                    dump data as INSERT commands, rather than COPY\n"));
@@ -1055,10 +1056,13 @@ setup_connection(Archive *AH, const char *dumpencoding, char *use_role)
 			AH->sync_snapshot_id = get_synchronized_snapshot(AH);
 	}
 
-	if (allow_row_security)
-		ExecuteSqlStatement(AH, "SET ROW SECURITY ON");
-	else
-		ExecuteSqlStatement(AH, "SET ROW SECURITY OFF");
+	if (AH->remoteVersion >= 90500)
+	{
+		if (enable_row_security)
+			ExecuteSqlStatement(AH, "SET ROW SECURITY ON");
+		else
+			ExecuteSqlStatement(AH, "SET ROW SECURITY OFF");
+	}
 }
 
 static void
@@ -2779,6 +2783,7 @@ getRowSecurity(Archive *fout, TableInfo tblinfo[], int numTables)
 	int				i_tableoid;
 	int				i_rsecpolname;
 	int				i_rseccmd;
+	int				i_rsecroles;
 	int				i_rsecqual;
 	int				i, j, ntups;
 
@@ -2805,6 +2810,7 @@ getRowSecurity(Archive *fout, TableInfo tblinfo[], int numTables)
 
 		appendPQExpBuffer(query,
 						  "SELECT oid, tableoid, s.rsecpolname, s.rseccmd, "
+						  "array_to_string(ARRAY(SELECT rolname from pg_roles WHERE oid = ANY(s.rsecroles)), ', ') AS rsecroles, "
 						  "pg_get_expr(s.rsecqual, s.rsecrelid) AS rsecqual "
 						  "FROM pg_catalog.pg_rowsecurity s "
 						  "WHERE rsecrelid = '%u'",
@@ -2817,6 +2823,7 @@ getRowSecurity(Archive *fout, TableInfo tblinfo[], int numTables)
 		i_tableoid = PQfnumber(res, "tableoid");
 		i_rsecpolname = PQfnumber(res, "rsecpolname");
 		i_rseccmd = PQfnumber(res, "rseccmd");
+		i_rsecroles = PQfnumber(res, "rsecroles");
 		i_rsecqual = PQfnumber(res, "rsecqual");
 
 		rsinfo = pg_malloc(ntups * sizeof(RowSecurityInfo));
@@ -2837,6 +2844,7 @@ getRowSecurity(Archive *fout, TableInfo tblinfo[], int numTables)
 			rsinfo[j].rstable = tbinfo;
 			rsinfo[j].rsecpolname = pg_strdup(PQgetvalue(res, j, i_rsecpolname));
 			rsinfo[j].rseccmd = pg_strdup(PQgetvalue(res, j, i_rseccmd));
+			rsinfo[j].rsecroles = pg_strdup(PQgetvalue(res, j, i_rsecroles));
 			rsinfo[j].rsecqual = pg_strdup(PQgetvalue(res, j, i_rsecqual));
 		}
 		PQclear(res);
@@ -2878,10 +2886,17 @@ dumpRowSecurity(Archive *fout, RowSecurityInfo *rsinfo)
 	query = createPQExpBuffer();
 	delqry = createPQExpBuffer();
 
-	appendPQExpBuffer(query, "CREATE POLICY %s ON %s FOR %s USING %s;\n",
-					  rsinfo->rsecpolname, fmtId(tbinfo->dobj.name),
-					  cmd, rsinfo->rsecqual);
-	appendPQExpBuffer(delqry, "DROP POLICY %s ON %s FOR %s;\n",
+	appendPQExpBuffer(query, "CREATE POLICY %s ON %s FOR %s ",
+					  rsinfo->rsecpolname, fmtId(tbinfo->dobj.name), cmd);
+
+	if (strcmp(rsinfo->rsecroles, "") == 0)
+		appendPQExpBuffer(query, "TO PUBLIC ");
+	else
+		appendPQExpBuffer(query, "TO %s ", rsinfo->rsecroles);
+
+	appendPQExpBuffer(query, "USING %s\n", rsinfo->rsecqual);
+
+	appendPQExpBuffer(delqry, "DROP POLICY %s ON %s;\n",
 					  rsinfo->rsecpolname, fmtId(tbinfo->dobj.name), cmd);
 
 	ArchiveEntry(fout, rsinfo->dobj.catId, rsinfo->dobj.dumpId,

@@ -494,6 +494,7 @@ typedef struct _rowSecurityInfo
 	TableInfo	   *rstable;
 	char		   *rsecpolname;
 	char		   *rseccmd;
+	char		   *rsecroles;
 	char		   *rsecqual;
 } RowSecurityInfo;
 
