@@ -2897,7 +2897,7 @@ dumpRowSecurity(Archive *fout, RowSecurityInfo *rsinfo)
 	appendPQExpBuffer(query, "USING %s\n", rsinfo->rsecqual);
 
 	appendPQExpBuffer(delqry, "DROP POLICY %s ON %s;\n",
-					  rsinfo->rsecpolname, fmtId(tbinfo->dobj.name), cmd);
+					  rsinfo->rsecpolname, fmtId(tbinfo->dobj.name));
 
 	ArchiveEntry(fout, rsinfo->dobj.catId, rsinfo->dobj.dumpId,
 				 rsinfo->dobj.name,
