@@ -1892,7 +1892,6 @@ typedef struct DropPolicyStmt
 	NodeTag		type;
 	char	   *policy_name;	/* Policy's name */
 	RangeVar   *table;			/* the table name the policy applies to */
-	char	   *cmd;			/* the command name the policy applies to */
 	bool		missing_ok;		/* skip error if policy is missing. */
 } DropPolicyStmt;
 

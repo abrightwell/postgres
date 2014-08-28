@@ -2037,7 +2037,6 @@ _equalDropPolicyStmt(const DropPolicyStmt *a, const DropPolicyStmt *b)
 {
 	COMPARE_STRING_FIELD(policy_name);
 	COMPARE_NODE_FIELD(table);
-	COMPARE_SCALAR_FIELD(cmd);
 
 	return true;
 }

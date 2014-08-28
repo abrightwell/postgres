@@ -3885,7 +3885,6 @@ _copyDropPolicyStmt(const DropPolicyStmt *from)
 
 	COPY_STRING_FIELD(policy_name);
 	COPY_NODE_FIELD(table);
-	COPY_SCALAR_FIELD(cmd);
 
 	return newnode;
 }

@@ -319,8 +319,9 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 
 %type <str>		all_Op MathOp
 
-%type <str>		row_security_option row_security_cmd RowSecurityForCmd
-%type <list>	RowSecurityToRole
+%type <str>		row_security_option row_security_cmd RowSecurityDefaultForCmd
+				RowSecurityOptionalForCmd
+%type <list>	RowSecurityDefaultToRole RowSecurityOptionalToRole
 
 %type <str>		iso_level opt_encoding
 %type <node>	grantee
@@ -4428,8 +4429,8 @@ AlterUserMappingStmt: ALTER USER MAPPING FOR auth_ident SERVER name alter_generi
  *****************************************************************************/
 
 CreatePolicyStmt:
-			CREATE POLICY name ON qualified_name RowSecurityForCmd RowSecurityToRole
-				USING '(' a_expr ')'
+			CREATE POLICY name ON qualified_name RowSecurityDefaultForCmd
+				RowSecurityDefaultToRole USING '(' a_expr ')'
 				{
 					CreatePolicyStmt *n = makeNode(CreatePolicyStmt);
 					n->policy_name = $3;
@@ -4442,8 +4443,8 @@ CreatePolicyStmt:
 		;
 
 AlterPolicyStmt:
-			ALTER POLICY name ON qualified_name RowSecurityForCmd RowSecurityToRole
-				USING '(' a_expr ')'
+			ALTER POLICY name ON qualified_name RowSecurityOptionalForCmd
+				RowSecurityOptionalToRole USING '(' a_expr ')'
 				{
 					AlterPolicyStmt *n = makeNode(AlterPolicyStmt);
 					n->policy_name = $3;
@@ -4456,35 +4457,42 @@ AlterPolicyStmt:
 		;
 
 DropPolicyStmt:
-			DROP POLICY name ON qualified_name RowSecurityForCmd
+			DROP POLICY name ON qualified_name
 				{
 					DropPolicyStmt *n = makeNode(DropPolicyStmt);
 					n->policy_name = $3;
 					n->table = $5;
-					n->cmd = $6;
 					n->missing_ok = FALSE;
 					$$ = (Node *) n;
 				}
-			| DROP POLICY IF_P EXISTS name ON qualified_name RowSecurityForCmd
+			| DROP POLICY IF_P EXISTS name ON qualified_name
 				{
 					DropPolicyStmt *n = makeNode(DropPolicyStmt);
 					n->policy_name = $5;
 					n->table = $7;
-					n->cmd = $8;
 					n->missing_ok = TRUE;
 					$$ = (Node *) n;
 				}
 		;
 
-RowSecurityToRole:
+RowSecurityDefaultToRole:
 			TO role_list			{ $$ = $2; }
 			| /* EMPTY */			{ $$ = list_make1(makeString("public")); }
 		;
 
-RowSecurityForCmd:
+RowSecurityOptionalToRole:
+			TO role_list			{ $$ = $2; }
+			| /* EMPTY */			{ $$ = NULL; }
+		;
+
+RowSecurityDefaultForCmd:
 			FOR row_security_cmd	{ $$ = $2; }
 			| /* EMPTY */			{ $$ = "all"; }
 		;
+
+RowSecurityOptionalForCmd:
+			FOR row_security_cmd	{ $$ = $2; }
+			| /* EMPTY */			{ $$ = NULL; }
 
 row_security_cmd:
 			ALL				{ $$ = "all"; }
