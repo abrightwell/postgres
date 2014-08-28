@@ -137,27 +137,44 @@ parse_role_ids(List *roles)
 {
 	ArrayType  *role_ids;
 	Datum	   *temp_array;
-	Oid			role_id;
+	ListCell   *cell;
 	int			num_roles;
-	int			i;
+	int			i = 0;
+
+	/* Handle no roles being passed in as being for public */
+	if (roles == NIL)
+	{
+		temp_array = (Datum *) palloc(sizeof(Datum));
+		temp_array[0] = ObjectIdGetDatum(ACL_ID_PUBLIC);
+
+		role_ids = construct_array(temp_array, 1, OIDOID, sizeof(Oid), true, 'i');
+		return role_ids;
+	}
 
 	num_roles = list_length(roles);
-
 	temp_array = (Datum *) palloc(num_roles * sizeof(Datum));
 
-	for (i = 0; i < num_roles; i++)
+	foreach(cell, roles)
 	{
-		char *role_name = strVal(list_nth(roles, i));
+		char	   *role_name = strVal(lfirst(cell));
 
 		/*
-		 * If PUBLIC was provided then use ACL_ID_PUBLIC as the id role id.
+		 * PUBLIC covers all roles, so it only makes sense alone.
 		 */
 		if (strcmp(role_name, "public") == 0)
-			role_id = ACL_ID_PUBLIC;
-		else
-			role_id = get_role_oid(role_name, false);
+		{
+			if (num_roles != 1)
+				ereport(WARNING,
+						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+						 errmsg("ignoring roles specified other than public"),
+						 errhint("all roles are considered members of public")));
 
-		temp_array[i] = ObjectIdGetDatum(role_id);
+			temp_array[0] = ObjectIdGetDatum(ACL_ID_PUBLIC);
+			num_roles = 1;
+			break;
+		}
+		else
+			temp_array[i++] = ObjectIdGetDatum(get_role_oid(role_name, false));
 	}
 
 	role_ids = construct_array(temp_array, num_roles, OIDOID, sizeof(Oid), true, 'i');

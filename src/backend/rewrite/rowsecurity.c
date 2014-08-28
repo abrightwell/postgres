@@ -199,32 +199,25 @@ is_rls_enabled()
 	return (strcmp(rls_option, "on") == 0);
 }
 
+/*
+ * check_role_for_policy -
+ *   determines if the policy should be applied for the current role
+ */
 bool
 check_role_for_policy(RowSecurityPolicy *policy)
 {
-	bool		result = false;
-	Oid			user_id;
-	Oid			role_id;
 	int			i;
-
 	Oid		   *roles = (Oid *) ARR_DATA_PTR(policy->roles);
 
-	user_id = GetUserId();
+	/* Quick fall-thru for policies applied to all roles */
+	if (roles[0] == ACL_ID_PUBLIC)
+		return true;
 
 	for(i = 0; i < ARR_DIMS(policy->roles)[0]; i++)
 	{
-		role_id = roles[i];
-
-		/* If role id is ACL_ID_PUBLIC then always return true */
-		if (role_id == ACL_ID_PUBLIC)
+		if(is_member_of_role(GetUserId(), roles[i]))
 			return true;
-
-		if(user_id == role_id || is_member_of_role(user_id, role_id))
-		{
-			result = true;
-			break;
-		}
 	}
 
-	return result;
+	return false;
 }
