@@ -128,7 +128,7 @@ parse_row_security_command(const char *cmd_name)
  *   helper function to convert a list of role names in to an array of
  *   role ids.
  *
- * Note: If the PUBLIC is provided as a role name, then ACL_PUBLIC_ID is
+ * Note: If PUBLIC is provided as a role name, then ACL_PUBLIC_ID is
  *       used as the role id.
  *
  * roles - the list of role names to convert.
@@ -151,7 +151,7 @@ parse_role_ids(List *roles)
 		char *role_name = strVal(list_nth(roles, i));
 
 		/*
-		 * If PUBLIC was provided then use ALC_ID_PUBLIC as the id role id.
+		 * If PUBLIC was provided then use ACL_ID_PUBLIC as the id role id.
 		 */
 		if (strcmp(role_name, "public") == 0)
 			role_id = ACL_ID_PUBLIC;
@@ -382,7 +382,7 @@ RemovePolicyById(Oid policy_id)
 
 	tuple = systable_getnext(sscan);
 
-	/* If the policy exists, then remote it, otherwise raise an error. */
+	/* If the policy exists, then remove it, otherwise raise an error. */
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "could not find tuple for row-security %u", policy_id);
 
