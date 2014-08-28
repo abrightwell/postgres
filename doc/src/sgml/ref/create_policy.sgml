@@ -16,19 +16,15 @@ PostgreSQL documentation
 
  <refnamediv>
   <refname>CREATE POLICY</refname>
-  <refpurpose>define a new row-security policy</refpurpose>
+  <refpurpose>define a new row-security policy for a table</refpurpose>
  </refnamediv>
 
  <refsynopsisdiv>
 <synopsis>
-CREATE POLICY <replaceable class="parameter">policy_name</replaceable> ON <replaceable class="parameter">table_name</replaceable>
-    [ FOR <replaceable class="parameter">command</replaceable> ]
+CREATE POLICY <replaceable class="parameter">name</replaceable> ON <replaceable class="parameter">table_name</replaceable>
+    [ FOR { ALL | SELECT | INSERT | UPDATE | DELETE } ]
     [ TO { <replaceable class="parameter">role_name</replaceable> | PUBLIC } [, ...] ]
     USING ( <replaceable class="parameter">condition</replaceable> )
-
-<phrase>where <replaceable class="parameter">command</replaceable> can be one of:</phrase>
-
-    ALL | SELECT | INSERT | UPDATE | DELETE
 </synopsis>
  </refsynopsisdiv>
 
@@ -36,13 +32,29 @@ CREATE POLICY <replaceable class="parameter">policy_name</replaceable> ON <repla
   <title>Description</title>
 
   <para>
-   <command>CREATE POLICY</command> defines a new row-security policy applying to a specified table for a specific command.
+   The <command>CREATE POLICY</command> command defines a new row-security policy for a table.
   </para>
 
   <para>
-   The <productname>PostgreSQL</productname> row-security system allows
-   one to define per command row level security policies on a table. A policy
-   consists of a name, a table, a command and a qualifier expression.
+   A row-security policy is an expression which is added to the security-barrier
+   qualifications of queries which are run against the table the policy is on.
+   These security-barrier qualifications will always be evaluated prior to any
+   user-defined functions or user-provided WHERE clauses.  By adding policies to
+   a table, a user can limit the rows which a given user can see, modify, or
+   delete.  This capability is also known as Row-Level Security or RLS.
+  </para>
+
+  <para>
+   Policy names are per-table, therefore one policy name can be used for many
+   different tables and have a definition for each table which is appropriate to
+   that table.
+  </para>
+
+  <para>
+   Policies can be applied for specific commands or for specific roles.  The
+   default for newly created policies is that they apply for all command and
+   roles, unless otherwise specified.  If multiple policies apply to a given
+   query, they will be combined using OR.
   </para>
 
  </refsect1>
@@ -52,11 +64,11 @@ CREATE POLICY <replaceable class="parameter">policy_name</replaceable> ON <repla
 
   <variablelist>
    <varlistentry>
-    <term><replaceable class="parameter">policy_name</replaceable></term>
+    <term><replaceable class="parameter">name</replaceable></term>
     <listitem>
      <para>
-      The name of a policy to create.  This must be distinct from the
-      name of any other policy for the same table and command.
+      The name of the policy to be created.  This must be distinct from the
+      name of any other policy for the table.
      </para>
     </listitem>
    </varlistentry>
@@ -88,15 +100,14 @@ CREATE POLICY <replaceable class="parameter">policy_name</replaceable> ON <repla
     <term><replaceable class="parameter">role_name</replaceable></term>
     <listitem>
      <para>
-      The role to which the policy applies.  Multiple roles can be specified at
-      one time.  To apply the policy to all users, then use <literal>PUBLIC</literal>.
-      If no roles are provided then, <literal>PUBLIC</literal> is the default.
+      The roles to which the policy is to be applied.  The default is
+      <literal>PUBLIC</literal>, which will apply the policy to all roles.
      </para>
     </listitem>
    </varlistentry>
 
    <varlistentry>
-    <term><replaceable class="parameter">condition</replaceable></term>
+    <term><replaceable class="parameter">expression</replaceable></term>
     <listitem>
      <para>
       Any <acronym>SQL</acronym> conditional expression (returning
@@ -114,14 +125,13 @@ CREATE POLICY <replaceable class="parameter">policy_name</replaceable> ON <repla
   <para>
    You must be the owner of a table to create or change policies for it.
   </para>
+ </refsect1>
 
  <refsect1>
   <title>Compatibility</title>
 
   <para>
-   <command>CREATE POLICY</command> is a
-   <productname>PostgreSQL</productname> language extension, as is the
-   entire query rewrite system.
+   <command>CREATE POLICY</command> is a <productname>PostgreSQL</productname> extension.
   </para>
  </refsect1>
 

@@ -16,17 +16,12 @@ PostgreSQL documentation
 
  <refnamediv>
   <refname>DROP POLICY</refname>
-  <refpurpose>remove a row-security policy</refpurpose>
+  <refpurpose>remove a row-security policy from a table</refpurpose>
  </refnamediv>
 
  <refsynopsisdiv>
 <synopsis>
-DROP POLICY [ IF EXISTS ] <replaceable class="parameter">policy_name</replaceable> ON <replaceable class="parameter">table_name</replaceable>
-    [ FOR <replaceable class="parameter">command</replaceable> ]
-
-<phrase>where <replaceable class="parameter">command</replaceable> can be one of:</phrase>
-
-    ALL | SELECT | INSERT | UPDATE | DELETE
+DROP POLICY [ IF EXISTS ] <replaceable class="parameter">name</replaceable> ON <replaceable class="parameter">table_name</replaceable>
 </synopsis>
  </refsynopsisdiv>
 
@@ -34,7 +29,7 @@ DROP POLICY [ IF EXISTS ] <replaceable class="parameter">policy_name</replaceabl
   <title>Description</title>
 
   <para>
-   <command>DROP POLICY</command> drops a row-security policy.
+   <command>DROP POLICY</command> removes the specified row-security policy from the table.
   </para>
  </refsect1>
 
@@ -54,7 +49,7 @@ DROP POLICY [ IF EXISTS ] <replaceable class="parameter">policy_name</replaceabl
    </varlistentry>
 
    <varlistentry>
-    <term><replaceable class="parameter">policy_name</replaceable></term>
+    <term><replaceable class="parameter">name</replaceable></term>
     <listitem>
      <para>
       The name of the policy to drop.
@@ -67,20 +62,11 @@ DROP POLICY [ IF EXISTS ] <replaceable class="parameter">policy_name</replaceabl
     <listitem>
      <para>
       The name (optionally schema-qualified) of the table that
-      the policy applies to.
+      the policy is on.
      </para>
     </listitem>
    </varlistentry>
 
-   <varlistentry>
-    <term><replaceable class="parameter">command</replaceable></term>
-    <listitem>
-     <para>
-      The command that the policy applies to. If no command is provided, then
-      <command>ALL</command> is the default.
-     </para>
-    </listitem>
-   </varlistentry>
   </variablelist>
  </refsect1>
 
@@ -89,10 +75,10 @@ DROP POLICY [ IF EXISTS ] <replaceable class="parameter">policy_name</replaceabl
 
   <para>
    To drop the row-security policy called <literal>p1</literal> on the
-   table named <literal>my_table</literal> for the <literal>ALL</literal> command:
+   table named <literal>my_table</literal>:
 
    <programlisting>
-    DROP POLICY p1 ON my_table FOR ALL;
+    DROP POLICY p1 ON my_table;
    </programlisting>
   </para>
  </refsect1>
@@ -101,9 +87,7 @@ DROP POLICY [ IF EXISTS ] <replaceable class="parameter">policy_name</replaceabl
   <title>Compatibility</title>
 
   <para>
-   <command>DROP POLICY</command> is a
-   <productname>PostgreSQL</productname> language extension, as is the
-   entire query rewrite system.
+   <command>DROP POLICY</command> is a <productname>PostgreSQL</productname> extension.
   </para>
  </refsect1>
 

@@ -239,8 +239,8 @@
      </row>
 
      <row>
-      <entry><link linkend="catalog-pg-rowsecurity"><structname>pg_rowsecuritylevelsec</structname></link></entry>
-      <entry>row-level security policy of relation</entry>
+      <entry><link linkend="catalog-pg-rowsecurity"><structname>pg_rowsecurity</structname></link></entry>
+      <entry>table row-level security policies</entry>
      </row>
 
      <row>
@@ -1944,7 +1944,7 @@
       <entry><structfield>relhasrowsecurity</structfield></entry>
       <entry><type>bool</type></entry>
       <entry>
-       True if table has (or once had) row-security policy; see
+       True if table has (or once had) row-security policies; see
        <link linkend="catalog-pg-rowsecurity"><structname>pg_rowsecurity</structname></link> catalog
       </entry>
      </row>
@@ -5350,8 +5350,11 @@
   </indexterm>
 
   <para>
-   The catalog <structname>pg_rowsecurity</structname> stores expression
-   tree of row-security policy to be performed on a particular relation.
+   The catalog <structname>pg_rowsecurity</structname> stores row-level
+   security policies for each table.  A policy includes the kind of
+   command which it applies to (or all commands), the roles which it
+   applies to, and the expression to be added as a security-barrier
+   qualification to queries which include the table.
   </para>
 
   <table>
@@ -5394,7 +5397,7 @@
       <entry><structfield>rsecqual</structfield></entry>
       <entry><type>pg_node_tree</type></entry>
       <entry></entry>
-      <entry>An expression tree that describes what is to be performed by the row-security policy</entry>
+      <entry>The expression tree to be added to the security barrier qualifications for queries which use the table.</entry>
      </row>
     </tbody>
    </tgroup>

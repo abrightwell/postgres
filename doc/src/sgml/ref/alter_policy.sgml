@@ -16,19 +16,15 @@ PostgreSQL documentation
 
  <refnamediv>
   <refname>ALTER POLICY</refname>
-  <refpurpose>change the condition of a row-security policy</refpurpose>
+  <refpurpose>change the definition of a row-security policy</refpurpose>
  </refnamediv>
 
  <refsynopsisdiv>
 <synopsis>
-ALTER POLICY <replaceable class="parameter">policy name</replaceable> ON <replaceable class="parameter">table_name</replaceable>
-    [ FOR <replaceable class="parameter">command</replaceable> ]
+ALTER POLICY <replaceable class="parameter">name</replaceable> ON <replaceable class="parameter">table_name</replaceable>
+    [ FOR { ALL | SELECT | INSERT | UPDATE | DELETE } ]
     [ TO { <replaceable class="parameter">role_name</replaceable> | PUBLIC } [, ...] ]
-    USING ( <replaceable class="parameter">condition</replaceable> )
-
-<phrase>where <replaceable class="parameter">command</replaceable> can be one of:</phrase>
-
-    ALL | SELECT | INSERT | UPDATE | DELETE
+    USING ( <replaceable class="parameter">expression</replaceable> )
 </synopsis>
  </refsynopsisdiv>
 
@@ -37,7 +33,7 @@ ALTER POLICY <replaceable class="parameter">policy name</replaceable> ON <replac
 
   <para>
    <command>ALTER POLICY</command> changes the <replaceable class="parameter">
-   condition</replaceable> of an existing row-security policy.
+   definition</replaceable> of an existing row-security policy.
   </para>
 
   <para>
@@ -51,7 +47,7 @@ ALTER POLICY <replaceable class="parameter">policy name</replaceable> ON <replac
 
   <variablelist>
    <varlistentry>
-    <term><replaceable class="parameter">policy_name</replaceable></term>
+    <term><replaceable class="parameter">name</replaceable></term>
     <listitem>
      <para>
       The name of an existing policy to alter.
@@ -64,7 +60,7 @@ ALTER POLICY <replaceable class="parameter">policy name</replaceable> ON <replac
     <listitem>
      <para>
       The name (optionally schema-qualified) of the table that the
-      policy applies to.
+      policy is on.
      </para>
     </listitem>
    </varlistentry>
@@ -73,8 +69,7 @@ ALTER POLICY <replaceable class="parameter">policy name</replaceable> ON <replac
     <term><replaceable class="parameter">command</replaceable></term>
     <listitem>
      <para>
-      The command that the policy applies to. If no command is provided, then
-      <command>ALL</command> is the default.
+      The command that the policy applies to. Default is <command>ALL</command>.
      </para>
     </listitem>
    </varlistentry>
@@ -84,17 +79,20 @@ ALTER POLICY <replaceable class="parameter">policy name</replaceable> ON <replac
     <listitem>
      <para>
       The role to which the policy applies.  Multiple roles can be specified at one time.
-      To apply the policy to all roles, use <literal>PUBLIC</literal>. If no
-      role is provided, then <literal>PUBLIC</literal> is the default.
+      To apply the policy to all roles, use <literal>PUBLIC</literal>, which is also
+      the default.
      </para>
     </listitem>
    </varlistentry>
 
    <varlistentry>
-    <term><replaceable class="parameter">condition</replaceable></term>
+    <term><replaceable class="parameter">expression</replaceable></term>
     <listitem>
      <para>
-      The new condition for the policy.
+      The expression for the policy.  This expression will be added as a
+      security-barrier qualification to queries which use the table
+      automatically.  If multiple policies are being applied for a given
+      table then they are all combined and added using OR.
      </para>
     </listitem>
    </varlistentry>
@@ -105,9 +103,7 @@ ALTER POLICY <replaceable class="parameter">policy name</replaceable> ON <replac
   <title>Compatibility</title>
 
   <para>
-   <command>ALTER POLICY</command> is a
-   <productname>PostgreSQL</productname> language extension, as is the
-   entire query rewrite system.
+   <command>ALTER POLICY</command> is a <productname>PostgreSQL</productname> extension.
   </para>
  </refsect1>
 

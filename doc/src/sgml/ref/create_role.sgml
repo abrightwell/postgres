@@ -198,9 +198,14 @@ CREATE ROLE <replaceable class="PARAMETER">name</replaceable> [ [ WITH ] <replac
        <para>
         These clauses determine whether a role is allowed to bypass row-security
         policies.  A role having the <literal>BYPASSRLS</literal> attribute will
-        be allowed to bypass row-security policies when and only when the
-        <literal>row_security</literal> configuration is set to
+        be allowed to bypass row-security policies by setting
+        <literal>row_security</literal> to
         <literal>OFF</literal>. <literal>NOBYPASSRLS</literal> is the default.
+        Note that pg_dump will set <literal>row_security</literal> to
+        <literal>OFF</literal> by default, to ensure all contents of a table are
+        dumped out.  If the user running pg_dump does not have appropriate
+        permissions, an error will be returned.  The superuser is considered to 
+        always have the BYPASSRLS right.
        </para>
       </listitem>
      </varlistentry>
