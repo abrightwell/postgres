@@ -3406,9 +3406,7 @@ static struct config_enum ConfigureNamesEnum[] =
 	{
 		{"row_security", PGC_USERSET, CONN_AUTH_SECURITY,
 			gettext_noop("Enable row security."),
-			gettext_noop("When enabled, row security will be applied to all "
-				"users except those with superuser privileges."
-				)
+			gettext_noop("When enabled, row security will be applied to all users.")
 		},
 		&row_security,
 		ROW_SECURITY_ON, row_security_options,
