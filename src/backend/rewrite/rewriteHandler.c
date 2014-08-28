@@ -1718,8 +1718,10 @@ fireRIRrules(Query *parsetree, List *activeRIRs, bool forUpdatePushedDown)
 		 */
 		if (prepend_row_security_quals(parsetree, rte, rt_index))
 		{
-			// We applied security quals, check for infinite recursion and
-			// then expand any nested queries.
+			/*
+			 * We applied security quals, check for infinite recursion and
+			 * then expand any nested queries.
+			 */
 			if (list_member_oid(activeRIRs, RelationGetRelid(rel)))
 					ereport(ERROR,
 							(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
