@@ -819,21 +819,54 @@ DoCopy(const CopyStmt *stmt, const char *queryString, uint64 *processed)
 		rel = heap_openrv(stmt->relation,
 						  (is_from ? RowExclusiveLock : AccessShareLock));
 
+		relid = RelationGetRelid(rel);
+
+		rte = makeNode(RangeTblEntry);
+		rte->rtekind = RTE_RELATION;
+		rte->relid = RelationGetRelid(rel);
+		rte->relkind = rel->rd_rel->relkind;
+		rte->requiredPerms = required_access;
+
+		tupDesc = RelationGetDescr(rel);
+		attnums = CopyGetAttnums(tupDesc, rel, stmt->attlist);
+		foreach(cur, attnums)
+		{
+			int			attno = lfirst_int(cur) -
+			FirstLowInvalidHeapAttributeNumber;
+
+			if (is_from)
+				rte->modifiedCols = bms_add_member(rte->modifiedCols, attno);
+			else
+				rte->selectedCols = bms_add_member(rte->selectedCols, attno);
+		}
+		ExecCheckRTPerms(list_make1(rte), true);
+
 		/*
-		 * If the relation has a row security policy, then perform a "query"
-		 * copy.  This will allow for the policies to be applied appropriately
-		 * to the relation.
+		 * If the relation has a row security policy and we are to apply it
+		 * (row_security is on), then perform a "query" copy.  This will
+		 * allow for the policies to be applied appropriately to the relation.
 		 */
-		if (rel->rd_rel->relhasrowsecurity)
+		if (rel->rd_rel->relhasrowsecurity && is_rls_enabled())
 		{
 			SelectStmt *select;
 			ColumnRef  *cr;
 			ResTarget  *target;
 			RangeVar   *from;
 
+			if (is_from)
+				ereport(ERROR,
+						(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+						 errmsg("COPY FROM not supported with row security."),
+						 errhint("Use direct INSERT statements instead.")));
+
 			/* Build target list */
 			cr = makeNode(ColumnRef);
-			cr->fields = list_make1(makeNode(A_Star));
+
+			if (!stmt->attlist)
+				cr->fields = list_make1(makeNode(A_Star));
+			else
+				cr->fields = stmt->attlist;
+
 			cr->location = 1;
 
 			target = makeNode(ResTarget);
@@ -859,28 +892,14 @@ DoCopy(const CopyStmt *stmt, const char *queryString, uint64 *processed)
 			rel = NULL;
 		}
 		else
-		{
-			relid = RelationGetRelid(rel);
-			rte = makeNode(RangeTblEntry);
-			rte->rtekind = RTE_RELATION;
-			rte->relid = RelationGetRelid(rel);
-			rte->relkind = rel->rd_rel->relkind;
-			rte->requiredPerms = required_access;
-
-			tupDesc = RelationGetDescr(rel);
-			attnums = CopyGetAttnums(tupDesc, rel, stmt->attlist);
-			foreach(cur, attnums)
-			{
-				int			attno = lfirst_int(cur) -
-				FirstLowInvalidHeapAttributeNumber;
-
-				if (is_from)
-					rte->modifiedCols = bms_add_member(rte->modifiedCols, attno);
-				else
-					rte->selectedCols = bms_add_member(rte->selectedCols, attno);
-			}
-			ExecCheckRTPerms(list_make1(rte), true);
-		}
+			/*
+			 * If the relation has RLS, then only allow bypass if they have the
+			 * bypassrls privilege.
+			 */
+			if (rel->rd_rel->relhasrowsecurity && !has_bypassrls_privilege(GetUserId()))
+				ereport(ERROR,
+						(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+						 errmsg("Insufficient privilege to bypass row security.")));
 	}
 	else
 	{
