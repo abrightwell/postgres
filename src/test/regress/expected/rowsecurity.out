@@ -1147,56 +1147,98 @@ INSERT INTO x1 VALUES
 CREATE POLICY p0 ON x1 FOR ALL USING (c = current_user);
 CREATE POLICY p1 ON x1 FOR SELECT USING (a % 2 = 0);
 CREATE POLICY p2 ON x1 FOR INSERT USING (a % 2 = 1);
-CREATE POLICY p3 ON x1 FOR UPDATE USING (a > 0);
-CREATE POLICY p4 ON x1 FOR DELETE USING (a < COUNT(x1));
-ERROR:  aggregate functions are not allowed in row-security policy
+CREATE POLICY p3 ON x1 FOR UPDATE USING (a % 2 = 0);
+CREATE POLICY p4 ON x1 FOR DELETE USING (a < 8);
 SET SESSION AUTHORIZATION rls_regress_user1;
-SELECT * FROM x1;
+SELECT * FROM x1 WHERE f_leak(b) ORDER BY a ASC;
+NOTICE:  f_leak => abc
+NOTICE:  f_leak => bcd
+NOTICE:  f_leak => def
+NOTICE:  f_leak => efg
+NOTICE:  f_leak => fgh
+NOTICE:  f_leak => fgh
  a |  b  |         c         
 ---+-----+-------------------
+ 1 | abc | rls_regress_user1
  2 | bcd | rls_regress_user1
+ 4 | def | rls_regress_user2
+ 5 | efg | rls_regress_user1
  6 | fgh | rls_regress_user1
-(2 rows)
+ 8 | fgh | rls_regress_user2
+(6 rows)
 
-UPDATE x1 SET b = b || '_updt' RETURNING *;
+UPDATE x1 SET b = b || '_updt' WHERE f_leak(b) RETURNING *;
+NOTICE:  f_leak => abc
+NOTICE:  f_leak => bcd
+NOTICE:  f_leak => def
+NOTICE:  f_leak => efg
+NOTICE:  f_leak => fgh
+NOTICE:  f_leak => fgh
  a |    b     |         c         
 ---+----------+-------------------
+ 1 | abc_updt | rls_regress_user1
  2 | bcd_updt | rls_regress_user1
+ 4 | def_updt | rls_regress_user2
+ 5 | efg_updt | rls_regress_user1
  6 | fgh_updt | rls_regress_user1
-(2 rows)
-
-DELETE FROM x1 WHERE f_leak(b) RETURNING *;
-NOTICE:  f_leak => bcd_updt
-NOTICE:  f_leak => fgh_updt
- a |    b     |         c         
----+----------+-------------------
- 2 | bcd_updt | rls_regress_user1
- 6 | fgh_updt | rls_regress_user1
-(2 rows)
+ 8 | fgh_updt | rls_regress_user2
+(6 rows)
 
 SET SESSION AUTHORIZATION rls_regress_user2;
-SELECT * FROM x1;
- a |  b  |         c         
----+-----+-------------------
- 4 | def | rls_regress_user2
- 8 | fgh | rls_regress_user2
-(2 rows)
-
-UPDATE x1 SET b = b || '_updt' RETURNING *;
- a |    b     |         c         
----+----------+-------------------
- 4 | def_updt | rls_regress_user2
- 8 | fgh_updt | rls_regress_user2
-(2 rows)
-
-DELETE FROM x1 WHERE f_leak(b) RETURNING *;
+SELECT * FROM x1 WHERE f_leak(b) ORDER BY a ASC;
+NOTICE:  f_leak => cde
+NOTICE:  f_leak => fgh
+NOTICE:  f_leak => bcd_updt
 NOTICE:  f_leak => def_updt
+NOTICE:  f_leak => fgh_updt
 NOTICE:  f_leak => fgh_updt
  a |    b     |         c         
 ---+----------+-------------------
+ 2 | bcd_updt | rls_regress_user1
+ 3 | cde      | rls_regress_user2
  4 | def_updt | rls_regress_user2
+ 6 | fgh_updt | rls_regress_user1
+ 7 | fgh      | rls_regress_user2
  8 | fgh_updt | rls_regress_user2
-(2 rows)
+(6 rows)
+
+UPDATE x1 SET b = b || '_updt' WHERE f_leak(b) RETURNING *;
+NOTICE:  f_leak => cde
+NOTICE:  f_leak => fgh
+NOTICE:  f_leak => bcd_updt
+NOTICE:  f_leak => def_updt
+NOTICE:  f_leak => fgh_updt
+NOTICE:  f_leak => fgh_updt
+ a |       b       |         c         
+---+---------------+-------------------
+ 3 | cde_updt      | rls_regress_user2
+ 7 | fgh_updt      | rls_regress_user2
+ 2 | bcd_updt_updt | rls_regress_user1
+ 4 | def_updt_updt | rls_regress_user2
+ 6 | fgh_updt_updt | rls_regress_user1
+ 8 | fgh_updt_updt | rls_regress_user2
+(6 rows)
+
+DELETE FROM x1 WHERE f_leak(b) RETURNING *;
+NOTICE:  f_leak => abc_updt
+NOTICE:  f_leak => efg_updt
+NOTICE:  f_leak => cde_updt
+NOTICE:  f_leak => fgh_updt
+NOTICE:  f_leak => bcd_updt_updt
+NOTICE:  f_leak => def_updt_updt
+NOTICE:  f_leak => fgh_updt_updt
+NOTICE:  f_leak => fgh_updt_updt
+ a |       b       |         c         
+---+---------------+-------------------
+ 1 | abc_updt      | rls_regress_user1
+ 5 | efg_updt      | rls_regress_user1
+ 3 | cde_updt      | rls_regress_user2
+ 7 | fgh_updt      | rls_regress_user2
+ 2 | bcd_updt_updt | rls_regress_user1
+ 4 | def_updt_updt | rls_regress_user2
+ 6 | fgh_updt_updt | rls_regress_user1
+ 8 | fgh_updt_updt | rls_regress_user2
+(8 rows)
 
 --
 -- Duplicate Policy Names
@@ -1235,15 +1277,16 @@ DROP POLICY p2 ON category;  -- too long qual
  rls_regress_schema | t2        | table | rls_regress_user0 | 16 kB      |             | ((a % 2) = 1)
  rls_regress_schema | t3        | table | rls_regress_user0 | 16 kB      |             | 
  rls_regress_schema | uaccount  | table | rls_regress_user0 | 8192 bytes |             | 
+ rls_regress_schema | x1        | table | rls_regress_user0 | 16 kB      |             | ((a % 2) = 0)
  rls_regress_schema | x1        | table | rls_regress_user0 | 16 kB      |             | (c = ("current_user"())::text)
  rls_regress_schema | x1        | table | rls_regress_user0 | 16 kB      |             | ((a % 2) = 1)
- rls_regress_schema | x1        | table | rls_regress_user0 | 16 kB      |             | (a > 0)
  rls_regress_schema | x1        | table | rls_regress_user0 | 16 kB      |             | ((a % 2) = 0)
+ rls_regress_schema | x1        | table | rls_regress_user0 | 16 kB      |             | (a < 8)
  rls_regress_schema | y1        | table | rls_regress_user0 | 0 bytes    |             | ((a % 2) = 0)
  rls_regress_schema | y2        | table | rls_regress_user0 | 0 bytes    |             | ((a % 2) = 0)
  rls_regress_schema | z1        | table | rls_regress_user0 | 16 kB      |             | ((a % 2) = 1)
  rls_regress_schema | z1        | table | rls_regress_user0 | 16 kB      |             | ((a % 2) = 0)
-(19 rows)
+(20 rows)
 
 --
 -- Clean up objects

@@ -47,6 +47,7 @@ bool
 prepend_row_security_quals(Query* root, RangeTblEntry* rte, int rt_index)
 {
 	List		   *rowsecquals;
+	Expr		   *security_expr;
 	Relation 		rel;
 	Oid				userid;
 	int				sec_context;
@@ -76,7 +77,18 @@ prepend_row_security_quals(Query* root, RangeTblEntry* rte, int rt_index)
 			 */
 			qualsAdded = true;
 			ChangeVarNodes((Node *) rowsecquals, 1, rt_index, 0);
-			rte->securityQuals = list_concat(rowsecquals, rte->securityQuals);
+
+			/*
+			 * If more than one qual is returned, then they need to be OR'ed
+			 * together.
+			 */
+			if (list_length(rowsecquals) > 1)
+			{
+				security_expr = makeBoolExpr(OR_EXPR, rowsecquals, -1);
+				rte->securityQuals = lcons(security_expr, rte->securityQuals);
+			}
+			else
+				rte->securityQuals = list_concat(rowsecquals, rte->securityQuals);
 		}
 		heap_close(rel, NoLock);
 	}
@@ -143,14 +155,12 @@ pull_row_security_policy(CmdType cmd, Relation relation)
 							quals = lcons(copyObject(policy->qual), quals);
 						break;
 					case CMD_UPDATE:
-						if ((policy->cmd == ROWSECURITY_CMD_SELECT
-							|| policy->cmd == ROWSECURITY_CMD_UPDATE)
+						if (policy->cmd == ROWSECURITY_CMD_UPDATE
 							&& check_role_for_policy(policy))
 							quals = lcons(copyObject(policy->qual), quals);
 						break;
 					case CMD_DELETE:
-						if ((policy->cmd == ROWSECURITY_CMD_SELECT
-							|| policy->cmd == ROWSECURITY_CMD_DELETE)
+						if (policy->cmd == ROWSECURITY_CMD_DELETE
 							&& check_role_for_policy(policy))
 							quals = lcons(copyObject(policy->qual), quals);
 						break;
