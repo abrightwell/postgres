@@ -5297,6 +5297,35 @@ COPY postgres_log FROM '/full/path/to/logfile.csv' WITH csv;
       </listitem>
      </varlistentry>
 
+     <varlistentry id="guc-row-security" xreflabel="row_security">
+      <term><varname>row_security</varname> (<type>boolean</type>)
+      <indexterm>
+       <primary><varname>row_security</> configuration parameter</primary>
+      </indexterm>
+      </term>
+      <listitem>
+       <para>
+        This variable controls if row security policies are to be applied
+        to queries which are run.  The default is on for all users except
+        for superusers (where it is off by default, but the superuser can
+        choose to turn it on for their session).
+       </para>
+
+       <para>
+        For a non-superuser to bypass row security, they must be a superuser
+        or have the BYPASSRLS role attribute.  If the user does not have the
+        right to bypass row security then an error will be thrown if row
+        security is off and a table which has (or has had) row security is
+        queried.
+       </para>
+
+       <para>
+        For more information on row security policies,
+        see <xref linkend="SQL-CREATEPOLICY">.
+       </para>
+      </listitem>
+     </varlistentry>
+
      <varlistentry id="guc-default-tablespace" xreflabel="default_tablespace">
       <term><varname>default_tablespace</varname> (<type>string</type>)
       <indexterm>
