@@ -2194,30 +2194,9 @@ getObjectDescription(const ObjectAddress *object)
 
 				form_rsec = (Form_pg_rowsecurity) GETSTRUCT(tuple);
 
-				appendStringInfo(&buffer, _("row-security of "));
+				appendStringInfo(&buffer, _("policy %s on "),
+								 NameStr(form_rsec->rsecpolname));
 				getRelationDescription(&buffer, form_rsec->rsecrelid);
-
-				switch(form_rsec->rseccmd)
-				{
-					case ROWSECURITY_CMD_ALL:
-						appendStringInfo(&buffer, _(" FOR ALL"));
-						break;
-					case ROWSECURITY_CMD_SELECT:
-						appendStringInfo(&buffer, _(" FOR SELECT"));
-						break;
-					case ROWSECURITY_CMD_INSERT:
-						appendStringInfo(&buffer, _(" FOR INSERT"));
-						break;
-					case ROWSECURITY_CMD_UPDATE:
-						appendStringInfo(&buffer, _(" FOR UPDATE"));
-						break;
-					case ROWSECURITY_CMD_DELETE:
-						appendStringInfo(&buffer, _(" FOR DELETE"));
-						break;
-					default:
-						elog(ERROR, "unrecognized row-security command type: %c",
-							 form_rsec->rseccmd);
-				}
 
 				systable_endscan(sscan);
 				heap_close(rsec_rel, AccessShareLock);

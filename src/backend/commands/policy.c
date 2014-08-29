@@ -46,7 +46,6 @@ static void RangeVarCallbackForCreatePolicy(const RangeVar *rv,
 				Oid relid, Oid oldrelid, void *arg);
 static const char parse_row_security_command(const char *cmd_name);
 static ArrayType* parse_role_ids(List *roles);
-static void check_permissions(Relation rel);
 
 /*
  * Callback to RangeVarGetRelidExtended().
@@ -94,7 +93,7 @@ RangeVarCallbackForCreatePolicy(const RangeVar *rv, Oid relid, Oid oldrelid,
 
 /*
  * parse_row_security_command -
- *   helper function to convert full commands strings to their char
+ *   helper function to convert full command strings to their char
  *   representation.
  *
  * cmd_name - full string command name. Valid values are 'all', 'select',
@@ -105,6 +104,9 @@ static const char
 parse_row_security_command(const char *cmd_name)
 {
 	char cmd;
+
+	if (!cmd_name)
+		elog(ERROR, "Unregonized command.");
 
 	if (strcmp(cmd_name, "all") == 0)
 		cmd = ROWSECURITY_CMD_ALL;
@@ -181,24 +183,6 @@ parse_role_ids(List *roles)
 	role_ids = construct_array(temp_array, num_roles, OIDOID, sizeof(Oid), true, 'i');
 
 	return role_ids;
-}
-
-/*
- * check_permissions
- *   helper function to check access permissions for creating and modifying
- *   policies.
- *
- * rel - the relation associated with the policy.
- */
-static void
-check_permissions(Relation rel)
-{
-	if (!superuser())
-	{
-		if (!pg_class_ownercheck(RelationGetRelid(rel), GetUserId()))
-			aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_CLASS,
-						   RelationGetRelationName(rel));
-	}
 }
 
 /*
@@ -307,7 +291,7 @@ RelationBuildRowSecurity(Relation relation)
 			 */
 			if (!policy)
 			{
-				policy = MemoryContextAllocZero(rscxt, sizeof(RowSecurityPolicy));
+				policy = palloc(sizeof(RowSecurityPolicy));
 				policy->policy_name = policy_name_value;
 				rsdesc->policies = lcons(policy, rsdesc->policies);
 			}
@@ -340,7 +324,7 @@ RelationBuildRowSecurity(Relation relation)
 /*
  * RemovePolicyById -
  *   remove a row-security policy by its OID.  If a policy does not exist with
- *   the provide oid, then an error is raised.
+ *   the provided oid, then an error is raised.
  *
  * policy_id - the oid of the row-security policy.
  */
@@ -433,7 +417,9 @@ CreatePolicy(CreatePolicyStmt *stmt)
 	target_table = relation_open(table_id, NoLock);
 
 	/* Permissions checks */
-	check_permissions(target_table);
+	if (!pg_class_ownercheck(RelationGetRelid(target_table), GetUserId()))
+		aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_CLASS,
+					   RelationGetRelationName(rel));
 
 	rte = addRangeTableEntryForRelation(pstate, target_table,
 										NULL, false, false);
@@ -590,7 +576,9 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	target_table = relation_open(table_id, NoLock);
 
 	/* Permissions checks */
-	check_permissions(target_table);
+	if (!pg_class_ownercheck(RelationGetRelid(target_table), GetUserId()))
+		aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_CLASS,
+					   RelationGetRelationName(rel));
 
 	/* Parse the row-security clause */
 	pstate = make_parsestate(NULL);
@@ -719,7 +707,10 @@ DropPolicy(DropPolicyStmt *stmt)
 	target_table = relation_open(table_id, NoLock);
 
 	/* Permissions checks */
-	check_permissions(target_table);
+	if (!pg_class_ownercheck(RelationGetRelid(target_table), GetUserId()))
+		aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_CLASS,
+					   RelationGetRelationName(rel));
+
 
 	pg_rowsecurity_rel = heap_open(RowSecurityRelationId, RowExclusiveLock);
 

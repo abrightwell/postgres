@@ -52,7 +52,7 @@ CREATE POLICY <replaceable class="parameter">name</replaceable> ON <replaceable 
 
   <para>
    Policies can be applied for specific commands or for specific roles.  The
-   default for newly created policies is that they apply for all command and
+   default for newly created policies is that they apply for all commands and
    roles, unless otherwise specified.  If multiple policies apply to a given
    query, they will be combined using OR.
   </para>
@@ -87,10 +87,10 @@ CREATE POLICY <replaceable class="parameter">name</replaceable> ON <replaceable 
     <term><replaceable class="parameter">command</replaceable></term>
     <listitem>
      <para>
-      The command to which the policy applies.  Valid commands are
+      The command to which the policy applies.  Valid options are
       <command>ALL</command>, <command>SELECT</command>,
       <command>INSERT</command>, <command>UPDATE</command>,
-      or <command>DELETE</command>. If no command is provided, then
+      and <command>DELETE</command>.
       <command>ALL</command> is the default.
      </para>
     </listitem>

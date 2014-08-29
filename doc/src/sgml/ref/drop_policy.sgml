@@ -4,7 +4,7 @@ PostgreSQL documentation
 -->
 
 <refentry id="SQL-DROPPOLICY">
- <indexterm zone="sql-droprule">
+ <indexterm zone="sql-droppolicy">
   <primary>DROP POLICY</primary>
  </indexterm>
 
