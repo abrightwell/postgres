@@ -388,7 +388,7 @@ CreatePolicy(CreatePolicyStmt *stmt)
 	memset(values,   0, sizeof(values));
 	memset(isnull,   0, sizeof(isnull));
 
-	/* Get id of table. */
+	/* Get id of table.  Also handles permissions checks. */
 	table_id = RangeVarGetRelidExtended(stmt->table, AccessExclusiveLock,
 										false, false,
 										RangeVarCallbackForCreatePolicy,
@@ -396,11 +396,6 @@ CreatePolicy(CreatePolicyStmt *stmt)
 
 	/* Open target_table to build qual. No lock is necessary.*/
 	target_table = relation_open(table_id, NoLock);
-
-	/* Permissions checks */
-	if (!pg_class_ownercheck(RelationGetRelid(target_table), GetUserId()))
-		aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_CLASS,
-					   RelationGetRelationName(rel));
 
 	rte = addRangeTableEntryForRelation(pstate, target_table,
 										NULL, false, false);
@@ -419,7 +414,7 @@ CreatePolicy(CreatePolicyStmt *stmt)
 				BTEqualStrategyNumber, F_NAMEEQ,
 				CStringGetDatum(stmt->policy_name));
 
-		/* Set key - row security relation id. */
+	/* Set key - row security relation id. */
 	ScanKeyInit(&skeys[1],
 				Anum_pg_rowsecurity_rsecrelid,
 				BTEqualStrategyNumber, F_OIDEQ,
@@ -451,13 +446,11 @@ CreatePolicy(CreatePolicyStmt *stmt)
 		rowsec_id = simple_heap_insert(pg_rowsecurity_rel, rsec_tuple);
 	}
 	else
-	{
 		elog(ERROR, "Table \"%s\" already has a policy named \"%s\"."
 			" Use a different name for the policy or to modify this policy"
 			" use ALTER POLICY %s ON %s USING (qual)",
 			RelationGetRelationName(target_table), stmt->policy_name,
 			RelationGetRelationName(target_table), stmt->policy_name);
-	}
 
 	/* Update Indexes */
 	CatalogUpdateIndexes(pg_rowsecurity_rel, rsec_tuple);
@@ -548,18 +541,13 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	if (stmt->roles != NULL)
 		role_ids = parse_role_ids(stmt->roles);
 
-	/* Get id of table. */
+	/* Get id of table.  Also handles permissions checks. */
 	table_id = RangeVarGetRelidExtended(stmt->table, AccessExclusiveLock,
 										false, false,
 										RangeVarCallbackForCreatePolicy,
 										(void *) stmt);
 
 	target_table = relation_open(table_id, NoLock);
-
-	/* Permissions checks */
-	if (!pg_class_ownercheck(RelationGetRelid(target_table), GetUserId()))
-		aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_CLASS,
-					   RelationGetRelationName(rel));
 
 	/* Parse the row-security clause */
 	if (stmt->qual)
@@ -687,19 +675,13 @@ DropPolicy(DropPolicyStmt *stmt)
 	SysScanDesc		sscan;
 	HeapTuple		rsec_tuple;
 
-	/* Get id of target table. */
+	/* Get id of table.  Also handles permissions checks. */
 	table_id = RangeVarGetRelidExtended(stmt->table, AccessExclusiveLock,
 										false, false,
 										RangeVarCallbackForCreatePolicy,
 										(void *) stmt);
 
 	target_table = relation_open(table_id, NoLock);
-
-	/* Permissions checks */
-	if (!pg_class_ownercheck(RelationGetRelid(target_table), GetUserId()))
-		aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_CLASS,
-					   RelationGetRelationName(rel));
-
 
 	pg_rowsecurity_rel = heap_open(RowSecurityRelationId, RowExclusiveLock);
 
