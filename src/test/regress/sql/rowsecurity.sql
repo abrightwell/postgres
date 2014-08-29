@@ -135,7 +135,7 @@ DELETE FROM category WHERE cid = 33;    -- fails with FK violation
 -- cannot insert FK referencing invisible PK
 SET SESSION AUTHORIZATION rls_regress_user2;
 SELECT * FROM document d FULL OUTER JOIN category c on d.cid = c.cid;
-INSERT INTO document VALUES (10, 33, 1, current_user, 'hoge'); -- fail wil FK violation
+INSERT INTO document VALUES (10, 33, 1, current_user, 'hoge');
 
 -- UNIQUE or PRIMARY KEY constraint violation DOES reveal presence of row
 SET SESSION AUTHORIZATION rls_regress_user1;

@@ -2976,8 +2976,12 @@ ri_PlanCheck(const char *querystr, int nargs, Oid *argtypes,
 	 * primary-key being modified.
 	 */
 	temp_sec_context = save_sec_context | SECURITY_LOCAL_USERID_CHANGE;
-	if (qkey->constr_queryno != RI_PLAN_CHECK_LOOKUPPK)
+	if (qkey->constr_queryno == RI_PLAN_CHECK_LOOKUPPK
+		|| qkey->constr_queryno == RI_PLAN_CHECK_LOOKUPPK_FROM_PK
+		|| qkey->constr_queryno == RI_PLAN_RESTRICT_DEL_CHECKREF
+		|| qkey->constr_queryno == RI_PLAN_RESTRICT_UPD_CHECKREF)
 		temp_sec_context |= SECURITY_ROW_LEVEL_DISABLED;
+
 
 	SetUserIdAndSecContext(RelationGetForm(query_rel)->relowner,
 						   temp_sec_context);
