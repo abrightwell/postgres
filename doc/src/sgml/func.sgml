@@ -10152,10 +10152,14 @@ table2-mapping
   <note>
    <para>
     There are parallel variants of these operators for both the
-    <type>json</type> and <type>jsonb</type> types.  The operators
+    <type>json</type> and <type>jsonb</type> types.
+    The field/element/path extraction operators
     return the same type as their left-hand input (either <type>json</type>
     or <type>jsonb</type>), except for those specified as
     returning <type>text</>, which coerce the value to text.
+    The field/element/path extraction operators return NULL, rather than
+    failing, if the JSON input does not have the right structure to match
+    the request; for example if no such element exists.
    </para>
   </note>
   <para>
@@ -12188,7 +12192,8 @@ NULL baz</literallayout>(3 rows)</entry>
        </indexterm>
        <function>max(<replaceable class="parameter">expression</replaceable>)</function>
       </entry>
-      <entry>any array, numeric, string, or date/time type</entry>
+      <entry>any numeric, string, date/time, network, or enum type,
+             or arrays of these types</entry>
       <entry>same as argument type</entry>
       <entry>
        maximum value of <replaceable
@@ -12204,7 +12209,8 @@ NULL baz</literallayout>(3 rows)</entry>
        </indexterm>
        <function>min(<replaceable class="parameter">expression</replaceable>)</function>
       </entry>
-      <entry>any array, numeric, string, or date/time type</entry>
+      <entry>any numeric, string, date/time, network, or enum type,
+             or arrays of these types</entry>
       <entry>same as argument type</entry>
       <entry>
        minimum value of <replaceable
@@ -16465,7 +16471,7 @@ postgres=# SELECT * FROM pg_xlogfile_name_offset(pg_stop_backup());
         <literal><function>pg_xlog_replay_pause()</function></literal>
         </entry>
        <entry><type>void</type></entry>
-       <entry>Pauses recovery immediately.
+       <entry>Pauses recovery immediately (restricted to superusers).
        </entry>
       </row>
       <row>
@@ -16473,7 +16479,7 @@ postgres=# SELECT * FROM pg_xlogfile_name_offset(pg_stop_backup());
         <literal><function>pg_xlog_replay_resume()</function></literal>
         </entry>
        <entry><type>void</type></entry>
-       <entry>Restarts recovery if it was paused.
+       <entry>Restarts recovery if it was paused (restricted to superusers).
        </entry>
       </row>
      </tbody>
@@ -16581,7 +16587,7 @@ postgres=# SELECT * FROM pg_xlogfile_name_offset(pg_stop_backup());
     for controlling and interacting with replication features.
     See <xref linkend="streaming-replication">
     and <xref linkend="streaming-replication-slots"> for information about the
-    underlying features.
+    underlying features.  Use of these functions is restricted to superusers.
    </para>
 
    <para>

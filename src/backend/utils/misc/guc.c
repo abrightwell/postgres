@@ -2931,7 +2931,7 @@ static struct config_string ConfigureNamesString[] =
 			GUC_LIST_INPUT | GUC_LIST_QUOTE
 		},
 		&namespace_search_path,
-		"\"$user\",public",
+		"\"$user\", public",
 		check_search_path, assign_search_path, NULL
 	},
 
@@ -6861,7 +6861,7 @@ AlterSystemSetConfigFile(AlterSystemStmt *altersysstmt)
 		if (rename(AutoConfTmpFileName, AutoConfFileName) < 0)
 			ereport(ERROR,
 					(errcode_for_file_access(),
-					 errmsg("could not rename file \"%s\" to \"%s\" : %m",
+					 errmsg("could not rename file \"%s\" to \"%s\": %m",
 							AutoConfTmpFileName, AutoConfFileName)));
 	}
 	PG_CATCH();

@@ -555,8 +555,13 @@ RestoreArchive(Archive *AHX)
 		/* Both schema and data objects might now have ownership/ACLs */
 		if ((te->reqs & (REQ_SCHEMA | REQ_DATA)) != 0)
 		{
-			ahlog(AH, 1, "setting owner and privileges for %s %s\n",
-				  te->desc, te->tag);
+			/* Show namespace if available */
+			if (te->namespace)
+				ahlog(AH, 1, "setting owner and privileges for %s \"%s\".\"%s\"\n",
+					  te->desc, te->namespace, te->tag);
+			else
+				ahlog(AH, 1, "setting owner and privileges for %s \"%s\"\n",
+					  te->desc, te->tag);
 			_printTocEntry(AH, te, ropt, false, true);
 		}
 	}
@@ -630,7 +635,13 @@ restore_toc_entry(ArchiveHandle *AH, TocEntry *te,
 
 	if ((reqs & REQ_SCHEMA) != 0)		/* We want the schema */
 	{
-		ahlog(AH, 1, "creating %s %s\n", te->desc, te->tag);
+		/* Show namespace if available */
+		if (te->namespace)
+			ahlog(AH, 1, "creating %s \"%s\".\"%s\"\n",
+				  te->desc, te->namespace, te->tag);
+		else
+			ahlog(AH, 1, "creating %s \"%s\"\n", te->desc, te->tag);
+
 
 		_printTocEntry(AH, te, ropt, false, false);
 		defnDumped = true;
@@ -722,8 +733,8 @@ restore_toc_entry(ArchiveHandle *AH, TocEntry *te,
 					_becomeOwner(AH, te);
 					_selectOutputSchema(AH, te->namespace);
 
-					ahlog(AH, 1, "processing data for table \"%s\"\n",
-						  te->tag);
+					ahlog(AH, 1, "processing data for table \"%s\".\"%s\"\n",
+						  te->namespace, te->tag);
 
 					/*
 					 * In parallel restore, if we created the table earlier in

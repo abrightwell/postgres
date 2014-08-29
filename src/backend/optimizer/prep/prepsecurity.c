@@ -398,9 +398,8 @@ security_barrier_replace_vars_walker(Node *node,
 					((Var *) tle->expr)->varcollid == var->varcollid)
 				{
 					/* Map the variable onto this subquery targetlist entry */
-					var->varattno = attno;
-					/* Re-set varoattno also, as equalVar looks at it too */
-					var->varoattno = attno;
+					var->varattno = var->varoattno = attno;
+					/* Mark this var as having been processed */
 					context->vars_processed = lappend(context->vars_processed, var);
 					return false;
 				}
@@ -447,7 +446,7 @@ security_barrier_replace_vars_walker(Node *node,
 										makeString(pstrdup(attname)));
 
 			/* Update the outer query's variable */
-			var->varattno = attno;
+			var->varattno = var->varoattno = attno;
 
 			/* Re-set varoattno also, as equalVar looks at it too */
 			var->varoattno = attno;
