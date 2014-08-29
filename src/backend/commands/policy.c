@@ -395,11 +395,6 @@ CreatePolicy(CreatePolicyStmt *stmt)
 	/* Open target_table to build qual. No lock is necessary.*/
 	target_table = relation_open(table_id, NoLock);
 
-	/* Permissions checks */
-	if (!pg_class_ownercheck(RelationGetRelid(target_table), GetUserId()))
-		aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_CLASS,
-					   RelationGetRelationName(target_table));
-
 	rte = addRangeTableEntryForRelation(pstate, target_table,
 										NULL, false, false);
 	addRTEtoQuery(pstate, rte, false, true, true);
@@ -553,11 +548,6 @@ AlterPolicy(AlterPolicyStmt *stmt)
 
 	target_table = relation_open(table_id, NoLock);
 
-	/* Permissions checks */
-	if (!pg_class_ownercheck(RelationGetRelid(target_table), GetUserId()))
-		aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_CLASS,
-					   RelationGetRelationName(target_table));
-
 	/* Parse the row-security clause */
 	if (stmt->qual)
 	{
@@ -693,11 +683,6 @@ DropPolicy(DropPolicyStmt *stmt)
 										(void *) stmt);
 
 	target_table = relation_open(table_id, NoLock);
-
-	/* Permissions checks */
-	if (!pg_class_ownercheck(RelationGetRelid(target_table), GetUserId()))
-		aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_CLASS,
-					   RelationGetRelationName(target_table));
 
 	pg_rowsecurity_rel = heap_open(RowSecurityRelationId, RowExclusiveLock);
 
