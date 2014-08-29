@@ -14,7 +14,33 @@
 #include "nodes/execnodes.h"
 #include "nodes/parsenodes.h"
 #include "nodes/relation.h"
-#include "utils/rel.h"
+#include "utils/array.h"
+
+typedef struct RowSecurityPolicy
+{
+	Oid					rsecid;
+	char			   *policy_name;
+	char				cmd;
+	ArrayType		   *roles;
+	Expr			   *qual;
+	bool				hassublinks;
+} RowSecurityPolicy;
+
+typedef struct RowSecurityDesc
+{
+	MemoryContext		rscxt;		/* row-security memory context */
+	List			   *policies;	/* list of row-security policies */
+} RowSecurityDesc;
+
+/* GUC variable */
+extern int row_security;
+
+/* Possible values for row_security GUC */
+typedef enum RowSecurityType
+{
+	ROW_SECURITY_OFF,
+	ROW_SECURITY_ON
+} RowSecurityType;
 
 typedef List *(*row_security_policy_hook_type)(CmdType cmdtype,
 											   Relation relation);

@@ -10,10 +10,6 @@
 #define PG_ROWSECURITY_H
 
 #include "catalog/genbki.h"
-#include "nodes/primnodes.h"
-#include "utils/array.h"
-#include "utils/memutils.h"
-#include "utils/relcache.h"
 
 /* ----------------
  *		pg_rowsecurity definition. cpp turns this into
@@ -58,31 +54,5 @@ typedef FormData_pg_rowsecurity *Form_pg_rowsecurity;
 #define ROWSECURITY_CMD_UPDATE		'u'
 #define ROWSECURITY_CMD_DELETE		'd'
 #define ROWSECURITY_CMD_UNDEFINED	'\0'
-
-typedef struct
-{
-	Oid					rsecid;
-	char			   *policy_name;
-	char				cmd;
-	ArrayType		   *roles;
-	Expr			   *qual;
-	bool				hassublinks;
-} RowSecurityPolicy;
-
-typedef struct
-{
-	MemoryContext		rscxt;		/* row-security memory context */
-	List			   *policies;	/* list of row-security policies */
-} RowSecurityDesc;
-
-/* GUC variable */
-extern int row_security;
-
-/* Possible values for row_security GUC */
-typedef enum
-{
-	ROW_SECURITY_OFF,
-	ROW_SECURITY_ON
-} RowSecurityType;
 
 #endif  /* PG_ROWSECURITY_H */

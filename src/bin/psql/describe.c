@@ -15,7 +15,7 @@
 #include <ctype.h>
 
 #include "catalog/pg_default_acl.h"
-/* #include "catalog/pg_rowsecurity.h" */
+#include "catalog/pg_rowsecurity.h"
 
 #include "common.h"
 #include "describe.h"
@@ -24,13 +24,6 @@
 #include "print.h"
 #include "settings.h"
 #include "variables.h"
-
-#define ROWSECURITY_CMD_ALL			'a'
-#define ROWSECURITY_CMD_SELECT		's'
-#define ROWSECURITY_CMD_INSERT		'i'
-#define ROWSECURITY_CMD_UPDATE		'u'
-#define ROWSECURITY_CMD_DELETE		'd'
-
 
 static bool describeOneTableDetails(const char *schemaname,
 						const char *relationname,
