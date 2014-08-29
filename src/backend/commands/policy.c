@@ -273,34 +273,15 @@ RelationBuildRowSecurity(Relation relation)
 
 			policy_id = HeapTupleGetOid(tuple);
 
-			/* Find policy description for policy based on policy name.*/
-			foreach(item, rsdesc->policies)
-			{
-				temp_policy = (RowSecurityPolicy *) lfirst(item);
-
-				if (strcmp(temp_policy->policy_name, policy_name_value) == 0)
-				{
-					policy = temp_policy;
-					break;
-				}
-			}
-
-			/*
-			 * If no policy was found in the list, create a new one and add it
-			 * to the list.
-			 */
-			if (!policy)
-			{
-				policy = palloc(sizeof(RowSecurityPolicy));
-				policy->policy_name = policy_name_value;
-				rsdesc->policies = lcons(policy, rsdesc->policies);
-			}
-
+			policy = palloc0(sizeof(RowSecurityPolicy));
+			policy->policy_name = policy_name_value;
 			policy->rsecid = policy_id;
 			policy->cmd = cmd_value;
 			policy->roles = roles;
 			policy->qual = copyObject(qual_expr);
 			policy->hassublinks = contain_subplans((Node *) qual_expr);
+
+			rsdesc->policies = lcons(policy, rsdesc->policies);
 
 			MemoryContextSwitchTo(oldcxt);
 
@@ -581,16 +562,21 @@ AlterPolicy(AlterPolicyStmt *stmt)
 					   RelationGetRelationName(rel));
 
 	/* Parse the row-security clause */
-	pstate = make_parsestate(NULL);
+	if (stmt->qual)
+	{
+		pstate = make_parsestate(NULL);
 
-	rte = addRangeTableEntryForRelation(pstate, target_table,
-										NULL, false, false);
+		rte = addRangeTableEntryForRelation(pstate, target_table,
+											NULL, false, false);
 
-	addRTEtoQuery(pstate, rte, false, true, true);
+		addRTEtoQuery(pstate, rte, false, true, true);
 
-	qual = transformWhereClause(pstate, copyObject(stmt->qual),
-								EXPR_KIND_ROW_SECURITY,
-								"ROW SECURITY");
+		qual = transformWhereClause(pstate, copyObject(stmt->qual),
+									EXPR_KIND_ROW_SECURITY,
+									"ROW SECURITY");
+	}
+	else
+		qual = NULL;
 
 	/* zero-clear */
 	memset(values,   0, sizeof(values));
@@ -634,9 +620,12 @@ AlterPolicy(AlterPolicyStmt *stmt)
 			values[Anum_pg_rowsecurity_rseccmd - 1] = CharGetDatum(rseccmd);
 		}
 
-		replaces[Anum_pg_rowsecurity_rsecqual - 1] = true;
-		values[Anum_pg_rowsecurity_rsecqual -1]
-			= CStringGetTextDatum(nodeToString(qual));
+		if (qual != NULL)
+		{
+			replaces[Anum_pg_rowsecurity_rsecqual - 1] = true;
+			values[Anum_pg_rowsecurity_rsecqual -1]
+				= CStringGetTextDatum(nodeToString(qual));
+		}
 
 		new_tuple = heap_modify_tuple(rsec_tuple,
 									  RelationGetDescr(pg_rowsecurity_rel),

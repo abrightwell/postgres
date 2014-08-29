@@ -4454,6 +4454,17 @@ AlterPolicyStmt:
 					n->qual = $10;
 					$$ = (Node *) n;
 				}
+			| ALTER POLICY name ON qualified_name RowSecurityOptionalForCmd
+				RowSecurityOptionalToRole
+				{
+					AlterPolicyStmt *n = makeNode(AlterPolicyStmt);
+					n->policy_name = $3;
+					n->table = $5;
+					n->cmd = $6;
+					n->roles = $7;
+					n->qual = NULL;
+					$$ = (Node *) n;
+				}
 		;
 
 DropPolicyStmt:
