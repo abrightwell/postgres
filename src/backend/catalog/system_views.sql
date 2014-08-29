@@ -63,6 +63,32 @@ CREATE VIEW pg_user AS
         useconfig
     FROM pg_shadow;
 
+CREATE VIEW pg_policies AS
+    SELECT
+        rs.rsecpolname AS policyname,
+        (SELECT relname FROM pg_catalog.pg_class WHERE oid = rs.rsecrelid) AS tablename,
+        CASE
+            WHEN rs.rsecroles = '{0}' THEN
+                string_to_array('public', '')
+            ELSE
+                ARRAY
+                (
+                    SELECT rolname
+                    FROM pg_catalog.pg_authid
+                    WHERE oid = ANY (rs.rsecroles) ORDER BY 1
+                )
+        END AS roles,
+        CASE rs.rseccmd
+            WHEN 'a' THEN 'ALL'
+            WHEN 's' THEN 'SELECT'
+            WHEN 'i' THEN 'INSERT'
+            WHEN 'u' THEN 'UPDATE'
+            WHEN 'd' THEN 'DELETE'
+        END AS cmd,
+        pg_catalog.pg_get_expr(rs.rsecqual, rs.rsecrelid) AS qual
+    FROM pg_catalog.pg_rowsecurity rs
+    ORDER BY 1;
+
 CREATE VIEW pg_rules AS
     SELECT
         N.nspname AS schemaname,
