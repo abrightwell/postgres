@@ -1244,18 +1244,33 @@ NOTICE:  f_leak => fgh_updt_updt
 -- Duplicate Policy Names
 --
 SET SESSION AUTHORIZATION rls_regress_user0;
-CREATE TABLE y1 (a int, b int);
-CREATE TABLE y2 (a int, b int);
+CREATE TABLE y1 (a int, b text);
+CREATE TABLE y2 (a int, b text);
 CREATE POLICY p1 ON y1 FOR ALL USING (a % 2 = 0);
+CREATE POLICY p2 ON y1 FOR SELECT USING (a > 2);
 CREATE POLICY p1 ON y1 FOR SELECT USING (a % 2 = 1);  --fail
 ERROR:  Table "y1" already has a policy named "p1". Use a different name for the policy or to modify this policy use ALTER POLICY y1 ON p1 USING (qual)
 CREATE POLICY p1 ON y2 FOR ALL USING (a % 2 = 0);  --OK
+--
+-- Expression structure with SBV
+--
+CREATE VIEW rls_sbv WITH (security_barrier) AS
+    SELECT * FROM y1 WHERE f_leak(b);
+EXPLAIN (COSTS OFF) SELECT * FROM rls_sbv WHERE (a = 1);
+                        QUERY PLAN                        
+----------------------------------------------------------
+ Subquery Scan on y1
+   Filter: f_leak(y1.b)
+   ->  Seq Scan on y1 y1_1
+         Filter: ((a = 1) AND (((a % 2) = 0) OR (a > 2)))
+(4 rows)
+
 --
 -- Clean up objects
 --
 RESET SESSION AUTHORIZATION;
 DROP SCHEMA rls_regress_schema CASCADE;
-NOTICE:  drop cascades to 19 other objects
+NOTICE:  drop cascades to 20 other objects
 DETAIL:  drop cascades to function f_leak(text)
 drop cascades to table uaccount
 drop cascades to table category
@@ -1275,6 +1290,7 @@ drop cascades to table z1
 drop cascades to table x1
 drop cascades to table y1
 drop cascades to table y2
+drop cascades to view rls_sbv
 DROP USER rls_regress_user0;
 DROP USER rls_regress_user1;
 DROP USER rls_regress_user2;

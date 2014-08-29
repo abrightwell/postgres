@@ -462,12 +462,21 @@ DELETE FROM x1 WHERE f_leak(b) RETURNING *;
 -- Duplicate Policy Names
 --
 SET SESSION AUTHORIZATION rls_regress_user0;
-CREATE TABLE y1 (a int, b int);
-CREATE TABLE y2 (a int, b int);
+CREATE TABLE y1 (a int, b text);
+CREATE TABLE y2 (a int, b text);
 
 CREATE POLICY p1 ON y1 FOR ALL USING (a % 2 = 0);
+CREATE POLICY p2 ON y1 FOR SELECT USING (a > 2);
 CREATE POLICY p1 ON y1 FOR SELECT USING (a % 2 = 1);  --fail
 CREATE POLICY p1 ON y2 FOR ALL USING (a % 2 = 0);  --OK
+
+--
+-- Expression structure with SBV
+--
+CREATE VIEW rls_sbv WITH (security_barrier) AS
+    SELECT * FROM y1 WHERE f_leak(b);
+
+EXPLAIN (COSTS OFF) SELECT * FROM rls_sbv WHERE (a = 1);
 
 --
 -- Clean up objects
