@@ -479,6 +479,16 @@ CREATE VIEW rls_sbv WITH (security_barrier) AS
 EXPLAIN (COSTS OFF) SELECT * FROM rls_sbv WHERE (a = 1);
 
 --
+-- Expression structure
+--
+INSERT INTO y2 (SELECT x, md5(x::text) FROM generate_series(0,20) x);
+CREATE POLICY p2 ON y2 USING (a % 3 = 0);
+CREATE POLICY p3 ON y2 USING (a % 4 = 0);
+
+SELECT * FROM y2 WHERE f_leak(b);
+EXPLAIN (COSTS OFF) SELECT * FROM y2 WHERE f_leak(b);
+
+--
 -- Clean up objects
 --
 RESET SESSION AUTHORIZATION;
