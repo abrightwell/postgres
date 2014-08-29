@@ -630,10 +630,10 @@ CREATE POLICY d1 ON dependent FOR ALL
     USING (x = (SELECT d.x FROM dependee d WHERE d.y = y));
 DROP TABLE dependee; -- Should fail without CASCADE due to dependency on row-security qual?
 ERROR:  cannot drop table dependee because other objects depend on it
-DETAIL:  row-security of table dependent FOR ALL depends on table dependee
+DETAIL:  policy d1 on table dependent depends on table dependee
 HINT:  Use DROP ... CASCADE to drop the dependent objects too.
 DROP TABLE dependee CASCADE;
-NOTICE:  drop cascades to row-security of table dependent FOR ALL
+NOTICE:  drop cascades to policy d1 on table dependent
 EXPLAIN (COSTS OFF) SELECT * FROM dependent; -- After drop, should be unqualified
       QUERY PLAN       
 -----------------------
@@ -680,8 +680,8 @@ ERROR:  infinite recursion detected in row-security policy for relation "rec1"
 -- 
 DROP VIEW rec1v, rec2v CASCADE;
 NOTICE:  drop cascades to 2 other objects
-DETAIL:  drop cascades to row-security of table rec1 FOR ALL
-drop cascades to row-security of table rec2 FOR ALL
+DETAIL:  drop cascades to policy r1 on table rec1
+drop cascades to policy r2 on table rec2
 CREATE VIEW rec1v WITH (security_barrier) AS SELECT * FROM rec1;
 CREATE VIEW rec2v WITH (security_barrier) AS SELECT * FROM rec2;
 CREATE POLICY r1 ON rec1 FOR ALL

@@ -224,10 +224,8 @@ RelationBuildRowSecurity(Relation relation)
 			Expr			   *qual_expr;
 			char			   *policy_name_value;
 			Oid					policy_id;
-			ListCell		   *item;
 			bool				isnull;
 			RowSecurityPolicy  *policy = NULL;
-			RowSecurityPolicy  *temp_policy;
 
 			/*
 			 * Set up the memory context inside our loop to ensure we are only
@@ -397,6 +395,11 @@ CreatePolicy(CreatePolicyStmt *stmt)
 	/* Open target_table to build qual. No lock is necessary.*/
 	target_table = relation_open(table_id, NoLock);
 
+	/* Permissions checks */
+	if (!pg_class_ownercheck(RelationGetRelid(target_table), GetUserId()))
+		aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_CLASS,
+					   RelationGetRelationName(target_table));
+
 	rte = addRangeTableEntryForRelation(pstate, target_table,
 										NULL, false, false);
 	addRTEtoQuery(pstate, rte, false, true, true);
@@ -519,6 +522,7 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	char			rseccmd;
 	ArrayType	   *role_ids = NULL;
 	ParseState	   *pstate;
+	List		   *parse_rtable = NIL;
 	RangeTblEntry  *rte;
 	Node		   *qual;
 	ScanKeyData		skeys[2];
@@ -549,6 +553,11 @@ AlterPolicy(AlterPolicyStmt *stmt)
 
 	target_table = relation_open(table_id, NoLock);
 
+	/* Permissions checks */
+	if (!pg_class_ownercheck(RelationGetRelid(target_table), GetUserId()))
+		aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_CLASS,
+					   RelationGetRelationName(target_table));
+
 	/* Parse the row-security clause */
 	if (stmt->qual)
 	{
@@ -562,6 +571,9 @@ AlterPolicy(AlterPolicyStmt *stmt)
 		qual = transformWhereClause(pstate, copyObject(stmt->qual),
 									EXPR_KIND_ROW_SECURITY,
 									"ROW SECURITY");
+
+		parse_rtable = pstate->p_rtable;
+		free_parsestate(pstate);
 	}
 	else
 		qual = NULL;
@@ -638,7 +650,7 @@ AlterPolicy(AlterPolicyStmt *stmt)
 
 		recordDependencyOn(&myself, &target, DEPENDENCY_AUTO);
 
-		recordDependencyOnExpr(&myself, qual, pstate->p_rtable,
+		recordDependencyOnExpr(&myself, qual, parse_rtable,
 							   DEPENDENCY_NORMAL);
 
 		heap_freetuple(new_tuple);
@@ -651,7 +663,6 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	CacheInvalidateRelcache(target_table);
 
 	/* Clean up. */
-	free_parsestate(pstate);
 	systable_endscan(sscan);
 	relation_close(target_table, NoLock);
 	heap_close(pg_rowsecurity_rel, RowExclusiveLock);
@@ -682,6 +693,11 @@ DropPolicy(DropPolicyStmt *stmt)
 										(void *) stmt);
 
 	target_table = relation_open(table_id, NoLock);
+
+	/* Permissions checks */
+	if (!pg_class_ownercheck(RelationGetRelid(target_table), GetUserId()))
+		aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_CLASS,
+					   RelationGetRelationName(target_table));
 
 	pg_rowsecurity_rel = heap_open(RowSecurityRelationId, RowExclusiveLock);
 
