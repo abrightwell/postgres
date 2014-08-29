@@ -4595,6 +4595,7 @@ RowSecurityDefaultForCmd:
 RowSecurityOptionalForCmd:
 			FOR row_security_cmd	{ $$ = $2; }
 			| /* EMPTY */			{ $$ = NULL; }
+		;
 
 row_security_cmd:
 			ALL				{ $$ = "all"; }
