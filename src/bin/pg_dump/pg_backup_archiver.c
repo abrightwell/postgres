@@ -316,7 +316,6 @@ RestoreArchive(Archive *AHX)
 		AH->noTocComments = 1;
 	}
 
-
 	/*
 	 * Work out if we have an implied data-only restore. This can happen if
 	 * the dump was data only or if the user has used a toc list to exclude

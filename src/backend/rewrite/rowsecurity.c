@@ -67,7 +67,7 @@ prepend_row_security_quals(Query* root, RangeTblEntry* rte, int rt_index)
 		rowsecquals = pull_row_security_policy(root->commandType, rel);
 		if (rowsecquals)
 		{
-			/* 
+			/*
 			 * Row security quals always have the target table as varno 1, as no
 			 * joins are permitted in row security expressions. We must walk
 			 * the expression, updating any references to varno 1 to the varno
@@ -176,10 +176,9 @@ pull_row_security_policy(CmdType cmd, Relation relation)
 					 errmsg("Insufficient privilege to bypass row security.")));
 	}
 
-
 	/*
 	 * Also, ask extensions whether they want to apply their own
-	 * row-security policy. If both built-in and extension has
+	 * row-security policy. If both built-in and extension have
 	 * their own policy they're applied as nested qualifiers.
 	 */
 	if (row_security_policy_hook)
@@ -223,9 +222,9 @@ check_role_for_policy(RowSecurityPolicy *policy)
 	if (roles[0] == ACL_ID_PUBLIC)
 		return true;
 
-	for(i = 0; i < ARR_DIMS(policy->roles)[0]; i++)
+	for (i = 0; i < ARR_DIMS(policy->roles)[0]; i++)
 	{
-		if(is_member_of_role(GetUserId(), roles[i]))
+		if (is_member_of_role(GetUserId(), roles[i]))
 			return true;
 	}
 
