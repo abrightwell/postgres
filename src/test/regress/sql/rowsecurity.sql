@@ -470,13 +470,6 @@ CREATE POLICY p1 ON y1 FOR SELECT USING (a % 2 = 1);  --fail
 CREATE POLICY p1 ON y2 FOR ALL USING (a % 2 = 0);  --OK
 
 --
--- Test psql \dt+ command
---
-SET SESSION AUTHORIZATION rls_regress_user0;
-DROP POLICY p2 ON category;  -- too long qual
-\dt+
-
---
 -- Clean up objects
 --
 RESET SESSION AUTHORIZATION;
