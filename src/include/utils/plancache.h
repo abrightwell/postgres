@@ -93,6 +93,7 @@ typedef struct CachedPlanSource
 	List	   *invalItems;		/* other dependencies, as PlanInvalItems */
 	struct OverrideSearchPath *search_path;		/* search_path used for
 												 * parsing and planning */
+	Oid			planUserId;		/* User-id that the plan depends on */
 	MemoryContext query_context;	/* context holding the above, or NULL */
 	/* If we have a generic plan, this is a reference-counted link to it: */
 	struct CachedPlan *gplan;	/* generic plan, or NULL if not valid */

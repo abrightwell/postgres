@@ -211,6 +211,7 @@ CreateCachedPlan(Node *raw_parse_tree,
 	plansource->targetRelId = InvalidOid;
 	plansource->rowSecurityDisabled
 		= (security_context & SECURITY_ROW_LEVEL_DISABLED) != 0;
+	plansource->planUserId = InvalidOid;
 
 	MemoryContextSwitchTo(oldcxt);
 
@@ -577,6 +578,10 @@ RevalidateCachedQuery(CachedPlanSource *plansource)
 		return NIL;
 	}
 
+	/* If this is a new cached plan, then set the user id it was planned by. */
+	if (!OidIsValid(plansource->planUserId))
+		plansource->planUserId = GetUserId();
+
 	/*
 	 * If the query is currently valid, we should have a saved search_path ---
 	 * check to see if that matches the current environment.  If not, we want
@@ -600,9 +605,17 @@ RevalidateCachedQuery(CachedPlanSource *plansource)
 	{
 		Relation rel = RelationIdGetRelation(plansource->targetRelId);
 
-		if (rel->rd_rel->relhasrowsecurity
-			&& (plansource->has_rls != is_rls_enabled()))
-			plansource->is_valid = false;
+		if (rel->rd_rel->relhasrowsecurity)
+		{
+			/*
+			 * If previously planed with or without RLS and the row_security GUC
+			 * setting was changed since planned or if the current user has
+			 * changed, then the cached plan needs to be invalidated.
+			 */
+			if (plansource->has_rls != is_rls_enabled()
+				|| (plansource->planUserId != GetUserId()))
+				plansource->is_valid = false;
+		}
 
 		RelationClose(rel);
 	}

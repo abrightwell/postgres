@@ -489,6 +489,25 @@ SELECT * FROM y2 WHERE f_leak(b);
 EXPLAIN (COSTS OFF) SELECT * FROM y2 WHERE f_leak(b);
 
 --
+-- Plancache invalidate on user change.
+--
+RESET SESSION AUTHORIZATION;
+DROP TABLE t1 CASCADE;
+CREATE TABLE t1 (a integer);
+
+GRANT SELECT ON t1 TO rls_regress_user1, rls_regress_user2;
+
+CREATE POLICY p1 ON t1 TO rls_regress_user1 USING ((a % 2) = 0);
+CREATE POLICY p2 ON t1 TO rls_regress_user2 USING ((a % 4) = 0);
+
+SET ROLE rls_regress_user1;
+PREPARE role_inval AS SELECT * FROM t1;
+EXPLAIN EXECUTE role_inval;
+
+SET ROLE rls_regress_user2;
+EXPLAIN EXECUTE role_inval;
+
+--
 -- Clean up objects
 --
 RESET SESSION AUTHORIZATION;
