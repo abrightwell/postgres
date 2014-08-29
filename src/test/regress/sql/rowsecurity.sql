@@ -502,10 +502,10 @@ CREATE POLICY p2 ON t1 TO rls_regress_user2 USING ((a % 4) = 0);
 
 SET ROLE rls_regress_user1;
 PREPARE role_inval AS SELECT * FROM t1;
-EXPLAIN EXECUTE role_inval;
+EXPLAIN (COSTS OFF) EXECUTE role_inval;
 
 SET ROLE rls_regress_user2;
-EXPLAIN EXECUTE role_inval;
+EXPLAIN (COSTS OFF) EXECUTE role_inval;
 
 --
 -- Clean up objects
