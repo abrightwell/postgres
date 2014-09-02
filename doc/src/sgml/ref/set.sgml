@@ -170,6 +170,16 @@ SET [ SESSION | LOCAL ] TIME ZONE { <replaceable class="PARAMETER">timezone</rep
     </varlistentry>
 
     <varlistentry>
+     <term><literal>ROW SECURITY</literal></term>
+     <listitem>
+      <para>
+       <literal>SET ROW SECURITY <replaceable>value</></> is an alias for
+       <literal>SET row_security TO <replaceable>value</></>.
+      </para>
+     </listitem>
+    </varlistentry>
+
+    <varlistentry>
      <term><literal>SEED</literal></term>
      <listitem>
       <para>

@@ -125,6 +125,13 @@ CREATE POLICY <replaceable class="parameter">name</replaceable> ON <replaceable 
   <para>
    You must be the owner of a table to create or change policies for it.
   </para>
+
+  <para>
+   In order to maintain <firstterm>referential integrity</firstterm> between two
+   related tables, row-security policies are not applied when the system performs
+   checks on foreign key constraints.
+  </para>
+
  </refsect1>
 
  <refsect1>

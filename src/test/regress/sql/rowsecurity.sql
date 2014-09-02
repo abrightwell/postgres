@@ -88,6 +88,7 @@ CREATE POLICY p1 ON document
 
 -- viewpoint from rls_regress_user1
 SET SESSION AUTHORIZATION rls_regress_user1;
+SET ROW SECURITY ON;
 SELECT * FROM document WHERE f_leak(dtitle) ORDER BY did;
 SELECT * FROM document NATURAL JOIN category WHERE f_leak(dtitle) ORDER BY did;
 

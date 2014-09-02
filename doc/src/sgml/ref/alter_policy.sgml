@@ -24,7 +24,7 @@ PostgreSQL documentation
 ALTER POLICY <replaceable class="parameter">name</replaceable> ON <replaceable class="parameter">table_name</replaceable>
     [ FOR { ALL | SELECT | INSERT | UPDATE | DELETE } ]
     [ TO { <replaceable class="parameter">role_name</replaceable> | PUBLIC } [, ...] ]
-    USING ( <replaceable class="parameter">expression</replaceable> )
+    [ USING ( <replaceable class="parameter">expression</replaceable> ) ]
 </synopsis>
  </refsynopsisdiv>
 
