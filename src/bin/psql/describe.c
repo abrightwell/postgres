@@ -742,7 +742,7 @@ permissionsList(const char *pattern)
 	PQExpBufferData buf;
 	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
-	static const bool translate_columns[] = {false, false, true, false, false};
+	static const bool translate_columns[] = {false, false, true, false, false, false};
 
 	initPQExpBuffer(&buf);
 
@@ -771,6 +771,7 @@ permissionsList(const char *pattern)
 
 	printACLColumn(&buf, "c.relacl");
 
+
 	if (pset.sversion >= 80400)
 		appendPQExpBuffer(&buf,
 						  ",\n  pg_catalog.array_to_string(ARRAY(\n"
@@ -779,6 +780,15 @@ permissionsList(const char *pattern)
 						  "    WHERE attrelid = c.oid AND NOT attisdropped AND attacl IS NOT NULL\n"
 						  "  ), E'\\n') AS \"%s\"",
 						  gettext_noop("Column access privileges"));
+
+	if (pset.sversion >= 90500)
+		appendPQExpBuffer(&buf,
+						  ",\n  pg_catalog.array_to_string(ARRAY(\n"
+						  "    SELECT rsecpolname\n"
+						  "    FROM pg_catalog.pg_rowsecurity\n"
+						  "    WHERE rsecrelid = c.oid), E'\\n')\n"
+						  "    AS \"%s\"",
+						  gettext_noop("Row-security policies"));
 
 	appendPQExpBufferStr(&buf, "\nFROM pg_catalog.pg_class c\n"
 	   "     LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace\n"
