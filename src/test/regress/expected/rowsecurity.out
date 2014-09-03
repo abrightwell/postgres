@@ -1250,7 +1250,7 @@ CREATE TABLE y2 (a int, b text);
 CREATE POLICY p1 ON y1 FOR ALL USING (a % 2 = 0);
 CREATE POLICY p2 ON y1 FOR SELECT USING (a > 2);
 CREATE POLICY p1 ON y1 FOR SELECT USING (a % 2 = 1);  --fail
-ERROR:  Table "y1" already has a policy named "p1". Use a different name for the policy or to modify this policy use ALTER POLICY y1 ON p1 USING (qual)
+ERROR:  policy "p1" for relation "y1" already exists
 CREATE POLICY p1 ON y2 FOR ALL USING (a % 2 = 0);  --OK
 --
 -- Expression structure with SBV

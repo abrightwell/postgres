@@ -1425,9 +1425,9 @@ grant select on dep_priv_test to regressuser4 with grant option;
 set session role regressuser4;
 grant select on dep_priv_test to regressuser5;
 \dp dep_priv_test
-                                           Access privileges
- Schema |     Name      | Type  |         Access privileges         | Column privileges | Row policies 
---------+---------------+-------+-----------------------------------+-------------------+--------------
+                                         Access privileges
+ Schema |     Name      | Type  |         Access privileges         | Column privileges | Policies 
+--------+---------------+-------+-----------------------------------+-------------------+----------
  public | dep_priv_test | table | regressuser1=arwdDxt/regressuser1+|                   | 
         |               |       | regressuser2=r*/regressuser1     +|                   | 
         |               |       | regressuser3=r*/regressuser1     +|                   | 
@@ -1439,9 +1439,9 @@ grant select on dep_priv_test to regressuser5;
 set session role regressuser2;
 revoke select on dep_priv_test from regressuser4 cascade;
 \dp dep_priv_test
-                                           Access privileges
- Schema |     Name      | Type  |         Access privileges         | Column privileges | Row policies 
---------+---------------+-------+-----------------------------------+-------------------+--------------
+                                         Access privileges
+ Schema |     Name      | Type  |         Access privileges         | Column privileges | Policies 
+--------+---------------+-------+-----------------------------------+-------------------+----------
  public | dep_priv_test | table | regressuser1=arwdDxt/regressuser1+|                   | 
         |               |       | regressuser2=r*/regressuser1     +|                   | 
         |               |       | regressuser3=r*/regressuser1     +|                   | 
@@ -1452,9 +1452,9 @@ revoke select on dep_priv_test from regressuser4 cascade;
 set session role regressuser3;
 revoke select on dep_priv_test from regressuser4 cascade;
 \dp dep_priv_test
-                                           Access privileges
- Schema |     Name      | Type  |         Access privileges         | Column privileges | Row policies 
---------+---------------+-------+-----------------------------------+-------------------+--------------
+                                         Access privileges
+ Schema |     Name      | Type  |         Access privileges         | Column privileges | Policies 
+--------+---------------+-------+-----------------------------------+-------------------+----------
  public | dep_priv_test | table | regressuser1=arwdDxt/regressuser1+|                   | 
         |               |       | regressuser2=r*/regressuser1     +|                   | 
         |               |       | regressuser3=r*/regressuser1      |                   | 

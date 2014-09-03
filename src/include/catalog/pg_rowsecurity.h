@@ -16,13 +16,13 @@
  *		typedef struct FormData_pg_rowsecurity
  * ----------------
  */
-#define RowSecurityRelationId	5000
+#define RowSecurityRelationId	3256
 
-CATALOG(pg_rowsecurity,5000)
+CATALOG(pg_rowsecurity,3256)
 {
 	NameData		rsecpolname;	/* Policy name. */
 	Oid				rsecrelid;		/* Oid of the relation with policy. */
-	char			rseccmd;		/* One of ROWSECURITY_CMD_* below */
+	char			rseccmd;		/* One of ACL_*_CHR, or NULL for all */
 
 #ifdef CATALOG_VARLEN
 	Oid				rsecroles[1]	/* Roles associated with policy */
@@ -47,12 +47,5 @@ typedef FormData_pg_rowsecurity *Form_pg_rowsecurity;
 #define Anum_pg_rowsecurity_rseccmd			3
 #define Anum_pg_rowsecurity_rsecroles		4
 #define Anum_pg_rowsecurity_rsecqual		5
-
-#define ROWSECURITY_CMD_ALL			'a'
-#define ROWSECURITY_CMD_SELECT		's'
-#define ROWSECURITY_CMD_INSERT		'i'
-#define ROWSECURITY_CMD_UPDATE		'u'
-#define ROWSECURITY_CMD_DELETE		'd'
-#define ROWSECURITY_CMD_UNDEFINED	'\0'
 
 #endif  /* PG_ROWSECURITY_H */

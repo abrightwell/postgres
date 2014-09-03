@@ -137,30 +137,29 @@ pull_row_security_policy(CmdType cmd, Relation relation)
 				policy = (RowSecurityPolicy *) lfirst(item);
 
 				/* Always add ALL policy if exists. */
-				if (policy->cmd == ROWSECURITY_CMD_ALL
-					&& check_role_for_policy(policy))
+				if (!policy->cmd && check_role_for_policy(policy))
 					quals = lcons(copyObject(policy->qual), quals);
 
 				/* Build list of quals, merging when appropriate. */
 				switch(cmd)
 				{
 					case CMD_SELECT:
-						if (policy->cmd == ROWSECURITY_CMD_SELECT
+						if (policy->cmd == ACL_SELECT_CHR
 							&& check_role_for_policy(policy))
 							quals = lcons(copyObject(policy->qual), quals);
 						break;
 					case CMD_INSERT:
-						if (policy->cmd == ROWSECURITY_CMD_INSERT
+						if (policy->cmd == ACL_INSERT_CHR
 							&& check_role_for_policy(policy))
 							quals = lcons(copyObject(policy->qual), quals);
 						break;
 					case CMD_UPDATE:
-						if (policy->cmd == ROWSECURITY_CMD_UPDATE
+						if (policy->cmd == ACL_UPDATE_CHR
 							&& check_role_for_policy(policy))
 							quals = lcons(copyObject(policy->qual), quals);
 						break;
 					case CMD_DELETE:
-						if (policy->cmd == ROWSECURITY_CMD_DELETE
+						if (policy->cmd == ACL_DELETE_CHR
 							&& check_role_for_policy(policy))
 							quals = lcons(copyObject(policy->qual), quals);
 						break;

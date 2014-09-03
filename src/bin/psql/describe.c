@@ -15,7 +15,6 @@
 #include <ctype.h>
 
 #include "catalog/pg_default_acl.h"
-#include "catalog/pg_rowsecurity.h"
 
 #include "common.h"
 #include "describe.h"
@@ -24,6 +23,7 @@
 #include "print.h"
 #include "settings.h"
 #include "variables.h"
+
 
 static bool describeOneTableDetails(const char *schemaname,
 						const char *relationname,
@@ -783,7 +783,8 @@ permissionsList(const char *pattern)
 	if (pset.sversion >= 90500)
 		appendPQExpBuffer(&buf,
 						  ",\n  pg_catalog.array_to_string(ARRAY(\n"
-						  "    SELECT rsecpolname || E' (' || rseccmd || E'):\\n'\n"
+						  "    SELECT rsecpolname || CASE WHEN rseccmd IS NOT NULL THEN\n"
+						  "           E' (' || rseccmd || E')' ELSE E':' END || '\n'\n"
 						  "    || E'  ' || pg_catalog.pg_get_expr(rsecqual, rsecrelid)\n"
 						  "    || CASE WHEN rs.rsecroles <> '{0}' THEN\n"
 						  "           E'\\n  to: ' || pg_catalog.array_to_string(\n"
@@ -798,7 +799,7 @@ permissionsList(const char *pattern)
 						  "    FROM pg_catalog.pg_rowsecurity rs\n"
 						  "    WHERE rsecrelid = c.oid), E'\\n')\n"
 						  "    AS \"%s\"",
-						  gettext_noop("Row policies"));
+						  gettext_noop("Policies"));
 
 	appendPQExpBufferStr(&buf, "\nFROM pg_catalog.pg_class c\n"
 	   "     LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace\n"
@@ -2003,19 +2004,9 @@ describeOneTableDetails(const char *schemaname,
 						   "SELECT rs.rsecpolname,\n"
 						   "CASE WHEN rs.rsecroles = '{0}' THEN NULL ELSE array(select rolname from pg_authid where oid = any (rs.rsecroles) order by 1) END,\n"
 						   "pg_catalog.pg_get_expr(rs.rsecqual, rs.rsecrelid),\n"
-						   "CASE rs.rseccmd WHEN '%c' THEN '%s' WHEN '%c' THEN '%s' WHEN '%c' THEN '%s' WHEN '%c' THEN '%s' WHEN '%c' THEN '%s' END AS cmd\n"
+						   "rs.rseccmd AS cmd\n"
 							  "FROM pg_catalog.pg_rowsecurity rs\n"
 				  "WHERE rs.rsecrelid = '%s' ORDER BY 1;",
-							  ROWSECURITY_CMD_ALL,
-							  "ALL",
-							  ROWSECURITY_CMD_SELECT,
-							  "SELECT",
-							  ROWSECURITY_CMD_INSERT,
-							  "INSERT",
-							  ROWSECURITY_CMD_UPDATE,
-							  "UPDATE",
-							  ROWSECURITY_CMD_DELETE,
-							  "DELETE",
 							  oid);
 			result = PSQLexec(buf.data, false);
 			if (!result)
@@ -2025,13 +2016,18 @@ describeOneTableDetails(const char *schemaname,
 
 			if (tuples > 0)
 			{
-				printTableAddFooter(&cont, _("Row-Security Policies:"));
+				printTableAddFooter(&cont, _("Policies:"));
 				for (i = 0; i < tuples; i++)
 				{
-					printfPQExpBuffer(&buf, "    POLICY \"%s\" FOR %s EXPRESSION %s",
-									  PQgetvalue(result, i, 0),
-									  PQgetvalue(result, i, 3),
-									  PQgetvalue(result, i, 2));
+					if (PQgetisnull(result, i, 3))
+						printfPQExpBuffer(&buf, "    POLICY \"%s\" EXPRESSION %s",
+										  PQgetvalue(result, i, 0),
+										  PQgetvalue(result, i, 2));
+					else
+						printfPQExpBuffer(&buf, "    POLICY \"%s\" (%s) EXPRESSION %s",
+										  PQgetvalue(result, i, 0),
+										  PQgetvalue(result, i, 3),
+										  PQgetvalue(result, i, 2));
 
 					printTableAddFooter(&cont, buf.data);
 

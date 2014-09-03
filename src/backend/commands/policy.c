@@ -109,15 +109,15 @@ parse_row_security_command(const char *cmd_name)
 		elog(ERROR, "Unregonized command.");
 
 	if (strcmp(cmd_name, "all") == 0)
-		cmd = ROWSECURITY_CMD_ALL;
+		cmd = 0;
 	else if (strcmp(cmd_name, "select") == 0)
-		cmd = ROWSECURITY_CMD_SELECT;
+		cmd = ACL_SELECT_CHR;
 	else if (strcmp(cmd_name, "insert") == 0)
-		cmd = ROWSECURITY_CMD_INSERT;
+		cmd = ACL_INSERT_CHR;
 	else if (strcmp(cmd_name, "update") == 0)
-		cmd = ROWSECURITY_CMD_UPDATE;
+		cmd = ACL_UPDATE_CHR;
 	else if (strcmp(cmd_name, "delete") == 0)
-		cmd = ROWSECURITY_CMD_DELETE;
+		cmd = ACL_DELETE_CHR;
 	else
 		elog(ERROR, "Unregonized command.");
 		/* error unrecognized command */
@@ -207,7 +207,7 @@ RelationBuildRowSecurity(Relation relation)
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(RelationGetRelid(relation)));
 
-	sscan = systable_beginscan(catalog, RowSecurityRelidIndexId, true,
+	sscan = systable_beginscan(catalog, RowSecurityPolnameRelidIndexId, true,
 							   NULL, 1, &skey);
 	PG_TRY();
 	{
@@ -247,8 +247,10 @@ RelationBuildRowSecurity(Relation relation)
 			/* Get policy command */
 			value_datum = heap_getattr(tuple, Anum_pg_rowsecurity_rseccmd,
 								 RelationGetDescr(catalog), &isnull);
-			Assert(!isnull);
-			cmd_value = DatumGetChar(value_datum);
+			if (isnull)
+				cmd_value = 0;
+			else
+				cmd_value = DatumGetChar(value_datum);
 
 			/* Get policy name */
 			value_datum = heap_getattr(tuple, Anum_pg_rowsecurity_rsecpolname,
@@ -418,7 +420,7 @@ CreatePolicy(CreatePolicyStmt *stmt)
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(table_id));
 
-	sscan = systable_beginscan(pg_rowsecurity_rel, RowSecurityRelidIndexId,
+	sscan = systable_beginscan(pg_rowsecurity_rel, RowSecurityPolnameRelidIndexId,
 							   true, NULL, 2, skeys);
 
 	rsec_tuple = systable_getnext(sscan);
@@ -433,8 +435,13 @@ CreatePolicy(CreatePolicyStmt *stmt)
 			= ObjectIdGetDatum(table_id);
 		values[Anum_pg_rowsecurity_rsecpolname - 1]
 			= CStringGetDatum(stmt->policy_name);
-		values[Anum_pg_rowsecurity_rseccmd - 1]
-			= CharGetDatum(rseccmd);
+
+		if (rseccmd)
+			values[Anum_pg_rowsecurity_rseccmd - 1]
+				= CharGetDatum(rseccmd);
+		else
+			isnull[Anum_pg_rowsecurity_rseccmd - 1] = true;
+
 		values[Anum_pg_rowsecurity_rsecroles - 1]
 			= PointerGetDatum(role_ids);
 		values[Anum_pg_rowsecurity_rsecqual - 1]
@@ -444,11 +451,10 @@ CreatePolicy(CreatePolicyStmt *stmt)
 		rowsec_id = simple_heap_insert(pg_rowsecurity_rel, rsec_tuple);
 	}
 	else
-		elog(ERROR, "Table \"%s\" already has a policy named \"%s\"."
-			" Use a different name for the policy or to modify this policy"
-			" use ALTER POLICY %s ON %s USING (qual)",
-			RelationGetRelationName(target_table), stmt->policy_name,
-			RelationGetRelationName(target_table), stmt->policy_name);
+		ereport(ERROR,
+				(errcode(ERRCODE_DUPLICATE_OBJECT),
+		  errmsg("policy \"%s\" for relation \"%s\" already exists",
+				 stmt->policy_name, RelationGetRelationName(target_table))));
 
 	/* Update Indexes */
 	CatalogUpdateIndexes(pg_rowsecurity_rel, rsec_tuple);
@@ -527,14 +533,16 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	Datum	values[Natts_pg_rowsecurity];
 	bool	isnull[Natts_pg_rowsecurity];
 	bool	replaces[Natts_pg_rowsecurity];
+	bool			cmd_altered = false;
 	ObjectAddress target;
 	ObjectAddress myself;
 
 	/* Parse command */
 	if (stmt->cmd != NULL)
+	{
 		rseccmd = parse_row_security_command(stmt->cmd);
-	else
-		rseccmd = ROWSECURITY_CMD_UNDEFINED;
+		cmd_altered = true;
+	}
 
 	/* Parse role_ids */
 	if (stmt->roles != NULL)
@@ -588,7 +596,7 @@ AlterPolicy(AlterPolicyStmt *stmt)
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(table_id));
 
-	sscan = systable_beginscan(pg_rowsecurity_rel, RowSecurityRelidIndexId,
+	sscan = systable_beginscan(pg_rowsecurity_rel, RowSecurityPolnameRelidIndexId,
 							   true, NULL, 2, skeys);
 
 	rsec_tuple = systable_getnext(sscan);
@@ -604,10 +612,14 @@ AlterPolicy(AlterPolicyStmt *stmt)
 			values[Anum_pg_rowsecurity_rsecroles - 1] = PointerGetDatum(role_ids);
 		}
 
-		if (rseccmd != ROWSECURITY_CMD_UNDEFINED)
+		if (cmd_altered)
 		{
 			replaces[Anum_pg_rowsecurity_rseccmd - 1] = true;
-			values[Anum_pg_rowsecurity_rseccmd - 1] = CharGetDatum(rseccmd);
+
+			if (rseccmd)
+				values[Anum_pg_rowsecurity_rseccmd - 1] = CharGetDatum(rseccmd);
+			else
+				isnull[Anum_pg_rowsecurity_rseccmd - 1] = true;
 		}
 
 		if (qual != NULL)
@@ -698,7 +710,7 @@ DropPolicy(DropPolicyStmt *stmt)
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(table_id));
 
-	sscan = systable_beginscan(pg_rowsecurity_rel, RowSecurityRelidIndexId,
+	sscan = systable_beginscan(pg_rowsecurity_rel, RowSecurityPolnameRelidIndexId,
 							   true, NULL, 2, skeys);
 
 	rsec_tuple = systable_getnext(sscan);
