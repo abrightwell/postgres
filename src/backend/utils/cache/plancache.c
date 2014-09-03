@@ -603,7 +603,8 @@ RevalidateCachedQuery(CachedPlanSource *plansource)
 		&& !plansource->rowSecurityDisabled
 		&& (plansource->targetRelId != InvalidOid))
 	{
-		Relation rel = RelationIdGetRelation(plansource->targetRelId);
+		Relation	rel = RelationIdGetRelation(plansource->targetRelId);
+		const char *rls_option = GetConfigOption("row_security", true, false);
 
 		if (rel->rd_rel->relhasrowsecurity)
 		{
@@ -612,7 +613,7 @@ RevalidateCachedQuery(CachedPlanSource *plansource)
 			 * setting was changed since planned or if the current user has
 			 * changed, then the cached plan needs to be invalidated.
 			 */
-			if (plansource->has_rls != is_rls_enabled()
+			if (plansource->has_rls != (strcmp(rls_option, "on") == 0)
 				|| (plansource->planUserId != GetUserId()))
 				plansource->is_valid = false;
 		}

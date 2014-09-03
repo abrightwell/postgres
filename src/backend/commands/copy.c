@@ -812,6 +812,7 @@ DoCopy(const CopyStmt *stmt, const char *queryString, uint64 *processed)
 		RangeTblEntry *rte;
 		List	   *attnums;
 		ListCell   *cur;
+		const char *rls_option;
 
 		Assert(!stmt->query);
 
@@ -841,12 +842,15 @@ DoCopy(const CopyStmt *stmt, const char *queryString, uint64 *processed)
 		}
 		ExecCheckRTPerms(list_make1(rte), true);
 
+		rls_option = GetConfigOption("row_security", true, false);
+
 		/*
 		 * If the relation has a row security policy and we are to apply it
 		 * (row_security is on), then perform a "query" copy.  This will
 		 * allow for the policies to be applied appropriately to the relation.
 		 */
-		if (rel->rd_rel->relhasrowsecurity && is_rls_enabled())
+		if (rel->rd_rel->relhasrowsecurity
+			&& (strcmp(rls_option, "on") == 0))
 		{
 			SelectStmt *select;
 			ColumnRef  *cr;

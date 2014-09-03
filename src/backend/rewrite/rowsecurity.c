@@ -113,7 +113,8 @@ prepend_row_security_quals(Query* root, RangeTblEntry* rte, int rt_index)
 List *
 pull_row_security_policy(CmdType cmd, Relation relation)
 {
-	List   *quals = NIL;
+	List		   *quals = NIL;
+	const char	   *rls_option;
 
 	/*
 	 * Pull the row-security policy configured with built-in features,
@@ -121,13 +122,15 @@ pull_row_security_policy(CmdType cmd, Relation relation)
 	 */
 	if (relation->rsdesc)
 	{
+		rls_option = GetConfigOption("row_security", true, false);
+
 		/*
 		 * If Row Security is enabled, then it is applied to all queries on the
 		 * relation.  If Row Security is disabled, then we must check that the
 		 * current user has the privilege to bypass.  If the current user does
 		 * not have the ability to bypass, then an error is thrown.
 		 */
-		if (is_rls_enabled())
+		if (strcmp(rls_option, "on") == 0)
 		{
 			ListCell		   *item;
 			RowSecurityPolicy  *policy;
@@ -190,21 +193,6 @@ pull_row_security_policy(CmdType cmd, Relation relation)
 	}
 
 	return quals;
-}
-
-/*
- * is_rls_enabled -
- *   determines if row-security is enabled by checking the value of the system
- *   configuration "row_security".
- */
-bool
-is_rls_enabled()
-{
-	char const *rls_option;
-
-	rls_option = GetConfigOption("row_security", true, false);
-
-	return (strcmp(rls_option, "on") == 0);
 }
 
 /*
