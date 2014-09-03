@@ -771,7 +771,6 @@ permissionsList(const char *pattern)
 
 	printACLColumn(&buf, "c.relacl");
 
-
 	if (pset.sversion >= 80400)
 		appendPQExpBuffer(&buf,
 						  ",\n  pg_catalog.array_to_string(ARRAY(\n"
@@ -779,16 +778,27 @@ permissionsList(const char *pattern)
 						  "    FROM pg_catalog.pg_attribute a\n"
 						  "    WHERE attrelid = c.oid AND NOT attisdropped AND attacl IS NOT NULL\n"
 						  "  ), E'\\n') AS \"%s\"",
-						  gettext_noop("Column access privileges"));
+						  gettext_noop("Column privileges"));
 
 	if (pset.sversion >= 90500)
 		appendPQExpBuffer(&buf,
 						  ",\n  pg_catalog.array_to_string(ARRAY(\n"
-						  "    SELECT rsecpolname\n"
-						  "    FROM pg_catalog.pg_rowsecurity\n"
+						  "    SELECT rsecpolname || E' (' || rseccmd || E'):\\n'\n"
+						  "    || E'  ' || pg_catalog.pg_get_expr(rsecqual, rsecrelid)\n"
+						  "    || CASE WHEN rs.rsecroles <> '{0}' THEN\n"
+						  "           E'\\n  to: ' || pg_catalog.array_to_string(\n"
+						  "               ARRAY(\n"
+						  "                   SELECT rolname\n"
+						  "                   FROM pg_catalog.pg_roles\n"
+						  "                   WHERE oid = ANY (rs.rsecroles)\n"
+						  "                   ORDER BY 1\n"
+						  "               ), E', ')\n"
+						  "       ELSE E''\n"
+						  "       END\n"
+						  "    FROM pg_catalog.pg_rowsecurity rs\n"
 						  "    WHERE rsecrelid = c.oid), E'\\n')\n"
 						  "    AS \"%s\"",
-						  gettext_noop("Row-security policies"));
+						  gettext_noop("Row policies"));
 
 	appendPQExpBufferStr(&buf, "\nFROM pg_catalog.pg_class c\n"
 	   "     LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace\n"
