@@ -33,14 +33,7 @@ typedef struct RowSecurityDesc
 } RowSecurityDesc;
 
 /* GUC variable */
-extern int row_security;
-
-/* Possible values for row_security GUC */
-typedef enum RowSecurityType
-{
-	ROW_SECURITY_OFF,
-	ROW_SECURITY_ON
-} RowSecurityType;
+extern bool row_security;
 
 typedef List *(*row_security_policy_hook_type)(CmdType cmdtype,
 											   Relation relation);
