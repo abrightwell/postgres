@@ -73,7 +73,7 @@ CREATE POLICY p1 ON document
     USING (dlevel <= (SELECT seclv FROM uaccount WHERE pguser = current_user));
 -- viewpoint from rls_regress_user1
 SET SESSION AUTHORIZATION rls_regress_user1;
-SET ROW SECURITY ON;
+SET row_security TO ON;
 SELECT * FROM document WHERE f_leak(dtitle) ORDER BY did;
 NOTICE:  f_leak => my first novel
 NOTICE:  f_leak => my first manga
@@ -1012,7 +1012,7 @@ NOTICE:  f_leak => yyyyyy
 (5 rows)
 
 RESET SESSION AUTHORIZATION;
-SET ROW SECURITY OFF;
+SET row_security TO OFF;
 SELECT * FROM t1;
  a |      b      
 ---+-------------
@@ -1030,7 +1030,7 @@ SELECT * FROM t1;
 (11 rows)
 
 SET SESSION AUTHORIZATION rls_regress_user0;
-SET ROW SECURITY ON;
+SET row_security TO ON;
 EXPLAIN (COSTS OFF) DELETE FROM only t1 WHERE f_leak(b);
              QUERY PLAN              
 -------------------------------------

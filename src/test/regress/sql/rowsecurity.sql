@@ -88,7 +88,7 @@ CREATE POLICY p1 ON document
 
 -- viewpoint from rls_regress_user1
 SET SESSION AUTHORIZATION rls_regress_user1;
-SET ROW SECURITY ON;
+SET row_security TO ON;
 SELECT * FROM document WHERE f_leak(dtitle) ORDER BY did;
 SELECT * FROM document NATURAL JOIN category WHERE f_leak(dtitle) ORDER BY did;
 
@@ -383,11 +383,11 @@ UPDATE t1 SET b = b WHERE f_leak(b) RETURNING *;
 UPDATE t1 SET b = b WHERE f_leak(b) RETURNING oid, *, t1;
 
 RESET SESSION AUTHORIZATION;
-SET ROW SECURITY OFF;
+SET row_security TO OFF;
 SELECT * FROM t1;
 
 SET SESSION AUTHORIZATION rls_regress_user0;
-SET ROW SECURITY ON;
+SET row_security TO ON;
 EXPLAIN (COSTS OFF) DELETE FROM only t1 WHERE f_leak(b);
 EXPLAIN (COSTS OFF) DELETE FROM t1 WHERE f_leak(b);
 

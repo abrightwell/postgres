@@ -1059,9 +1059,9 @@ setup_connection(Archive *AH, const char *dumpencoding, char *use_role)
 	if (AH->remoteVersion >= 90500)
 	{
 		if (enable_row_security)
-			ExecuteSqlStatement(AH, "SET ROW SECURITY ON");
+			ExecuteSqlStatement(AH, "SET row_security TO ON");
 		else
-			ExecuteSqlStatement(AH, "SET ROW SECURITY OFF");
+			ExecuteSqlStatement(AH, "SET row_security TO OFF");
 	}
 }
 

@@ -319,7 +319,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 
 %type <str>		all_Op MathOp
 
-%type <str>		row_security_option row_security_cmd RowSecurityDefaultForCmd
+%type <str>		row_security_cmd RowSecurityDefaultForCmd
 				RowSecurityOptionalForCmd
 %type <list>	RowSecurityDefaultToRole RowSecurityOptionalToRole
 
@@ -1484,14 +1484,6 @@ set_rest_more:	/* Generic SET syntaxes: */
 					n->args = list_make1(makeStringConst($3, @3));
 					$$ = n;
 				}
-			| ROW SECURITY row_security_option
-				{
-					VariableSetStmt *n = makeNode(VariableSetStmt);
-					n->kind = VAR_SET_VALUE;
-					n->name = "row_security";
-					n->args = list_make1(makeStringConst($3, @3));
-					$$ = n;
-				}
 		;
 
 var_name:	ColId								{ $$ = $1; }
@@ -1507,11 +1499,6 @@ var_value:	opt_boolean_or_string
 				{ $$ = makeStringConst($1, @1); }
 			| NumericOnly
 				{ $$ = makeAConst($1, @1); }
-		;
-
-row_security_option:
-			ON										{ $$ = "on"; }
-			| OFF									{ $$ = "off"; }
 		;
 
 iso_level:	READ UNCOMMITTED						{ $$ = "read uncommitted"; }
