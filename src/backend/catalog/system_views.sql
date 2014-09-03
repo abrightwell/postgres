@@ -78,12 +78,13 @@ CREATE VIEW pg_policies AS
                     WHERE oid = ANY (rs.rsecroles) ORDER BY 1
                 )
         END AS roles,
-        CASE rs.rseccmd
-            WHEN 'a' THEN 'ALL'
-            WHEN 's' THEN 'SELECT'
-            WHEN 'i' THEN 'INSERT'
-            WHEN 'u' THEN 'UPDATE'
-            WHEN 'd' THEN 'DELETE'
+		CASE WHEN rs.rseccmd IS NULL THEN 'ALL' ELSE
+			CASE rs.rseccmd
+                WHEN 'r' THEN 'SELECT'
+                WHEN 'a' THEN 'INSERT'
+                WHEN 'u' THEN 'UPDATE'
+                WHEN 'd' THEN 'DELETE'
+            END
         END AS cmd,
         pg_catalog.pg_get_expr(rs.rsecqual, rs.rsecrelid) AS qual
     FROM pg_catalog.pg_rowsecurity rs

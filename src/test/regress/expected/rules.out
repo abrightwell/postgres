@@ -1364,13 +1364,16 @@ pg_policies| SELECT rs.rsecpolname AS policyname,
               WHERE (pg_authid.oid = ANY (rs.rsecroles))
               ORDER BY pg_authid.rolname)
         END AS roles,
-        CASE rs.rseccmd
-            WHEN 'a'::"char" THEN 'ALL'::text
-            WHEN 's'::"char" THEN 'SELECT'::text
-            WHEN 'i'::"char" THEN 'INSERT'::text
-            WHEN 'u'::"char" THEN 'UPDATE'::text
-            WHEN 'd'::"char" THEN 'DELETE'::text
-            ELSE NULL::text
+        CASE
+            WHEN (rs.rseccmd IS NULL) THEN 'ALL'::text
+            ELSE
+            CASE rs.rseccmd
+                WHEN 'r'::"char" THEN 'SELECT'::text
+                WHEN 'a'::"char" THEN 'INSERT'::text
+                WHEN 'u'::"char" THEN 'UPDATE'::text
+                WHEN 'd'::"char" THEN 'DELETE'::text
+                ELSE NULL::text
+            END
         END AS cmd,
     pg_get_expr(rs.rsecqual, rs.rsecrelid) AS qual
    FROM pg_rowsecurity rs

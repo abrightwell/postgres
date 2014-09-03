@@ -2844,7 +2844,11 @@ getRowSecurity(Archive *fout, TableInfo tblinfo[], int numTables)
 			rsinfo[j].dobj.namespace = tbinfo->dobj.namespace;
 			rsinfo[j].rstable = tbinfo;
 			rsinfo[j].rsecpolname = pg_strdup(PQgetvalue(res, j, i_rsecpolname));
-			rsinfo[j].rseccmd = pg_strdup(PQgetvalue(res, j, i_rseccmd));
+			if (PQgetisnull(res, j, i_rseccmd))
+				rsinfo[j].rseccmd = NULL;
+			else
+				rsinfo[j].rseccmd = pg_strdup(PQgetvalue(res, j, i_rseccmd));
+
 			rsinfo[j].rsecroles = pg_strdup(PQgetvalue(res, j, i_rsecroles));
 			rsinfo[j].rsecqual = pg_strdup(PQgetvalue(res, j, i_rsecqual));
 		}
@@ -2868,11 +2872,11 @@ dumpRowSecurity(Archive *fout, RowSecurityInfo *rsinfo)
 	if (dataOnly || !tbinfo->hasrowsec)
 		return;
 
-	if (strcmp(rsinfo->rseccmd, "a") == 0)
+	if (!rsinfo->rseccmd)
 		cmd = "ALL";
-	else if (strcmp(rsinfo->rseccmd, "s") == 0)
+	else if (strcmp(rsinfo->rseccmd, "r") == 0)
 		cmd = "SELECT";
-	else if (strcmp(rsinfo->rseccmd, "i") == 0)
+	else if (strcmp(rsinfo->rseccmd, "a") == 0)
 		cmd = "INSERT";
 	else if (strcmp(rsinfo->rseccmd, "u") == 0)
 		cmd = "UPDATE";
