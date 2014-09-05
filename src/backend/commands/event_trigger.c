@@ -936,6 +936,7 @@ EventTriggerSupportsObjectType(ObjectType obtype)
 		case OBJECT_OPCLASS:
 		case OBJECT_OPERATOR:
 		case OBJECT_OPFAMILY:
+		case OBJECT_POLICY:
 		case OBJECT_RULE:
 		case OBJECT_SCHEMA:
 		case OBJECT_SEQUENCE:

@@ -43,6 +43,7 @@
 #include "commands/defrem.h"
 #include "commands/event_trigger.h"
 #include "commands/extension.h"
+#include "commands/policy.h"
 #include "commands/proclang.h"
 #include "commands/schemacmds.h"
 #include "commands/tablecmds.h"
