@@ -2313,6 +2313,21 @@ alter_table_cmd:
 					n->def = $3;
 					$$ = (Node *)n;
 				}
+			/* ALTER TABLE <name> ENABLE ROW LEVEL SECURITY */
+			| ENABLE_P ROW LEVEL SECURITY
+				{
+					AlterTableCmd *n = makeNode(AlterTableCmd);
+					n->subtype = AT_EnableRowSecurity;
+					$$ = (Node *)n;
+				}
+			/* ALTER TABLE <name> DISABLE ROW LEVEL SECURITY */
+			| DISABLE_P ROW LEVEL SECURITY opt_drop_behavior
+				{
+					AlterTableCmd *n = makeNode(AlterTableCmd);
+					n->subtype = AT_DisableRowSecurity;
+					n->behavior = $5;
+					$$ = (Node *)n;
+				}
 			| alter_generic_options
 				{
 					AlterTableCmd *n = makeNode(AlterTableCmd);

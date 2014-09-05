@@ -36,6 +36,7 @@
 #include "catalog/pg_inherits_fn.h"
 #include "catalog/pg_namespace.h"
 #include "catalog/pg_opclass.h"
+#include "catalog/pg_rowsecurity.h"
 #include "catalog/pg_tablespace.h"
 #include "catalog/pg_trigger.h"
 #include "catalog/pg_type.h"
@@ -45,6 +46,7 @@
 #include "commands/cluster.h"
 #include "commands/comment.h"
 #include "commands/defrem.h"
+#include "commands/policy.h"
 #include "commands/sequence.h"
 #include "commands/tablecmds.h"
 #include "commands/tablespace.h"
@@ -408,6 +410,8 @@ static void ATExecAddOf(Relation rel, const TypeName *ofTypename, LOCKMODE lockm
 static void ATExecDropOf(Relation rel, LOCKMODE lockmode);
 static void ATExecReplicaIdentity(Relation rel, ReplicaIdentityStmt *stmt, LOCKMODE lockmode);
 static void ATExecGenericOptions(Relation rel, List *options);
+static void ATExecEnableRowSecurity(Relation rel);
+static void ATExecDisableRowSecurity(Relation rel, DropBehavior behavior);
 
 static void copy_relation_data(SMgrRelation rel, SMgrRelation dst,
 				   ForkNumber forkNum, char relpersistence);
@@ -2863,6 +2867,8 @@ AlterTableGetLockLevel(List *cmds)
 			case AT_AddIndexConstraint:
 			case AT_ReplicaIdentity:
 			case AT_SetNotNull:
+			case AT_EnableRowSecurity:
+			case AT_DisableRowSecurity:
 				cmd_lockmode = AccessExclusiveLock;
 				break;
 
@@ -3271,6 +3277,8 @@ ATPrepCmd(List **wqueue, Relation rel, AlterTableCmd *cmd,
 		case AT_DropInherit:	/* NO INHERIT */
 		case AT_AddOf:			/* OF */
 		case AT_DropOf: /* NOT OF */
+		case AT_EnableRowSecurity:
+		case AT_DisableRowSecurity:
 			ATSimplePermissions(rel, ATT_TABLE);
 			/* These commands never recurse */
 			/* No command-specific prep needed */
@@ -3561,6 +3569,12 @@ ATExecCmd(List **wqueue, AlteredTableInfo *tab, Relation rel,
 			break;
 		case AT_ReplicaIdentity:
 			ATExecReplicaIdentity(rel, (ReplicaIdentityStmt *) cmd->def, lockmode);
+			break;
+		case AT_EnableRowSecurity:
+			ATExecEnableRowSecurity(rel);
+			break;
+		case AT_DisableRowSecurity:
+			ATExecDisableRowSecurity(rel, cmd->behavior);
 			break;
 		case AT_GenericOptions:
 			ATExecGenericOptions(rel, (List *) cmd->def);
@@ -10603,6 +10617,89 @@ ATExecReplicaIdentity(Relation rel, ReplicaIdentityStmt *stmt, LOCKMODE lockmode
 	relation_mark_replica_identity(rel, stmt->identity_type, indexOid, true);
 
 	index_close(indexRel, NoLock);
+}
+
+/*
+ * ALTER TABLE ENABLE/DISABLE ROW LEVEL SECURITY
+ */
+static void
+ATExecEnableRowSecurity(Relation rel)
+{
+	Relation		pg_class;
+	Oid				relid;
+	HeapTuple		tuple;
+
+	relid = RelationGetRelid(rel);
+
+	pg_class = heap_open(RelationRelationId, RowExclusiveLock);
+
+	tuple = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(relid));
+
+	if (!HeapTupleIsValid(tuple))
+		elog(ERROR, "cache lookup failed for relation %u", relid);
+
+	((Form_pg_class) GETSTRUCT(tuple))->relhasrowsecurity = true;
+	simple_heap_update(pg_class, &tuple->t_self, tuple);
+
+	/* keep catalog indexes current */
+	CatalogUpdateIndexes(pg_class, tuple);
+
+	heap_close(pg_class, RowExclusiveLock);
+	heap_freetuple(tuple);
+}
+
+static void
+ATExecDisableRowSecurity(Relation rel, DropBehavior behavior)
+{
+	Relation		pg_rowsecurity;
+	Relation		pg_class;
+	Oid				relid;
+	ScanKeyData		skey;
+	SysScanDesc		sscan;
+	HeapTuple		tuple;
+
+	relid = RelationGetRelid(rel);
+	pg_rowsecurity = heap_open(RowSecurityRelationId, RowExclusiveLock);
+
+	ScanKeyInit(&skey,
+				Anum_pg_rowsecurity_rsecrelid,
+				BTEqualStrategyNumber, F_OIDEQ,
+				ObjectIdGetDatum(relid));
+
+	sscan = systable_beginscan(pg_rowsecurity, RowSecurityPolnameRelidIndexId,
+							   true, NULL, 1, &skey);
+
+	while (HeapTupleIsValid(tuple = systable_getnext(sscan)))
+	{
+		if (behavior != DROP_CASCADE)
+			ereport(ERROR,
+					(errcode(ERRCODE_DEPENDENT_OBJECTS_STILL_EXIST),
+					 errmsg("cannot disable row-security on relation %s",
+							RelationGetRelationName(rel)),
+					 errdetail("relation has row-security policies."),
+					 errhint("Use ALTER TABLE %s DISABLE ROW LEVEL SECURITY CASCADE",
+							 RelationGetRelationName(rel))));
+
+		RemovePolicyById(HeapTupleGetOid(tuple));
+	}
+
+	pg_class = heap_open(RelationRelationId, RowExclusiveLock);
+
+	tuple = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(relid));
+
+	if (!HeapTupleIsValid(tuple))
+		elog(ERROR, "cache lookup failed for relation %u", relid);
+
+	((Form_pg_class) GETSTRUCT(tuple))->relhasrowsecurity = false;
+	simple_heap_update(pg_class, &tuple->t_self, tuple);
+
+	/* keep catalog indexes current */
+	CatalogUpdateIndexes(pg_class, tuple);
+
+	systable_endscan(sscan);
+	heap_close(pg_rowsecurity, RowExclusiveLock);
+	heap_close(pg_class, RowExclusiveLock);
+	heap_freetuple(tuple);
 }
 
 /*
