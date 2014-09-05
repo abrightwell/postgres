@@ -97,14 +97,6 @@ RESET ROLE
   </para>
 
   <para>
-   Using <command>SET ROLE</> to switch from a non-superuser to superuser will
-   result in the <literal>row_security</> session variable being set to
-   <literal>OFF</>.  However, using this command to switch from a superuser to
-   a non-superuser or from a non-superuser to a non-superuser will not affect the
-   current <literal>row_security</> session variable value.
-  </para>
-
-  <para>
    <command>SET ROLE</> cannot be used within a
    <literal>SECURITY DEFINER</> function.
   </para>
