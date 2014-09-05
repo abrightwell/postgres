@@ -486,6 +486,8 @@ SET SESSION AUTHORIZATION rls_regress_user0;
 CREATE TABLE y1 (a int, b text);
 CREATE TABLE y2 (a int, b text);
 
+GRANT ALL ON y1, y2 TO rls_regress_user1;
+
 CREATE POLICY p1 ON y1 FOR ALL USING (a % 2 = 0);
 CREATE POLICY p2 ON y1 FOR SELECT USING (a > 2);
 CREATE POLICY p1 ON y1 FOR SELECT USING (a % 2 = 1);  --fail
@@ -497,16 +499,19 @@ CREATE POLICY p1 ON y2 FOR ALL USING (a % 2 = 0);  --OK
 SET SESSION AUTHORIZATION rls_regress_user0;
 CREATE VIEW rls_sbv WITH (security_barrier) AS
     SELECT * FROM y1 WHERE f_leak(b);
+GRANT SELECT ON rls_sbv TO rls_regress_user1;
 SET SESSION AUTHORIZATION rls_regress_user1;
 EXPLAIN (COSTS OFF) SELECT * FROM rls_sbv WHERE (a = 1);
 
 --
 -- Expression structure
 --
+SET SESSION AUTHORIZATION rls_regress_user0;
 INSERT INTO y2 (SELECT x, md5(x::text) FROM generate_series(0,20) x);
 CREATE POLICY p2 ON y2 USING (a % 3 = 0);
 CREATE POLICY p3 ON y2 USING (a % 4 = 0);
 
+SET SESSION AUTHORIZATION rls_regress_user1;
 SELECT * FROM y2 WHERE f_leak(b);
 EXPLAIN (COSTS OFF) SELECT * FROM y2 WHERE f_leak(b);
 
