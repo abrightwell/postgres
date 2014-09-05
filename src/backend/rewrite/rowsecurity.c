@@ -261,9 +261,10 @@ pull_row_security_policies(CmdType cmd, Relation relation)
 		RowSecurityPolicy  *policy;
 
 		policy = palloc0(sizeof(RowSecurityPolicy));
-		policy->rsecid = RelationGetForm(relation)->oid;
+		policy->rsecid = RelationGetRelid(relation);
 		policy->policy_name = pstrdup("Default deny policy");
-		policy->qual = -- create the FALSE qual 
+		policy->qual = (Node *) makeConst(BOOLOID, -1, InvalidOid, sizeof(bool),
+										  BoolGetDatum(false), false, true);
 
 		policies = list_make1(policy);
 	}
