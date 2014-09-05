@@ -86,7 +86,8 @@ CREATE VIEW pg_policies AS
                 WHEN 'd' THEN 'DELETE'
             END
         END AS cmd,
-        pg_catalog.pg_get_expr(rs.rsecqual, rs.rsecrelid) AS qual
+        pg_catalog.pg_get_expr(rs.rsecqual, rs.rsecrelid) AS qual,
+        pg_catalog.pg_get_expr(rs.rsecwithcheck, rs.rsecrelid) AS with_check
     FROM pg_catalog.pg_rowsecurity rs
     ORDER BY 1;
 

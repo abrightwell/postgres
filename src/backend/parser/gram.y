@@ -321,6 +321,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 
 %type <str>		row_security_cmd RowSecurityDefaultForCmd
 				RowSecurityOptionalForCmd
+%type <node>	RowSecurityOptionalWithCheck RowSecurityOptionalExpr
 %type <list>	RowSecurityDefaultToRole RowSecurityOptionalToRole
 
 %type <str>		iso_level opt_encoding
@@ -4517,39 +4518,30 @@ AlterUserMappingStmt: ALTER USER MAPPING FOR auth_ident SERVER name alter_generi
 
 CreatePolicyStmt:
 			CREATE POLICY name ON qualified_name RowSecurityDefaultForCmd
-				RowSecurityDefaultToRole USING '(' a_expr ')'
+				RowSecurityDefaultToRole RowSecurityOptionalExpr
+				RowSecurityOptionalWithCheck
 				{
 					CreatePolicyStmt *n = makeNode(CreatePolicyStmt);
 					n->policy_name = $3;
 					n->table = $5;
 					n->cmd = $6;
 					n->roles = $7;
-					n->qual = $10;
+					n->qual = $8;
+					n->with_check = $9;
 					$$ = (Node *) n;
 				}
 		;
 
 AlterPolicyStmt:
-			ALTER POLICY name ON qualified_name RowSecurityOptionalForCmd
-				RowSecurityOptionalToRole USING '(' a_expr ')'
+			ALTER POLICY name ON qualified_name RowSecurityOptionalToRole
+				RowSecurityOptionalExpr RowSecurityOptionalWithCheck
 				{
 					AlterPolicyStmt *n = makeNode(AlterPolicyStmt);
 					n->policy_name = $3;
 					n->table = $5;
-					n->cmd = $6;
-					n->roles = $7;
-					n->qual = $10;
-					$$ = (Node *) n;
-				}
-			| ALTER POLICY name ON qualified_name RowSecurityOptionalForCmd
-				RowSecurityOptionalToRole
-				{
-					AlterPolicyStmt *n = makeNode(AlterPolicyStmt);
-					n->policy_name = $3;
-					n->table = $5;
-					n->cmd = $6;
-					n->roles = $7;
-					n->qual = NULL;
+					n->roles = $6;
+					n->qual = $7;
+					n->with_check = $8;
 					$$ = (Node *) n;
 				}
 		;
@@ -4571,6 +4563,16 @@ DropPolicyStmt:
 					n->missing_ok = TRUE;
 					$$ = (Node *) n;
 				}
+		;
+
+RowSecurityOptionalExpr:
+			USING '(' a_expr ')'	{ $$ = $3; }
+			| /* EMPTY */			{ $$ = NULL; }
+		;
+
+RowSecurityOptionalWithCheck:
+			WITH CHECK '(' a_expr ')'		{ $$ = $4; }
+			| /* EMPTY */					{ $$ = NULL; }
 		;
 
 RowSecurityDefaultToRole:

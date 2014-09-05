@@ -23,6 +23,7 @@ typedef struct RowSecurityPolicy
 	char				cmd;
 	ArrayType		   *roles;
 	Expr			   *qual;
+	Expr			   *with_check_qual;
 	bool				hassublinks;
 } RowSecurityPolicy;
 
@@ -33,16 +34,22 @@ typedef struct RowSecurityDesc
 } RowSecurityDesc;
 
 /* GUC variable */
-extern bool row_security;
+extern int row_security;
+
+/* Possible values for row_security GUC */
+typedef enum RowSecurityConfigType
+{
+	ROW_SECURITY_OFF,
+	ROW_SECURITY_ON,
+	ROW_SECURITY_FORCE
+} RowSecurityConfigType;
 
 typedef List *(*row_security_policy_hook_type)(CmdType cmdtype,
 											   Relation relation);
 
 extern PGDLLIMPORT row_security_policy_hook_type row_security_policy_hook;
 
-extern List *pull_row_security_policy(CmdType cmd, Relation relation);
-
-extern bool prepend_row_security_quals(Query* root, RangeTblEntry* rte,
+extern bool prepend_row_security_policies(Query* root, RangeTblEntry* rte,
 									   int rt_index);
 
 #endif	/* ROWSECURITY_H */

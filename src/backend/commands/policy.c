@@ -222,6 +222,8 @@ RelationBuildRowSecurity(Relation relation)
 			ArrayType		   *roles;
 			char			   *qual_value;
 			Expr			   *qual_expr;
+			char			   *with_check_value;
+			Expr			   *with_check_qual;
 			char			   *policy_name_value;
 			Oid					policy_id;
 			bool				isnull;
@@ -267,9 +269,25 @@ RelationBuildRowSecurity(Relation relation)
 			/* Get policy qual */
 			value_datum = heap_getattr(tuple, Anum_pg_rowsecurity_rsecqual,
 								 RelationGetDescr(catalog), &isnull);
-			Assert(!isnull);
-			qual_value = TextDatumGetCString(value_datum);
-			qual_expr = (Expr *) stringToNode(qual_value);
+			if (!isnull)
+			{
+				qual_value = TextDatumGetCString(value_datum);
+				qual_expr = (Expr *) stringToNode(qual_value);
+			}
+			else
+				qual_expr = NULL;
+
+			/* Get WITH CHECK qual */
+			value_datum = heap_getattr(tuple, Anum_pg_rowsecurity_rsecwithcheck,
+										RelationGetDescr(catalog), &isnull);
+
+			if (!isnull)
+			{
+				with_check_value = TextDatumGetCString(value_datum);
+				with_check_qual = (Expr *) stringToNode(with_check_value);
+			}
+			else
+				with_check_qual = NULL;
 
 			policy_id = HeapTupleGetOid(tuple);
 
@@ -279,13 +297,18 @@ RelationBuildRowSecurity(Relation relation)
 			policy->cmd = cmd_value;
 			policy->roles = roles;
 			policy->qual = copyObject(qual_expr);
+			policy->with_check_qual = copyObject(with_check_qual);
 			policy->hassublinks = contain_subplans((Node *) qual_expr);
 
 			rsdesc->policies = lcons(policy, rsdesc->policies);
 
 			MemoryContextSwitchTo(oldcxt);
 
-			pfree(qual_expr);
+			if (qual_expr != NULL)
+				pfree(qual_expr);
+
+			if (with_check_qual != NULL)
+				pfree(with_check_qual);
 		}
 	}
 	PG_CATCH();
@@ -364,9 +387,11 @@ CreatePolicy(CreatePolicyStmt *stmt)
 	Oid				table_id;
 	char			rseccmd;
 	ArrayType	   *role_ids;
-	ParseState	   *pstate;
+	ParseState	   *qual_pstate;
+	ParseState	   *with_check_pstate;
 	RangeTblEntry  *rte;
 	Node		   *qual;
+	Node		   *with_check_qual;
 	ScanKeyData		skeys[2];
 	SysScanDesc		sscan;
 	HeapTuple		rsec_tuple;
@@ -375,6 +400,27 @@ CreatePolicy(CreatePolicyStmt *stmt)
 	ObjectAddress	target;
 	ObjectAddress	myself;
 
+	/*
+	 * If the command is SELECT or DELETE then WITH CHECK should be NULL.
+	 */
+	if (((strcmp(stmt->cmd, "select") == 0)
+		|| (strcmp(stmt->cmd, "delete") == 0))
+		&& stmt->with_check != NULL)
+		ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+				 errmsg("WITH CHECK cannot be applied to SELECT or DELETE")));
+
+	/*
+	 * If the command is INSERT then WITH CHECK should be the only expression
+	 * provided.
+	 */
+	if ((strcmp(stmt->cmd, "insert") == 0)
+		&& stmt->qual != NULL)
+		ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+				 errmsg("INSERT must only have a WITH CHECK expression")));
+
+
 	/* Parse command */
 	rseccmd = parse_row_security_command(stmt->cmd);
 
@@ -382,7 +428,8 @@ CreatePolicy(CreatePolicyStmt *stmt)
 	role_ids = parse_role_ids(stmt->roles);
 
 	/* Parse the supplied clause */
-	pstate = make_parsestate(NULL);
+	qual_pstate = make_parsestate(NULL);
+	with_check_pstate = make_parsestate(NULL);
 
 	/* zero-clear */
 	memset(values,   0, sizeof(values));
@@ -397,11 +444,20 @@ CreatePolicy(CreatePolicyStmt *stmt)
 	/* Open target_table to build qual. No lock is necessary.*/
 	target_table = relation_open(table_id, NoLock);
 
-	rte = addRangeTableEntryForRelation(pstate, target_table,
+	rte = addRangeTableEntryForRelation(qual_pstate, target_table,
 										NULL, false, false);
-	addRTEtoQuery(pstate, rte, false, true, true);
+	addRTEtoQuery(qual_pstate, rte, false, true, true);
 
-	qual = transformWhereClause(pstate, copyObject(stmt->qual),
+	rte = addRangeTableEntryForRelation(with_check_pstate, target_table,
+										NULL, false, false);
+	addRTEtoQuery(with_check_pstate, rte, false, true, true);
+
+	qual = transformWhereClause(qual_pstate, copyObject(stmt->qual),
+								EXPR_KIND_ROW_SECURITY,
+								"ROW SECURITY");
+
+	with_check_qual = transformWhereClause(with_check_pstate,
+								copyObject(stmt->with_check),
 								EXPR_KIND_ROW_SECURITY,
 								"ROW SECURITY");
 
@@ -444,8 +500,21 @@ CreatePolicy(CreatePolicyStmt *stmt)
 
 		values[Anum_pg_rowsecurity_rsecroles - 1]
 			= PointerGetDatum(role_ids);
-		values[Anum_pg_rowsecurity_rsecqual - 1]
-			= CStringGetTextDatum(nodeToString(qual));
+
+		/* Add qual if present. */
+		if (qual)
+			values[Anum_pg_rowsecurity_rsecqual - 1]
+				= CStringGetTextDatum(nodeToString(qual));
+		else
+			isnull[Anum_pg_rowsecurity_rsecqual - 1] = true;
+
+		/* Add WITH CHECK qual if present */
+		if (with_check_qual)
+			values[Anum_pg_rowsecurity_rsecwithcheck - 1]
+				= CStringGetTextDatum(nodeToString(with_check_qual));
+		else
+			isnull[Anum_pg_rowsecurity_rsecwithcheck - 1] = true;
+
 		rsec_tuple = heap_form_tuple(RelationGetDescr(pg_rowsecurity_rel),
 									 values, isnull);
 		rowsec_id = simple_heap_insert(pg_rowsecurity_rel, rsec_tuple);
@@ -470,7 +539,10 @@ CreatePolicy(CreatePolicyStmt *stmt)
 
 	recordDependencyOn(&myself, &target, DEPENDENCY_AUTO);
 
-	recordDependencyOnExpr(&myself, qual, pstate->p_rtable,
+	recordDependencyOnExpr(&myself, qual, qual_pstate->p_rtable,
+						   DEPENDENCY_NORMAL);
+
+	recordDependencyOnExpr(&myself, with_check_qual, with_check_pstate->p_rtable,
 						   DEPENDENCY_NORMAL);
 
 	/* Turn on relhasrowsecurity on table. */
@@ -499,7 +571,8 @@ CreatePolicy(CreatePolicyStmt *stmt)
 
 	/* Clean up. */
 	heap_freetuple(rsec_tuple);
-	free_parsestate(pstate);
+	free_parsestate(qual_pstate);
+	free_parsestate(with_check_pstate);
 	systable_endscan(sscan);
 	relation_close(target_table, NoLock);
 	heap_close(pg_rowsecurity_rel, RowExclusiveLock);
@@ -520,12 +593,14 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	Oid				rowsec_id;
 	Relation		target_table;
 	Oid				table_id;
-	char			rseccmd;
 	ArrayType	   *role_ids = NULL;
-	ParseState	   *pstate;
-	List		   *parse_rtable = NIL;
+	ParseState	   *qual_pstate;
+	ParseState	   *with_check_pstate;
+	List		   *qual_parse_rtable = NIL;
+	List		   *with_check_parse_rtable = NIL;
 	RangeTblEntry  *rte;
 	Node		   *qual;
+	Node		   *with_check_qual;
 	ScanKeyData		skeys[2];
 	SysScanDesc		sscan;
 	HeapTuple		rsec_tuple;
@@ -533,16 +608,8 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	Datum	values[Natts_pg_rowsecurity];
 	bool	isnull[Natts_pg_rowsecurity];
 	bool	replaces[Natts_pg_rowsecurity];
-	bool			cmd_altered = false;
 	ObjectAddress target;
 	ObjectAddress myself;
-
-	/* Parse command */
-	if (stmt->cmd != NULL)
-	{
-		rseccmd = parse_row_security_command(stmt->cmd);
-		cmd_altered = true;
-	}
 
 	/* Parse role_ids */
 	if (stmt->roles != NULL)
@@ -559,22 +626,43 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	/* Parse the row-security clause */
 	if (stmt->qual)
 	{
-		pstate = make_parsestate(NULL);
+		qual_pstate = make_parsestate(NULL);
 
-		rte = addRangeTableEntryForRelation(pstate, target_table,
+		rte = addRangeTableEntryForRelation(qual_pstate, target_table,
 											NULL, false, false);
 
-		addRTEtoQuery(pstate, rte, false, true, true);
+		addRTEtoQuery(qual_pstate, rte, false, true, true);
 
-		qual = transformWhereClause(pstate, copyObject(stmt->qual),
+		qual = transformWhereClause(qual_pstate, copyObject(stmt->qual),
 									EXPR_KIND_ROW_SECURITY,
 									"ROW SECURITY");
 
-		parse_rtable = pstate->p_rtable;
-		free_parsestate(pstate);
+		qual_parse_rtable = qual_pstate->p_rtable;
+		free_parsestate(qual_pstate);
 	}
 	else
 		qual = NULL;
+
+	if (stmt->with_check)
+	{
+		with_check_pstate = make_parsestate(NULL);
+
+		rte = addRangeTableEntryForRelation(with_check_pstate, target_table,
+											NULL, false, false);
+
+		addRTEtoQuery(with_check_pstate, rte, false, true, true);
+
+		with_check_qual = transformWhereClause(with_check_pstate,
+											   copyObject(stmt->with_check),
+											   EXPR_KIND_ROW_SECURITY,
+											   "ROW SECURITY");
+
+		with_check_parse_rtable = with_check_pstate->p_rtable;
+
+		free_parsestate(with_check_pstate);
+	}
+	else
+		with_check_qual = NULL;
 
 	/* zero-clear */
 	memset(values,   0, sizeof(values));
@@ -604,6 +692,38 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	/* If the policy exists, then alter it.  Otherwise, raise an error. */
 	if (HeapTupleIsValid(rsec_tuple))
 	{
+		Datum cmd_datum;
+		char rseccmd;
+		bool rseccmd_isnull;
+
+		/* Get policy command */
+		cmd_datum = heap_getattr(rsec_tuple, Anum_pg_rowsecurity_rseccmd,
+								 RelationGetDescr(pg_rowsecurity_rel),
+								 &rseccmd_isnull);
+		if (rseccmd_isnull)
+			rseccmd = 0;
+		else
+			rseccmd = DatumGetChar(cmd_datum);
+
+		/*
+		 * If the command is SELECT or DELETE then WITH CHECK should be NULL.
+		 */
+		if ((rseccmd == ACL_SELECT_CHR || rseccmd == ACL_DELETE_CHR)
+			&& stmt->with_check != NULL)
+			ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+					 errmsg("WITH CHECK cannot be applied to SELECT or DELETE")));
+
+		/*
+		 * If the command is INSERT then WITH CHECK should be the only expression
+		 * provided.
+		 */
+		if ((rseccmd == ACL_INSERT_CHR)
+			&& stmt->qual != NULL)
+			ereport(ERROR,
+					(errcode(ERRCODE_SYNTAX_ERROR),
+					 errmsg("INSERT policy can only have a WITH CHECK expression")));
+
 		rowsec_id = HeapTupleGetOid(rsec_tuple);
 
 		if (role_ids != NULL)
@@ -612,21 +732,18 @@ AlterPolicy(AlterPolicyStmt *stmt)
 			values[Anum_pg_rowsecurity_rsecroles - 1] = PointerGetDatum(role_ids);
 		}
 
-		if (cmd_altered)
-		{
-			replaces[Anum_pg_rowsecurity_rseccmd - 1] = true;
-
-			if (rseccmd)
-				values[Anum_pg_rowsecurity_rseccmd - 1] = CharGetDatum(rseccmd);
-			else
-				isnull[Anum_pg_rowsecurity_rseccmd - 1] = true;
-		}
-
 		if (qual != NULL)
 		{
 			replaces[Anum_pg_rowsecurity_rsecqual - 1] = true;
-			values[Anum_pg_rowsecurity_rsecqual -1]
+			values[Anum_pg_rowsecurity_rsecqual - 1]
 				= CStringGetTextDatum(nodeToString(qual));
+		}
+
+		if (with_check_qual != NULL)
+		{
+			replaces[Anum_pg_rowsecurity_rsecwithcheck - 1] = true;
+			values[Anum_pg_rowsecurity_rsecwithcheck - 1]
+				= CStringGetTextDatum(nodeToString(with_check_qual));
 		}
 
 		new_tuple = heap_modify_tuple(rsec_tuple,
@@ -652,7 +769,10 @@ AlterPolicy(AlterPolicyStmt *stmt)
 
 		recordDependencyOn(&myself, &target, DEPENDENCY_AUTO);
 
-		recordDependencyOnExpr(&myself, qual, parse_rtable,
+		recordDependencyOnExpr(&myself, qual, qual_parse_rtable,
+							   DEPENDENCY_NORMAL);
+
+		recordDependencyOnExpr(&myself, with_check_qual, with_check_parse_rtable,
 							   DEPENDENCY_NORMAL);
 
 		heap_freetuple(new_tuple);

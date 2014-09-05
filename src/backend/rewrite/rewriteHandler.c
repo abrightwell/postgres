@@ -1716,7 +1716,7 @@ fireRIRrules(Query *parsetree, List *activeRIRs, bool forUpdatePushedDown)
 		 * If the RTE has row-security quals, apply them and recurse into the
 		 * securityQuals.
 		 */
-		if (prepend_row_security_quals(parsetree, rte, rt_index))
+		if (prepend_row_security_policies(parsetree, rte, rt_index))
 		{
 			/*
 			 * We applied security quals, check for infinite recursion and

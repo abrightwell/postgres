@@ -2016,6 +2016,7 @@ _equalCreatePolicyStmt(const CreatePolicyStmt *a, const CreatePolicyStmt *b)
 	COMPARE_SCALAR_FIELD(cmd);
 	COMPARE_NODE_FIELD(roles);
 	COMPARE_NODE_FIELD(qual);
+	COMPARE_NODE_FIELD(with_check);
 
 	return true;
 }
@@ -2025,9 +2026,9 @@ _equalAlterPolicyStmt(const AlterPolicyStmt *a, const AlterPolicyStmt *b)
 {
 	COMPARE_STRING_FIELD(policy_name);
 	COMPARE_NODE_FIELD(table);
-	COMPARE_SCALAR_FIELD(cmd);
 	COMPARE_NODE_FIELD(roles);
 	COMPARE_NODE_FIELD(qual);
+	COMPARE_NODE_FIELD(with_check);
 
 	return true;
 }

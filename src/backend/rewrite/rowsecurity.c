@@ -30,6 +30,7 @@
 #include "tcop/utility.h"
 
 static bool check_role_for_policy(RowSecurityPolicy *policy);
+static List *pull_row_security_policies(CmdType cmd, Relation relation);
 
 /* hook to allow extensions to apply their own security policy */
 row_security_policy_hook_type	row_security_policy_hook = NULL;
@@ -44,14 +45,14 @@ row_security_policy_hook_type	row_security_policy_hook = NULL;
  * but not added if user rights make the user exempt from row security.
  */
 bool
-prepend_row_security_quals(Query* root, RangeTblEntry* rte, int rt_index)
+prepend_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index)
 {
-	List		   *rowsecquals;
-	Expr		   *security_expr;
-	Relation 		rel;
-	Oid				userid;
-	int				sec_context;
-	bool			qualsAdded = false;
+	List			   *rowsec_policies;
+	WithCheckOption	   *wco;
+	Relation 			rel;
+	Oid					userid;
+	int					sec_context;
+	bool				qualsAdded = false;
 
 	GetUserIdAndSecContext(&userid, &sec_context);
 
@@ -64,9 +65,29 @@ prepend_row_security_quals(Query* root, RangeTblEntry* rte, int rt_index)
 		 * to be expanded by expand_security_quals.
 		 */
 		rel = heap_open(rte->relid, NoLock);
-		rowsecquals = pull_row_security_policy(root->commandType, rel);
-		if (rowsecquals)
+
+		rowsec_policies = pull_row_security_policies(root->commandType, rel);
+
+		if (rowsec_policies)
 		{
+			List	   *sec_quals = NIL;
+			List	   *with_check_quals = NIL;
+			ListCell   *item;
+
+			/*
+			 * Separate the security quals from the WITH CHECK quals so that they
+			 * c
+			 */
+			foreach(item, rowsec_policies)
+			{
+				RowSecurityPolicy *policy = (RowSecurityPolicy *) lfirst(item);
+				if (policy->qual != NULL)
+					sec_quals = lcons(copyObject(policy->qual), sec_quals);
+				if (policy->with_check_qual != NULL)
+					with_check_quals = lcons(copyObject(policy->with_check_qual),
+											 with_check_quals);
+			}
+
 			/*
 			 * Row security quals always have the target table as varno 1, as no
 			 * joins are permitted in row security expressions. We must walk
@@ -76,20 +97,42 @@ prepend_row_security_quals(Query* root, RangeTblEntry* rte, int rt_index)
 			 * We rewrite the expression in-place.
 			 */
 			qualsAdded = true;
-			ChangeVarNodes((Node *) rowsecquals, 1, rt_index, 0);
+			ChangeVarNodes((Node *) sec_quals, 1, rt_index, 0);
+			ChangeVarNodes((Node *) with_check_quals, 1, rt_index, 0);
 
 			/*
-			 * If more than one qual is returned, then they need to be OR'ed
-			 * together.
+			 * If more than one security qual is returned, then they need to be
+			 * OR'ed together.
 			 */
-			if (list_length(rowsecquals) > 1)
+			if (list_length(sec_quals) > 1)
+				sec_quals = list_make1(makeBoolExpr(OR_EXPR, sec_quals, -1));
+
+			/*
+			 * If more than one WITH CHECK qual is returned, then they need to be
+			 * OR'ed together.
+			 */
+			if (list_length(with_check_quals) > 1)
+				with_check_quals = list_make1(makeBoolExpr(OR_EXPR, with_check_quals, -1));
+
+			/*
+			 * If command is INSERT or UPDATE, then we need to add the WITH
+			 * CHECK quals to Query's withCheckOptions.  If command is not INSERT
+			 * then we also set the security quals.
+			 */
+			if ((root->commandType == CMD_INSERT || root->commandType == CMD_UPDATE)
+				&& with_check_quals != NIL)
 			{
-				security_expr = makeBoolExpr(OR_EXPR, rowsecquals, -1);
-				rte->securityQuals = lcons(security_expr, rte->securityQuals);
+				wco = (WithCheckOption *) makeNode(WithCheckOption);
+				wco->viewname = RelationGetRelationName(rel);
+				wco->qual = (Node *) lfirst(list_head(with_check_quals));
+				wco->cascaded = false;
+				root->withCheckOptions = lcons(wco, root->withCheckOptions);
 			}
-			else
-				rte->securityQuals = list_concat(rowsecquals, rte->securityQuals);
+
+			if (root->commandType != CMD_INSERT && sec_quals != NIL)
+				rte->securityQuals = list_concat(sec_quals, rte->securityQuals);
 		}
+
 		heap_close(rel, NoLock);
 	}
 
@@ -110,11 +153,13 @@ prepend_row_security_quals(Query* root, RangeTblEntry* rte, int rt_index)
  * The returned expression trees will be modified in-place, so return copies if
  * you're not generating the expression tree each time.
  */
-List *
-pull_row_security_policy(CmdType cmd, Relation relation)
+static List *
+pull_row_security_policies(CmdType cmd, Relation relation)
 {
 	List		   *quals = NIL;
 	const char	   *rls_option;
+	Oid				user_id;
+	Oid				owner_id;
 
 	/*
 	 * Pull the row-security policy configured with built-in features,
@@ -124,13 +169,20 @@ pull_row_security_policy(CmdType cmd, Relation relation)
 	{
 		rls_option = GetConfigOption("row_security", true, false);
 
+		user_id = GetUserId();
+		owner_id = RelationGetForm(relation)->relowner;
+
 		/*
 		 * If Row Security is enabled, then it is applied to all queries on the
 		 * relation.  If Row Security is disabled, then we must check that the
 		 * current user has the privilege to bypass.  If the current user does
 		 * not have the ability to bypass, then an error is thrown.
 		 */
-		if (strcmp(rls_option, "on") == 0)
+		// if (force || (on && (!owner && !superuser))
+
+		if ((strcmp(rls_option, "force") == 0)
+			|| ((strcmp(rls_option, "on") == 0)
+			&& ((user_id != owner_id) && !superuser())))
 		{
 			ListCell		   *item;
 			RowSecurityPolicy  *policy;
@@ -141,7 +193,7 @@ pull_row_security_policy(CmdType cmd, Relation relation)
 
 				/* Always add ALL policy if exists. */
 				if (!policy->cmd && check_role_for_policy(policy))
-					quals = lcons(copyObject(policy->qual), quals);
+					quals = lcons(policy, quals);
 
 				/* Build list of quals, merging when appropriate. */
 				switch(cmd)
@@ -149,22 +201,23 @@ pull_row_security_policy(CmdType cmd, Relation relation)
 					case CMD_SELECT:
 						if (policy->cmd == ACL_SELECT_CHR
 							&& check_role_for_policy(policy))
-							quals = lcons(copyObject(policy->qual), quals);
+							quals = lcons(policy, quals);
 						break;
 					case CMD_INSERT:
+						/* If INSERT then only need to add the WITH CHECK qual */
 						if (policy->cmd == ACL_INSERT_CHR
 							&& check_role_for_policy(policy))
-							quals = lcons(copyObject(policy->qual), quals);
+							quals = lcons(policy, quals);
 						break;
 					case CMD_UPDATE:
 						if (policy->cmd == ACL_UPDATE_CHR
 							&& check_role_for_policy(policy))
-							quals = lcons(copyObject(policy->qual), quals);
+							quals = lcons(policy, quals);
 						break;
 					case CMD_DELETE:
 						if (policy->cmd == ACL_DELETE_CHR
 							&& check_role_for_policy(policy))
-							quals = lcons(copyObject(policy->qual), quals);
+							quals = lcons(policy, quals);
 						break;
 					default:
 						elog(ERROR, "unrecognized command type.");
@@ -172,7 +225,8 @@ pull_row_security_policy(CmdType cmd, Relation relation)
 				}
 			}
 		}
-		else if (!has_bypassrls_privilege(GetUserId()))
+		else if (!has_bypassrls_privilege(GetUserId())
+				 && user_id != owner_id)
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 					 errmsg("Insufficient privilege to bypass row security.")));

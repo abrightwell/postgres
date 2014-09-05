@@ -101,11 +101,11 @@ EXPLAIN (COSTS OFF) SELECT * FROM document WHERE f_leak(dtitle);
 EXPLAIN (COSTS OFF) SELECT * FROM document NATURAL JOIN category WHERE f_leak(dtitle);
 
 -- only owner can change row-level security
-ALTER POLICY p1 ON document FOR ALL TO PUBLIC USING (true);    --fail
+ALTER POLICY p1 ON document USING (true);    --fail
 DROP POLICY p1 ON document;                  --fail
 
 SET SESSION AUTHORIZATION rls_regress_user0;
-ALTER POLICY p1 ON document FOR ALL TO PUBLIC USING (dauthor = current_user);
+ALTER POLICY p1 ON document USING (dauthor = current_user);
 
 -- viewpoint from rls_regress_user1 again
 SET SESSION AUTHORIZATION rls_regress_user1;
@@ -149,6 +149,12 @@ SET row_security TO ON;
 SELECT * FROM document;
 SELECT * FROM category;
 
+-- database superuser cannot bypass RLS policy when FORCE enabled.
+RESET SESSION AUTHORIZATION;
+SET row_security TO FORCE;
+SELECT * FROM document;
+SELECT * FROM category;
+
 -- database superuser can bypass RLS policy when disabled
 RESET SESSION AUTHORIZATION;
 SET row_security TO OFF;
@@ -157,6 +163,24 @@ SELECT * FROM category;
 
 -- database non-superuser with bypass privilege can bypass RLS policy when disabled
 SET SESSION AUTHORIZATION rls_regress_exempt_user;
+SET row_security TO OFF;
+SELECT * FROM document;
+SELECT * FROM category;
+
+-- RLS policy applies to table owner when FORCE enabled.
+SET SESSION AUTHORIZATION rls_regress_user0;
+SET row_security TO FORCE;
+SELECT * FROM document;
+SELECT * FROM category;
+
+-- RLS policy does not apply to table owner when RLS enabled.
+SET SESSION AUTHORIZATION rls_regress_user0;
+SET row_security TO ON;
+SELECT * FROM document;
+SELECT * FROM category;
+
+-- RLS policy does not apply to table owner when RLS disabled.
+SET SESSION AUTHORIZATION rls_regress_user0;
 SET row_security TO OFF;
 SELECT * FROM document;
 SELECT * FROM category;
@@ -197,6 +221,8 @@ COPY t3(a,b,c) FROM stdin WITH (oids);
 
 CREATE POLICY p1 ON t1 FOR ALL TO PUBLIC USING (a % 2 = 0); -- be even number
 CREATE POLICY p2 ON t2 FOR ALL TO PUBLIC USING (a % 2 = 1); -- be odd number
+
+SET SESSION AUTHORIZATION rls_regress_user1;
 
 SELECT * FROM t1;
 EXPLAIN (COSTS OFF) SELECT * FROM t1;
@@ -253,59 +279,53 @@ EXPLAIN (COSTS OFF) SELECT * FROM dependent; -- After drop, should be unqualifie
 --
 -- Simple recursion
 --
+SET SESSION AUTHORIZATION rls_regress_user0;
 CREATE TABLE rec1 (x integer, y integer);
-CREATE POLICY r1 ON rec1 FOR ALL
-    TO PUBLIC
-    USING (x = (SELECT r.x FROM rec1 r WHERE y = r.y));
+CREATE POLICY r1 ON rec1 USING (x = (SELECT r.x FROM rec1 r WHERE y = r.y));
 
+SET SESSION AUTHORIZATION rls_regress_user1;
 SELECT * FROM rec1; -- fail, direct recursion
 
 --
 -- Mutual recursion
 --
+SET SESSION AUTHORIZATION rls_regress_user0;
 CREATE TABLE rec2 (a integer, b integer);
-ALTER POLICY r1 ON rec1 FOR ALL
-    TO PUBLIC
-    USING (x = (SELECT a FROM rec2 WHERE b = y));
-CREATE POLICY r2 ON rec2 FOR ALL
-    TO PUBLIC
-    USING (a = (SELECT x FROM rec1 WHERE y = b));
+ALTER POLICY r1 ON rec1 USING (x = (SELECT a FROM rec2 WHERE b = y));
+CREATE POLICY r2 ON rec2 USING (a = (SELECT x FROM rec1 WHERE y = b));
 
+SET SESSION AUTHORIZATION rls_regress_user1;
 SELECT * FROM rec1;    -- fail, mutual recursion
 
 --
 -- Mutual recursion via views
 --
+SET SESSION AUTHORIZATION rls_regress_user0;
 CREATE VIEW rec1v AS SELECT * FROM rec1;
 CREATE VIEW rec2v AS SELECT * FROM rec2;
-ALTER POLICY r1 ON rec1 FOR ALL
-    TO PUBLIC
-    USING (x = (SELECT a FROM rec2v WHERE b = y));
-ALTER POLICY r2 ON rec2 FOR ALL
-    TO PUBLIC
-    USING (a = (SELECT x FROM rec1v WHERE y = b));
+ALTER POLICY r1 ON rec1 USING (x = (SELECT a FROM rec2v WHERE b = y));
+ALTER POLICY r2 ON rec2 USING (a = (SELECT x FROM rec1v WHERE y = b));
 
+SET SESSION AUTHORIZATION rls_regress_user1;
 SELECT * FROM rec1;    -- fail, mutual recursion via views
 
 --
 -- Mutual recursion via .s.b views
 -- 
-
+SET SESSION AUTHORIZATION rls_regress_user0;
 DROP VIEW rec1v, rec2v CASCADE;
 CREATE VIEW rec1v WITH (security_barrier) AS SELECT * FROM rec1;
 CREATE VIEW rec2v WITH (security_barrier) AS SELECT * FROM rec2;
-CREATE POLICY r1 ON rec1 FOR ALL
-    TO PUBLIC
-    USING (x = (SELECT a FROM rec2v WHERE b = y));
-CREATE POLICY r2 ON rec2 FOR ALL
-    TO PUBLIC
-    USING (a = (SELECT x FROM rec1v WHERE y = b));
+CREATE POLICY r1 ON rec1 USING (x = (SELECT a FROM rec2v WHERE b = y));
+CREATE POLICY r2 ON rec2 USING (a = (SELECT x FROM rec1v WHERE y = b));
 
+SET SESSION AUTHORIZATION rls_regress_user1;
 SELECT * FROM rec1;    -- fail, mutual recursion via s.b. views
 
 --
 -- recursive RLS and VIEWs in policy
 --
+SET SESSION AUTHORIZATION rls_regress_user0;
 CREATE TABLE s1 (a int, b text);
 INSERT INTO s1 (SELECT x, md5(x::text) FROM generate_series(-10,10) x);
 
@@ -313,33 +333,33 @@ CREATE TABLE s2 (x int, y text);
 INSERT INTO s2 (SELECT x, md5(x::text) FROM generate_series(-6,6) x);
 CREATE VIEW v2 AS SELECT * FROM s2 WHERE y like '%af%';
 
-CREATE POLICY p1 ON s1 FOR ALL
-    TO PUBLIC
-    USING (a in (select x from s2 where y like '%2f%'));
+GRANT SELECT ON s1, s2, v2 TO rls_regress_user1;
 
-CREATE POLICY p2 ON s2 FOR ALL
-    TO PUBLIC
-    USING (x in (select a from s1 where b like '%22%'));
+CREATE POLICY p1 ON s1 USING (a in (select x from s2 where y like '%2f%'));
+CREATE POLICY p2 ON s2 USING (x in (select a from s1 where b like '%22%'));
 
+SET SESSION AUTHORIZATION rls_regress_user1;
 SELECT * FROM s1 WHERE f_leak(b);	-- fail (infinite recursion)
 
-ALTER POLICY p2 ON s2 FOR ALL TO PUBLIC USING (x % 2 = 0);
+SET SESSION AUTHORIZATION rls_regress_user0;
+ALTER POLICY p2 ON s2 USING (x % 2 = 0);
 
+SET SESSION AUTHORIZATION rls_regress_user1;
 SELECT * FROM s1 WHERE f_leak(b);	-- OK
 EXPLAIN (COSTS OFF) SELECT * FROM only s1 WHERE f_leak(b);
 
-ALTER POLICY p1 ON s1 FOR ALL
-    TO PUBLIC
-    USING (a in (select x from v2));		-- using VIEW in RLS policy
+SET SESSION AUTHORIZATION rls_regress_user0;
+ALTER POLICY p1 ON s1 USING (a in (select x from v2)); -- using VIEW in RLS policy
+SET SESSION AUTHORIZATION rls_regress_user1;
 SELECT * FROM s1 WHERE f_leak(b);	-- OK
 EXPLAIN (COSTS OFF) SELECT * FROM s1 WHERE f_leak(b);
 
 SELECT (SELECT x FROM s1 LIMIT 1) xx, * FROM s2 WHERE y like '%28%';
 EXPLAIN (COSTS OFF) SELECT (SELECT x FROM s1 LIMIT 1) xx, * FROM s2 WHERE y like '%28%';
 
-ALTER POLICY p2 ON s2 FOR ALL
-    TO PUBLIC
-    USING (x in (select a from s1 where b like '%d2%'));
+SET SESSION AUTHORIZATION rls_regress_user0;
+ALTER POLICY p2 ON s2 USING (x in (select a from s1 where b like '%d2%'));
+SET SESSION AUTHORIZATION rls_regress_user1;
 SELECT * FROM s1 WHERE f_leak(b);	-- fail (infinite recursion via view)
 
 -- prepared statement with rls_regress_user0 privilege
@@ -362,7 +382,7 @@ EXECUTE p2(2);
 EXPLAIN (COSTS OFF) EXECUTE p2(2);
 
 -- also, case when privilege switch from superuser
-SET SESSION AUTHORIZATION rls_regress_user0;
+SET SESSION AUTHORIZATION rls_regress_user1;
 SET row_security TO ON;
 EXECUTE p2(2);
 EXPLAIN (COSTS OFF) EXECUTE p2(2);
@@ -370,7 +390,7 @@ EXPLAIN (COSTS OFF) EXECUTE p2(2);
 --
 -- UPDATE / DELETE and Row-level security
 --
-SET SESSION AUTHORIZATION rls_regress_user0;
+SET SESSION AUTHORIZATION rls_regress_user1;
 EXPLAIN (COSTS OFF) UPDATE t1 SET b = b || b WHERE f_leak(b);
 UPDATE t1 SET b = b || b WHERE f_leak(b);
 
@@ -386,7 +406,7 @@ RESET SESSION AUTHORIZATION;
 SET row_security TO OFF;
 SELECT * FROM t1;
 
-SET SESSION AUTHORIZATION rls_regress_user0;
+SET SESSION AUTHORIZATION rls_regress_user1;
 SET row_security TO ON;
 EXPLAIN (COSTS OFF) DELETE FROM only t1 WHERE f_leak(b);
 EXPLAIN (COSTS OFF) DELETE FROM t1 WHERE f_leak(b);
@@ -446,7 +466,7 @@ INSERT INTO x1 VALUES
 
 CREATE POLICY p0 ON x1 FOR ALL USING (c = current_user);
 CREATE POLICY p1 ON x1 FOR SELECT USING (a % 2 = 0);
-CREATE POLICY p2 ON x1 FOR INSERT USING (a % 2 = 1);
+CREATE POLICY p2 ON x1 FOR INSERT WITH CHECK (a % 2 = 1);
 CREATE POLICY p3 ON x1 FOR UPDATE USING (a % 2 = 0);
 CREATE POLICY p4 ON x1 FOR DELETE USING (a < 8);
 
@@ -474,9 +494,10 @@ CREATE POLICY p1 ON y2 FOR ALL USING (a % 2 = 0);  --OK
 --
 -- Expression structure with SBV
 --
+SET SESSION AUTHORIZATION rls_regress_user0;
 CREATE VIEW rls_sbv WITH (security_barrier) AS
     SELECT * FROM y1 WHERE f_leak(b);
-
+SET SESSION AUTHORIZATION rls_regress_user1;
 EXPLAIN (COSTS OFF) SELECT * FROM rls_sbv WHERE (a = 1);
 
 --

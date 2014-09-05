@@ -402,6 +402,23 @@ static const struct config_enum_entry huge_pages_options[] = {
 };
 
 /*
+ * Although only "on", "off", and "force" are documented, we
+ * accept all the likely variants of "on" and "off".
+ */
+static const struct config_enum_entry row_security_options[] = {
+	{"on", ROW_SECURITY_ON, false},
+	{"off", ROW_SECURITY_OFF, false},
+	{"force", ROW_SECURITY_FORCE, false},
+	{"true", ROW_SECURITY_ON, true},
+	{"false", ROW_SECURITY_OFF, true},
+	{"yes", ROW_SECURITY_ON, true},
+	{"no", ROW_SECURITY_OFF, true},
+	{"1", ROW_SECURITY_ON, true},
+	{"0", ROW_SECURITY_OFF, true},
+	{NULL, 0, false}
+};
+
+/*
  * Options for enum values stored in other modules
  */
 extern const struct config_enum_entry wal_level_options[];
@@ -457,7 +474,7 @@ int			tcp_keepalives_idle;
 int			tcp_keepalives_interval;
 int			tcp_keepalives_count;
 
-bool		row_security = true;
+int			row_security = true;
 
 /*
  * This really belongs in pg_shmem.c, but is defined here so that it doesn't
@@ -1513,15 +1530,6 @@ static struct config_bool ConfigureNamesBool[] =
 		},
 		&data_checksums,
 		false,
-		NULL, NULL, NULL
-	},
-	{
-		{"row_security", PGC_USERSET, CONN_AUTH_SECURITY,
-			gettext_noop("Enable row security."),
-			gettext_noop("When enabled, row security will be applied to all users.")
-		},
-		&row_security,
-		true,
 		NULL, NULL, NULL
 	},
 
@@ -3515,6 +3523,16 @@ static struct config_enum ConfigureNamesEnum[] =
 		},
 		&huge_pages,
 		HUGE_PAGES_TRY, huge_pages_options,
+		NULL, NULL, NULL
+	},
+
+	{
+		{"row_security", PGC_USERSET, CONN_AUTH_SECURITY,
+			gettext_noop("Enable row security."),
+			gettext_noop("When enabled, row security will be applied to all users.")
+		},
+		&row_security,
+		ROW_SECURITY_ON, row_security_options,
 		NULL, NULL, NULL
 	},
 
