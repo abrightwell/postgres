@@ -14,12 +14,14 @@
 
 #include "access/genam.h"
 #include "access/heapam.h"
+#include "access/htup.h"
 #include "access/htup_details.h"
 #include "access/sysattr.h"
 #include "catalog/catalog.h"
 #include "catalog/dependency.h"
 #include "catalog/indexing.h"
 #include "catalog/namespace.h"
+#include "catalog/objectaccess.h"
 #include "catalog/objectaddress.h"
 #include "catalog/pg_class.h"
 #include "catalog/pg_rowsecurity.h"
@@ -38,11 +40,12 @@
 #include "utils/builtins.h"
 #include "utils/fmgroids.h"
 #include "utils/inval.h"
+#include "utils/lsyscache.h"
 #include "utils/memutils.h"
 #include "utils/rel.h"
 #include "utils/syscache.h"
 
-static void RangeVarCallbackForCreatePolicy(const RangeVar *rv,
+static void RangeVarCallbackForPolicy(const RangeVar *rv,
 				Oid relid, Oid oldrelid, void *arg);
 static const char parse_row_security_command(const char *cmd_name);
 static ArrayType* parse_role_ids(List *roles);
@@ -58,7 +61,7 @@ static ArrayType* parse_role_ids(List *roles);
  * If any of these checks fails then an error is raised.
  */
 static void
-RangeVarCallbackForCreatePolicy(const RangeVar *rv, Oid relid, Oid oldrelid,
+RangeVarCallbackForPolicy(const RangeVar *rv, Oid relid, Oid oldrelid,
 								void *arg)
 {
 	HeapTuple		tuple;
@@ -438,7 +441,7 @@ CreatePolicy(CreatePolicyStmt *stmt)
 	/* Get id of table.  Also handles permissions checks. */
 	table_id = RangeVarGetRelidExtended(stmt->table, AccessExclusiveLock,
 										false, false,
-										RangeVarCallbackForCreatePolicy,
+										RangeVarCallbackForPolicy,
 										(void *) stmt);
 
 	/* Open target_table to build qual. No lock is necessary.*/
@@ -618,7 +621,7 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	/* Get id of table.  Also handles permissions checks. */
 	table_id = RangeVarGetRelidExtended(stmt->table, AccessExclusiveLock,
 										false, false,
-										RangeVarCallbackForCreatePolicy,
+										RangeVarCallbackForPolicy,
 										(void *) stmt);
 
 	target_table = relation_open(table_id, NoLock);
@@ -793,6 +796,108 @@ AlterPolicy(AlterPolicyStmt *stmt)
 }
 
 /*
+ * rename_policy -
+ *   change the name of a policy on a relation
+ */
+Oid
+rename_policy(RenameStmt *stmt)
+{
+	Relation		pg_rowsecurity_rel;
+	Relation		target_table;
+	Oid				table_id;
+	Oid				opoloid;
+	ScanKeyData		skeys[2];
+	SysScanDesc		sscan;
+	HeapTuple		rsec_tuple;
+
+	/* Get id of table.  Also handles permissions checks. */
+	table_id = RangeVarGetRelidExtended(stmt->relation, AccessExclusiveLock,
+										false, false,
+										RangeVarCallbackForPolicy,
+										(void *) stmt);
+
+	target_table = relation_open(table_id, NoLock);
+
+	pg_rowsecurity_rel = heap_open(RowSecurityRelationId, RowExclusiveLock);
+
+	/* First pass- check for conflict */
+	/* Add key - row security policy name. */
+	ScanKeyInit(&skeys[0],
+				Anum_pg_rowsecurity_rsecpolname,
+				BTEqualStrategyNumber, F_NAMEEQ,
+				CStringGetDatum(stmt->newname));
+
+	/* Add key - row security relation id. */
+	ScanKeyInit(&skeys[1],
+				Anum_pg_rowsecurity_rsecrelid,
+				BTEqualStrategyNumber, F_OIDEQ,
+				ObjectIdGetDatum(table_id));
+
+	sscan = systable_beginscan(pg_rowsecurity_rel, RowSecurityPolnameRelidIndexId,
+							   true, NULL, 2, skeys);
+
+	if (HeapTupleIsValid(rsec_tuple = systable_getnext(sscan)))
+		ereport(ERROR,
+				(errcode(ERRCODE_DUPLICATE_OBJECT),
+				 errmsg("row-policy \"%s\" for table \"%s\" already exists",
+						stmt->newname, RelationGetRelationName(target_table))));
+	systable_endscan(sscan);
+
+	/* Second pass -- find existing policy and update */
+	/* Add key - row security policy name. */
+	ScanKeyInit(&skeys[0],
+				Anum_pg_rowsecurity_rsecpolname,
+				BTEqualStrategyNumber, F_NAMEEQ,
+				CStringGetDatum(stmt->subname));
+
+	/* Add key - row security relation id. */
+	ScanKeyInit(&skeys[1],
+				Anum_pg_rowsecurity_rsecrelid,
+				BTEqualStrategyNumber, F_OIDEQ,
+				ObjectIdGetDatum(table_id));
+
+	sscan = systable_beginscan(pg_rowsecurity_rel, RowSecurityPolnameRelidIndexId,
+							   true, NULL, 2, skeys);
+
+	if (HeapTupleIsValid(rsec_tuple = systable_getnext(sscan)))
+	{
+		opoloid = HeapTupleGetOid(rsec_tuple);
+
+		rsec_tuple = heap_copytuple(rsec_tuple);
+
+		namestrcpy(&((Form_pg_rowsecurity) GETSTRUCT(rsec_tuple))->rsecpolname,
+				   stmt->newname);
+
+		simple_heap_update(pg_rowsecurity_rel, &rsec_tuple->t_self, rsec_tuple);
+
+		/* keep system catalog indexes current */
+		CatalogUpdateIndexes(pg_rowsecurity_rel, rsec_tuple);
+
+		InvokeObjectPostAlterHook(RowSecurityRelationId,
+								  HeapTupleGetOid(rsec_tuple), 0);
+
+		/*
+		 * Invalidate relation's relcache entry so that other backends (and
+		 * this one too!) are sent SI message to make them rebuild relcache
+		 * entries.  (Ideally this should happen automatically...)
+		 */
+		CacheInvalidateRelcache(target_table);
+	}
+	else
+		ereport(ERROR,
+				(errcode(ERRCODE_UNDEFINED_OBJECT),
+				 errmsg("row-policy \"%s\" for table \"%s\" does not exist",
+						stmt->subname, RelationGetRelationName(target_table))));
+
+	/* Clean up. */
+	systable_endscan(sscan);
+	heap_close(pg_rowsecurity_rel, RowExclusiveLock);
+	relation_close(target_table, NoLock);
+
+	return opoloid;
+}
+
+/*
  * DropPolicy -
  *   handle the execution of the DROP POLICY command.
  *
@@ -811,7 +916,7 @@ DropPolicy(DropPolicyStmt *stmt)
 	/* Get id of table.  Also handles permissions checks. */
 	table_id = RangeVarGetRelidExtended(stmt->table, AccessExclusiveLock,
 										false, false,
-										RangeVarCallbackForCreatePolicy,
+										RangeVarCallbackForPolicy,
 										(void *) stmt);
 
 	target_table = relation_open(table_id, NoLock);
@@ -873,4 +978,58 @@ DropPolicy(DropPolicyStmt *stmt)
 	systable_endscan(sscan);
 	relation_close(target_table, NoLock);
 	heap_close(pg_rowsecurity_rel, RowExclusiveLock);
+}
+
+/*
+ * get_relation_policy_oid - Look up a policy by name to find its OID
+ *
+ * If missing_ok is false, throw an error if policy not found.  If
+ * true, just return InvalidOid.
+ */
+Oid
+get_relation_policy_oid(Oid relid, const char *policy_name, bool missing_ok)
+{
+	Relation		pg_rowsecurity_rel;
+	ScanKeyData		skeys[2];
+	SysScanDesc		sscan;
+	HeapTuple		rsec_tuple;
+	Oid				policy_oid;
+
+	pg_rowsecurity_rel = heap_open(RowSecurityRelationId, AccessShareLock);
+
+	/* Add key - row security policy name. */
+	ScanKeyInit(&skeys[0],
+				Anum_pg_rowsecurity_rsecpolname,
+				BTEqualStrategyNumber, F_NAMEEQ,
+				CStringGetDatum(policy_name));
+
+	/* Add key - row security relation id. */
+	ScanKeyInit(&skeys[1],
+				Anum_pg_rowsecurity_rsecrelid,
+				BTEqualStrategyNumber, F_OIDEQ,
+				ObjectIdGetDatum(relid));
+
+	sscan = systable_beginscan(pg_rowsecurity_rel, RowSecurityPolnameRelidIndexId,
+							   true, NULL, 2, skeys);
+
+	rsec_tuple = systable_getnext(sscan);
+
+	if (!HeapTupleIsValid(rsec_tuple))
+	{
+		if (!missing_ok)
+			ereport(ERROR,
+					(errcode(ERRCODE_UNDEFINED_OBJECT),
+					 errmsg("row-security policy \"%s\" for table  \"%s\" does not exist",
+							policy_name, get_rel_name(relid))));
+
+		policy_oid = InvalidOid;
+	}
+	else
+		policy_oid = HeapTupleGetOid(rsec_tuple);
+
+	/* Clean up. */
+	systable_endscan(sscan);
+	heap_close(pg_rowsecurity_rel, RowExclusiveLock);
+
+	return policy_oid;
 }

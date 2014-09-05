@@ -5327,7 +5327,7 @@ COPY postgres_log FROM '/full/path/to/logfile.csv' WITH csv;
         <literal>on</> (apply normally- not to superusers and table owners),
         <literal>off</> (fail if row security would be applied), and
         <literal>force</> (apply always- even to superusers and table owners).
-       <para>
+       </para>
 
        <para>
         For more information on row security policies,
