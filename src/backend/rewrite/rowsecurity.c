@@ -75,18 +75,27 @@ prepend_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index)
 			ListCell   *item;
 
 			/*
-			 * Separate the security quals from the WITH CHECK quals so that they
-			 * c
+			 * Extract the USING and WITH CHECK quals from each of the policies
+			 * and add them to our lists.
 			 */
 			foreach(item, rowsec_policies)
 			{
 				RowSecurityPolicy *policy = (RowSecurityPolicy *) lfirst(item);
+
 				if (policy->qual != NULL)
 					sec_quals = lcons(copyObject(policy->qual), sec_quals);
+
 				if (policy->with_check_qual != NULL)
 					with_check_quals = lcons(copyObject(policy->with_check_qual),
 											 with_check_quals);
 			}
+
+			/*
+			 * If we end up with only sec_quals, then use those for
+			 * with_check_quals also.
+			 */
+			if (with_check_quals == NIL)
+				with_check_quals = sec_quals;
 
 			/*
 			 * Row security quals always have the target table as varno 1, as no
@@ -115,9 +124,9 @@ prepend_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index)
 				with_check_quals = list_make1(makeBoolExpr(OR_EXPR, with_check_quals, -1));
 
 			/*
-			 * If command is INSERT or UPDATE, then we need to add the WITH
-			 * CHECK quals to Query's withCheckOptions.  If command is not INSERT
-			 * then we also set the security quals.
+			 * For INSERT or UPDATE, we need to add the WITH CHECK quals to Query's
+			 * withCheckOptions to verify the any new records pass the WITH CHECK
+			 * policy (or USING policy, if no WITH CHECK policy exists).
 			 */
 			if ((root->commandType == CMD_INSERT || root->commandType == CMD_UPDATE)
 				&& with_check_quals != NIL)
@@ -129,7 +138,9 @@ prepend_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index)
 				root->withCheckOptions = lcons(wco, root->withCheckOptions);
 			}
 
-			if (root->commandType != CMD_INSERT && sec_quals != NIL)
+			/* For SELECT, UPDATE, and DELETE, set the security quals */
+			if (sec_quals != NIL && (root->commandType == CMD_SELECT
+				|| root->commandType == CMD_UPDATE || root->commandType == CMD_DELETE))
 				rte->securityQuals = list_concat(sec_quals, rte->securityQuals);
 		}
 
@@ -156,33 +167,28 @@ prepend_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index)
 static List *
 pull_row_security_policies(CmdType cmd, Relation relation)
 {
-	List		   *quals = NIL;
-	const char	   *rls_option;
-	Oid				user_id;
+	List		   *policies = NIL;
 	Oid				owner_id;
 
 	/*
-	 * Pull the row-security policy configured with built-in features,
-	 * if unprivileged users. Please note that superuser can bypass it.
+	 * Pull any build-in row-security policies.
 	 */
 	if (relation->rsdesc)
 	{
-		rls_option = GetConfigOption("row_security", true, false);
-
-		user_id = GetUserId();
 		owner_id = RelationGetForm(relation)->relowner;
 
 		/*
-		 * If Row Security is enabled, then it is applied to all queries on the
-		 * relation.  If Row Security is disabled, then we must check that the
-		 * current user has the privilege to bypass.  If the current user does
-		 * not have the ability to bypass, then an error is thrown.
+		 * If row_security is 'force', then it is applied to all queries on the
+		 * relation.  If row_security is 'on' then we apply it for regular users,
+		 * but not the table owner or superuser.  If row_security is 'off', then
+		 * we must check that the current user has the privilege to bypass RLS.
+		 * If the current user does not have the ability to bypass, then an error
+		 * is thrown.
 		 */
-		// if (force || (on && (!owner && !superuser))
 
-		if ((strcmp(rls_option, "force") == 0)
-			|| ((strcmp(rls_option, "on") == 0)
-			&& ((user_id != owner_id) && !superuser())))
+		if (row_security == ROW_SECURITY_FORCE
+			|| (row_security == ROW_SECURITY_ON && GetUserId() != owner_id
+				&& !superuser()))
 		{
 			ListCell		   *item;
 			RowSecurityPolicy  *policy;
@@ -193,31 +199,31 @@ pull_row_security_policies(CmdType cmd, Relation relation)
 
 				/* Always add ALL policy if exists. */
 				if (!policy->cmd && check_role_for_policy(policy))
-					quals = lcons(policy, quals);
+					policies = lcons(policy, policies);
 
-				/* Build list of quals, merging when appropriate. */
+				/* Build the list of policies to return. */
 				switch(cmd)
 				{
 					case CMD_SELECT:
 						if (policy->cmd == ACL_SELECT_CHR
 							&& check_role_for_policy(policy))
-							quals = lcons(policy, quals);
+							policies = lcons(policy, policies);
 						break;
 					case CMD_INSERT:
 						/* If INSERT then only need to add the WITH CHECK qual */
 						if (policy->cmd == ACL_INSERT_CHR
 							&& check_role_for_policy(policy))
-							quals = lcons(policy, quals);
+							policies = lcons(policy, policies);
 						break;
 					case CMD_UPDATE:
 						if (policy->cmd == ACL_UPDATE_CHR
 							&& check_role_for_policy(policy))
-							quals = lcons(policy, quals);
+							policies = lcons(policy, policies);
 						break;
 					case CMD_DELETE:
 						if (policy->cmd == ACL_DELETE_CHR
 							&& check_role_for_policy(policy))
-							quals = lcons(policy, quals);
+							policies = lcons(policy, policies);
 						break;
 					default:
 						elog(ERROR, "unrecognized command type.");
@@ -226,7 +232,7 @@ pull_row_security_policies(CmdType cmd, Relation relation)
 			}
 		}
 		else if (!has_bypassrls_privilege(GetUserId())
-				 && user_id != owner_id)
+				 && GetUserId() != owner_id)
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 					 errmsg("Insufficient privilege to bypass row security.")));
@@ -234,7 +240,7 @@ pull_row_security_policies(CmdType cmd, Relation relation)
 
 	/*
 	 * Also, ask extensions whether they want to apply their own
-	 * row-security policy. If both built-in and extension have
+	 * row-security policies. If both built-in and extension have
 	 * their own policy they're applied as nested qualifiers.
 	 */
 	if (row_security_policy_hook)
@@ -243,10 +249,26 @@ pull_row_security_policies(CmdType cmd, Relation relation)
 
 		temp = (*row_security_policy_hook)(cmd, relation);
 		if (temp != NIL)
-			quals = lcons(temp, quals);
+			policies = lcons(temp, policies);
 	}
 
-	return quals;
+	/*
+	 * If there are no policies found but the relation has row security enabled
+	 * then we need to generate a policy which is all-false and return it.
+	 */
+	if (RelationGetForm(relation)->relhasrowsecurity && policies == NIL)
+	{
+		RowSecurityPolicy  *policy;
+
+		policy = palloc0(sizeof(RowSecurityPolicy));
+		policy->rsecid = RelationGetForm(relation)->oid;
+		policy->policy_name = pstrdup("Default deny policy");
+		policy->qual = -- create the FALSE qual 
+
+		policies = list_make1(policy);
+	}
+
+	return policies;
 }
 
 /*
