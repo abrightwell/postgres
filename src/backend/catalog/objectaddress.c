@@ -519,6 +519,7 @@ get_object_address(ObjectType objtype, List *objname, List *objargs,
 			case OBJECT_RULE:
 			case OBJECT_TRIGGER:
 			case OBJECT_CONSTRAINT:
+			case OBJECT_POLICY:
 				address = get_object_address_relobject(objtype, objname,
 													   &relation, missing_ok);
 				break;
@@ -981,6 +982,13 @@ get_object_address_relobject(ObjectType objtype, List *objname,
 				address.classId = ConstraintRelationId;
 				address.objectId = relation ?
 					get_relation_constraint_oid(reloid, depname, missing_ok) :
+					InvalidOid;
+				address.objectSubId = 0;
+				break;
+			case OBJECT_POLICY:
+				address.classId = RowSecurityRelationId;
+				address.objectId = relation ?
+					get_relation_policy_oid(reloid, depname, missing_ok) :
 					InvalidOid;
 				address.objectSubId = 0;
 				break;

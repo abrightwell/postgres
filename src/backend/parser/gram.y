@@ -320,7 +320,6 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 %type <str>		all_Op MathOp
 
 %type <str>		row_security_cmd RowSecurityDefaultForCmd
-				RowSecurityOptionalForCmd
 %type <node>	RowSecurityOptionalWithCheck RowSecurityOptionalExpr
 %type <list>	RowSecurityDefaultToRole RowSecurityOptionalToRole
 
@@ -4590,11 +4589,6 @@ RowSecurityDefaultForCmd:
 			| /* EMPTY */			{ $$ = "all"; }
 		;
 
-RowSecurityOptionalForCmd:
-			FOR row_security_cmd	{ $$ = $2; }
-			| /* EMPTY */			{ $$ = NULL; }
-		;
-
 row_security_cmd:
 			ALL				{ $$ = "all"; }
 		|	SELECT			{ $$ = "select"; }
@@ -7346,6 +7340,26 @@ RenameStmt: ALTER AGGREGATE func_name aggr_args RENAME TO name
 					n->objarg = list_make1(makeString($6));
 					n->newname = $9;
 					n->missing_ok = false;
+					$$ = (Node *)n;
+				}
+			| ALTER POLICY name ON qualified_name RENAME TO name
+				{
+					RenameStmt *n = makeNode(RenameStmt);
+					n->renameType = OBJECT_POLICY;
+					n->relation = $5;
+					n->subname = $3;
+					n->newname = $8;
+					n->missing_ok = false;
+					$$ = (Node *)n;
+				}
+			| ALTER POLICY IF_P EXISTS name ON qualified_name RENAME TO name
+				{
+					RenameStmt *n = makeNode(RenameStmt);
+					n->renameType = OBJECT_POLICY;
+					n->relation = $7;
+					n->subname = $5;
+					n->newname = $10;
+					n->missing_ok = true;
 					$$ = (Node *)n;
 				}
 			| ALTER SCHEMA name RENAME TO name

@@ -1634,6 +1634,9 @@ AlterObjectTypeCommandTag(ObjectType objtype)
 		case OBJECT_OPFAMILY:
 			tag = "ALTER OPERATOR FAMILY";
 			break;
+		case OBJECT_POLICY:
+			tag = "ALTER POLICY";
+			break;
 		case OBJECT_ROLE:
 			tag = "ALTER ROLE";
 			break;
@@ -1954,6 +1957,9 @@ CreateCommandTag(Node *parsetree)
 					break;
 				case OBJECT_OPFAMILY:
 					tag = "DROP OPERATOR FAMILY";
+					break;
+				case OBJECT_POLICY:
+					tag = "DROP POLICY";
 					break;
 				default:
 					tag = "???";

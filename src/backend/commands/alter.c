@@ -338,6 +338,9 @@ ExecRenameStmt(RenameStmt *stmt)
 		case OBJECT_TRIGGER:
 			return renametrig(stmt);
 
+		case OBJECT_POLICY:
+			return rename_policy(stmt);
+
 		case OBJECT_DOMAIN:
 		case OBJECT_TYPE:
 			return RenameType(stmt);
