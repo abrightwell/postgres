@@ -3250,8 +3250,8 @@ RelationCacheInitializePhase3(void)
 	 * wrong in the results from formrdesc or the relcache cache file. If we
 	 * faked up relcache entries using formrdesc, then read the real pg_class
 	 * rows and replace the fake entries with them. Also, if any of the
-	 * relcache entries have rules or triggers, load that info the hard way
-	 * since it isn't recorded in the cache file.
+	 * relcache entries have rules, triggers, or security policies, load that
+	 * info the hard way since it isn't recorded in the cache file.
 	 *
 	 * Whenever we access the catalogs to read data, there is a possibility of
 	 * a shared-inval cache flush causing relcache entries to be removed.
@@ -3342,11 +3342,18 @@ RelationCacheInitializePhase3(void)
 			restart = true;
 		}
 
+		/*
+		 * Re-load the row security policies if the relation has them, since
+		 * they are not preserved in the cache.  Note that we can never NOT
+		 * have a policy while relhasrowsecurity is true-
+		 * RelationBuildRowSecurity will create a single default-deny policy
+		 * if there is no policy defined in pg_rowsecurity.
+		 */
 		if (relation->rd_rel->relhasrowsecurity && relation->rsdesc == NULL)
 		{
 			RelationBuildRowSecurity(relation);
-			if (relation->rsdesc == NULL)
-				relation->rd_rel->relhasrowsecurity = false;
+
+			Assert (relation->rsdesc != NULL);
 			restart = true;
 		}
 

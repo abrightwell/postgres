@@ -1660,15 +1660,17 @@ ExecWithCheckOptions(ResultRelInfo *resultRelInfo,
 
 		/*
 		 * WITH CHECK OPTION checks are intended to ensure that the new tuple
-		 * is visible in the view.  If the view's qual evaluates to NULL, then
-		 * the new tuple won't be included in the view.  Therefore we need to
-		 * tell ExecQual to return FALSE for NULL (the opposite of what we do
-		 * above for CHECK constraints).
+		 * is visible (in the case of a view) or that it passes the
+		 * 'with-check' policy (in the case of row security).
+		 * If the qual evaluates to NULL or FALSE, then the new tuple won't be
+		 * included in the view or doesn't pass the 'with-check' policy for the
+		 * table.  We need ExecQual to return FALSE for NULL to handle the view
+		 * case (the opposite of what we do above for CHECK constraints).
 		 */
 		if (!ExecQual((List *) wcoExpr, econtext, false))
 			ereport(ERROR,
 					(errcode(ERRCODE_WITH_CHECK_OPTION_VIOLATION),
-				 errmsg("new row violates WITH CHECK OPTION for view \"%s\"",
+				 errmsg("new row violates WITH CHECK OPTION for \"%s\"",
 						wco->viewname),
 					 errdetail("Failing row contains %s.",
 							   ExecBuildSlotValueDescription(slot,

@@ -287,21 +287,11 @@ pull_row_security_policies(CmdType cmd, Relation relation)
 	}
 
 	/*
-	 * If there are no policies found then we need to create a default
-	 * deny policy which is always 'false' and return it.
+	 * There should always be a policy applied.  If there are none defined then
+	 * RelationBuildRowSecurity should have created a single default-deny
+	 * policy.
 	 */
-	if (policies == NIL)
-	{
-		RowSecurityPolicy  *policy;
-
-		policy = palloc0(sizeof(RowSecurityPolicy));
-		policy->rsecid = RelationGetRelid(relation);
-		policy->policy_name = pstrdup("Default deny policy");
-		policy->qual = (Expr *) makeConst(BOOLOID, -1, InvalidOid, sizeof(bool),
-										  BoolGetDatum(false), false, true);
-
-		policies = list_make1(policy);
-	}
+	Assert (policies != NIL);
 
 	return policies;
 }

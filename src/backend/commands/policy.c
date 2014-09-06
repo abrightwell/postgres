@@ -28,6 +28,7 @@
 #include "catalog/pg_type.h"
 #include "commands/policy.h"
 #include "miscadmin.h"
+#include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
 #include "nodes/pg_list.h"
 #include "optimizer/clauses.h"
@@ -218,6 +219,19 @@ RelationBuildRowSecurity(Relation relation)
 	PG_TRY();
 	{
 		/*
+		 * Set up our memory context- we will always set up some kind of
+		 * policy here.  If no explicit policies are found then an implicit
+		 * default-deny policy is created.
+		 */
+		rscxt = AllocSetContextCreate(CacheMemoryContext,
+									  "Row-security descriptor",
+									  ALLOCSET_SMALL_MINSIZE,
+									  ALLOCSET_SMALL_INITSIZE,
+									  ALLOCSET_SMALL_MAXSIZE);
+		rsdesc = MemoryContextAllocZero(rscxt, sizeof(RowSecurityDesc));
+		rsdesc->rscxt = rscxt;
+
+		/*
 		 * Loop through the row-level security entries for this relation, if
 		 * any.
 		 */
@@ -234,21 +248,6 @@ RelationBuildRowSecurity(Relation relation)
 			Oid					policy_id;
 			bool				isnull;
 			RowSecurityPolicy  *policy = NULL;
-
-			/*
-			 * Set up the memory context inside our loop to ensure we are only
-			 * building it when we actually need it.
-			 */
-			if (!rsdesc)
-			{
-				rscxt = AllocSetContextCreate(CacheMemoryContext,
-											  "Row-security descriptor",
-											  ALLOCSET_SMALL_MINSIZE,
-											  ALLOCSET_SMALL_INITSIZE,
-											  ALLOCSET_SMALL_MAXSIZE);
-				rsdesc = MemoryContextAllocZero(rscxt, sizeof(RowSecurityDesc));
-				rsdesc->rscxt = rscxt;
-			}
 
 			oldcxt = MemoryContextSwitchTo(rscxt);
 
@@ -315,6 +314,29 @@ RelationBuildRowSecurity(Relation relation)
 
 			if (with_check_qual != NULL)
 				pfree(with_check_qual);
+		}
+
+		/* Check if no policies were added */
+		if (rsdesc->policies == NIL)
+		{
+			RowSecurityPolicy  *policy = NULL;
+
+			oldcxt = MemoryContextSwitchTo(rscxt);
+
+			policy = palloc0(sizeof(RowSecurityPolicy));
+			policy->policy_name = pstrdup("default-deny policy");
+			policy->rsecid = InvalidOid;
+			policy->cmd = '\0';
+			policy->roles = NULL;
+			policy->qual = (Expr *) makeConst(BOOLOID, -1, InvalidOid,
+											  sizeof(bool), BoolGetDatum(false),
+											  false, true);
+			policy->with_check_qual = copyObject(policy->qual);
+			policy->hassublinks = false;
+
+			MemoryContextSwitchTo(oldcxt);
+
+			rsdesc->policies = lcons(policy, rsdesc->policies);
 		}
 	}
 	PG_CATCH();

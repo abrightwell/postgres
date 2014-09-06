@@ -22,10 +22,10 @@ CATALOG(pg_rowsecurity,3256)
 {
 	NameData		rsecpolname;	/* Policy name. */
 	Oid				rsecrelid;		/* Oid of the relation with policy. */
-	char			rseccmd;		/* One of ACL_*_CHR, or NULL for all */
+	char			rseccmd;		/* One of ACL_*_CHR, or \0 for all */
 
 #ifdef CATALOG_VARLEN
-	Oid				rsecroles[1]	/* Roles associated with policy */
+	Oid				rsecroles[1]	/* Roles associated with policy, not-NULL */
 	pg_node_tree	rsecqual;		/* Policy quals. */
 	pg_node_tree	rsecwithcheck;	/* WITH CHECK quals. */
 #endif

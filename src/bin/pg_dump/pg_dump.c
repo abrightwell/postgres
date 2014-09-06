@@ -2812,7 +2812,7 @@ getRowSecurity(Archive *fout, TableInfo tblinfo[], int numTables)
 
 		appendPQExpBuffer(query,
 						  "SELECT oid, tableoid, s.rsecpolname, s.rseccmd, "
-						  "CASE WHEN s.rsecroles = '{0}' THEN NULL::text ELSE "
+						  "CASE WHEN s.rsecroles = '{0}' THEN 'PUBLIC' ELSE "
 						  "   array_to_string(ARRAY(SELECT rolname from pg_roles WHERE oid = ANY(s.rsecroles)), ', ') END AS rsecroles, "
 						  "pg_get_expr(s.rsecqual, s.rsecrelid) AS rsecqual, "
 						  "pg_get_expr(s.rsecwithcheck, s.rsecrelid) AS rsecwithcheck "
@@ -2822,6 +2822,19 @@ getRowSecurity(Archive *fout, TableInfo tblinfo[], int numTables)
 		res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
 		ntups = PQntuples(res);
+
+		if (ntups == 0)
+		{
+			/*
+			 * No explicit policies to handle (only the default-deny policy,
+			 * which is handled as part of the table definition.  Clean up and
+			 * return.
+			 */
+			PQclear(res);
+			destroyPQExpBuffer(query);
+
+			return;
+		}
 
 		i_oid = PQfnumber(res, "oid");
 		i_tableoid = PQfnumber(res, "tableoid");
@@ -2852,11 +2865,7 @@ getRowSecurity(Archive *fout, TableInfo tblinfo[], int numTables)
 			else
 				rsinfo[j].rseccmd = pg_strdup(PQgetvalue(res, j, i_rseccmd));
 
-			if (PQgetisnull(res, j, i_rsecroles))
-				rsinfo[j].rsecroles = pg_strdup("PUBLIC");
-			else
-				rsinfo[j].rsecroles = pg_strdup(PQgetvalue(res, j,
-														   i_rsecroles));
+			rsinfo[j].rsecroles = pg_strdup(PQgetvalue(res, j, i_rsecroles));
 
 			if (PQgetisnull(res, j, i_rsecqual))
 				rsinfo[j].rsecqual = NULL;
