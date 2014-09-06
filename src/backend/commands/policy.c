@@ -71,6 +71,7 @@ RangeVarCallbackForPolicy(const RangeVar *rv, Oid relid, Oid oldrelid,
 	tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
 	if (!HeapTupleIsValid(tuple))
 		return;
+
 	classform = (Form_pg_class) GETSTRUCT(tuple);
 	relkind = classform->relkind;
 
@@ -212,7 +213,7 @@ RelationBuildRowSecurity(Relation relation)
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(RelationGetRelid(relation)));
 
-	sscan = systable_beginscan(catalog, RowSecurityPolnameRelidIndexId, true,
+	sscan = systable_beginscan(catalog, RowSecurityRelidPolnameIndexId, true,
 							   NULL, 1, &skey);
 	PG_TRY();
 	{
@@ -469,20 +470,20 @@ CreatePolicy(CreatePolicyStmt *stmt)
 	/* Open pg_rowsecurity catalog */
 	pg_rowsecurity_rel = heap_open(RowSecurityRelationId, RowExclusiveLock);
 
-	/* Set key - row security policy name. */
-	ScanKeyInit(&skeys[0],
-				Anum_pg_rowsecurity_rsecpolname,
-				BTEqualStrategyNumber, F_NAMEEQ,
-				CStringGetDatum(stmt->policy_name));
-
 	/* Set key - row security relation id. */
-	ScanKeyInit(&skeys[1],
+	ScanKeyInit(&skeys[0],
 				Anum_pg_rowsecurity_rsecrelid,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(table_id));
 
+	/* Set key - row security policy name. */
+	ScanKeyInit(&skeys[1],
+				Anum_pg_rowsecurity_rsecpolname,
+				BTEqualStrategyNumber, F_NAMEEQ,
+				CStringGetDatum(stmt->policy_name));
+
 	sscan = systable_beginscan(pg_rowsecurity_rel,
-							   RowSecurityPolnameRelidIndexId, true, NULL, 2,
+							   RowSecurityRelidPolnameIndexId, true, NULL, 2,
 							   skeys);
 
 	rsec_tuple = systable_getnext(sscan);
@@ -682,20 +683,20 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	/* Find policy to update. */
 	pg_rowsecurity_rel = heap_open(RowSecurityRelationId, RowExclusiveLock);
 
-	/* Set key - row security policy name. */
-	ScanKeyInit(&skeys[0],
-				Anum_pg_rowsecurity_rsecpolname,
-				BTEqualStrategyNumber, F_NAMEEQ,
-				CStringGetDatum(stmt->policy_name));
-
 	/* Set key - row security relation id. */
-	ScanKeyInit(&skeys[1],
+	ScanKeyInit(&skeys[0],
 				Anum_pg_rowsecurity_rsecrelid,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(table_id));
 
+	/* Set key - row security policy name. */
+	ScanKeyInit(&skeys[1],
+				Anum_pg_rowsecurity_rsecpolname,
+				BTEqualStrategyNumber, F_NAMEEQ,
+				CStringGetDatum(stmt->policy_name));
+
 	sscan = systable_beginscan(pg_rowsecurity_rel,
-							   RowSecurityPolnameRelidIndexId, true, NULL, 2,
+							   RowSecurityRelidPolnameIndexId, true, NULL, 2,
 							   skeys);
 
 	rsec_tuple = systable_getnext(sscan);
@@ -827,20 +828,20 @@ rename_policy(RenameStmt *stmt)
 
 	/* First pass- check for conflict */
 
-	/* Add key - row security policy name. */
-	ScanKeyInit(&skeys[0],
-				Anum_pg_rowsecurity_rsecpolname,
-				BTEqualStrategyNumber, F_NAMEEQ,
-				CStringGetDatum(stmt->newname));
-
 	/* Add key - row security relation id. */
-	ScanKeyInit(&skeys[1],
+	ScanKeyInit(&skeys[0],
 				Anum_pg_rowsecurity_rsecrelid,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(table_id));
 
+	/* Add key - row security policy name. */
+	ScanKeyInit(&skeys[1],
+				Anum_pg_rowsecurity_rsecpolname,
+				BTEqualStrategyNumber, F_NAMEEQ,
+				CStringGetDatum(stmt->newname));
+
 	sscan = systable_beginscan(pg_rowsecurity_rel,
-							   RowSecurityPolnameRelidIndexId, true, NULL, 2,
+							   RowSecurityRelidPolnameIndexId, true, NULL, 2,
 							   skeys);
 
 	if (HeapTupleIsValid(rsec_tuple = systable_getnext(sscan)))
@@ -852,20 +853,20 @@ rename_policy(RenameStmt *stmt)
 	systable_endscan(sscan);
 
 	/* Second pass -- find existing policy and update */
-	/* Add key - row security policy name. */
-	ScanKeyInit(&skeys[0],
-				Anum_pg_rowsecurity_rsecpolname,
-				BTEqualStrategyNumber, F_NAMEEQ,
-				CStringGetDatum(stmt->subname));
-
 	/* Add key - row security relation id. */
-	ScanKeyInit(&skeys[1],
+	ScanKeyInit(&skeys[0],
 				Anum_pg_rowsecurity_rsecrelid,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(table_id));
 
+	/* Add key - row security policy name. */
+	ScanKeyInit(&skeys[1],
+				Anum_pg_rowsecurity_rsecpolname,
+				BTEqualStrategyNumber, F_NAMEEQ,
+				CStringGetDatum(stmt->subname));
+
 	sscan = systable_beginscan(pg_rowsecurity_rel,
-							   RowSecurityPolnameRelidIndexId, true, NULL, 2,
+							   RowSecurityRelidPolnameIndexId, true, NULL, 2,
 							   skeys);
 
 	if (HeapTupleIsValid(rsec_tuple = systable_getnext(sscan)))
@@ -932,20 +933,20 @@ DropPolicy(DropPolicyStmt *stmt)
 
 	pg_rowsecurity_rel = heap_open(RowSecurityRelationId, RowExclusiveLock);
 
-	/* Add key - row security policy name. */
-	ScanKeyInit(&skeys[0],
-				Anum_pg_rowsecurity_rsecpolname,
-				BTEqualStrategyNumber, F_NAMEEQ,
-				CStringGetDatum(stmt->policy_name));
-
 	/* Add key - row security relation id. */
-	ScanKeyInit(&skeys[1],
+	ScanKeyInit(&skeys[0],
 				Anum_pg_rowsecurity_rsecrelid,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(table_id));
 
+	/* Add key - row security policy name. */
+	ScanKeyInit(&skeys[1],
+				Anum_pg_rowsecurity_rsecpolname,
+				BTEqualStrategyNumber, F_NAMEEQ,
+				CStringGetDatum(stmt->policy_name));
+
 	sscan = systable_beginscan(pg_rowsecurity_rel,
-							   RowSecurityPolnameRelidIndexId, true, NULL, 2,
+							   RowSecurityRelidPolnameIndexId, true, NULL, 2,
 							   skeys);
 
 	rsec_tuple = systable_getnext(sscan);
@@ -1003,20 +1004,20 @@ get_relation_policy_oid(Oid relid, const char *policy_name, bool missing_ok)
 
 	pg_rowsecurity_rel = heap_open(RowSecurityRelationId, AccessShareLock);
 
-	/* Add key - row security policy name. */
-	ScanKeyInit(&skeys[0],
-				Anum_pg_rowsecurity_rsecpolname,
-				BTEqualStrategyNumber, F_NAMEEQ,
-				CStringGetDatum(policy_name));
-
 	/* Add key - row security relation id. */
-	ScanKeyInit(&skeys[1],
+	ScanKeyInit(&skeys[0],
 				Anum_pg_rowsecurity_rsecrelid,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(relid));
 
+	/* Add key - row security policy name. */
+	ScanKeyInit(&skeys[1],
+				Anum_pg_rowsecurity_rsecpolname,
+				BTEqualStrategyNumber, F_NAMEEQ,
+				CStringGetDatum(policy_name));
+
 	sscan = systable_beginscan(pg_rowsecurity_rel,
-							   RowSecurityPolnameRelidIndexId, true, NULL, 2,
+							   RowSecurityRelidPolnameIndexId, true, NULL, 2,
 							   skeys);
 
 	rsec_tuple = systable_getnext(sscan);

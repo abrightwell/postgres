@@ -302,8 +302,8 @@ DECLARE_UNIQUE_INDEX(pg_range_rngtypid_index, 3542, on pg_range using btree(rngt
 DECLARE_UNIQUE_INDEX(pg_rowsecurity_oid_index, 3257, on pg_rowsecurity using btree(oid oid_ops));
 #define RowSecurityOidIndexId				3257
 
-DECLARE_UNIQUE_INDEX(pg_rowsecurity_polname_relid_index, 3258, on pg_rowsecurity using btree(rsecpolname name_ops, rsecrelid oid_ops));
-#define RowSecurityPolnameRelidIndexId				3258
+DECLARE_UNIQUE_INDEX(pg_rowsecurity_polname_relid_index, 3258, on pg_rowsecurity using btree(rsecrelid oid_ops, rsecpolname name_ops));
+#define RowSecurityRelidPolnameIndexId				3258
 
 /* last step of initialization script: build the indexes declared above */
 BUILD_INDICES

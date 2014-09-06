@@ -10661,20 +10661,25 @@ ATExecDisableRowSecurity(Relation rel, DropBehavior behavior)
 	relid = RelationGetRelid(rel);
 	pg_rowsecurity = heap_open(RowSecurityRelationId, RowExclusiveLock);
 
+	/* Look for any existing policies for this table */
 	ScanKeyInit(&skey,
 				Anum_pg_rowsecurity_rsecrelid,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(relid));
 
-	sscan = systable_beginscan(pg_rowsecurity, RowSecurityPolnameRelidIndexId,
+	sscan = systable_beginscan(pg_rowsecurity, RowSecurityRelidPolnameIndexId,
 							   true, NULL, 1, &skey);
 
+	/*
+	 * If there are policies defined for this table then we need to either
+	 * drop them (CASCADE case), or error out and complain to the user.
+	 */
 	while (HeapTupleIsValid(tuple = systable_getnext(sscan)))
 	{
 		if (behavior != DROP_CASCADE)
 			ereport(ERROR,
 					(errcode(ERRCODE_DEPENDENT_OBJECTS_STILL_EXIST),
-					 errmsg("cannot disable row-security on relation %s",
+					 errmsg("could not disable row-security on relation %s",
 							RelationGetRelationName(rel)),
 					 errdetail("relation has row-security policies."),
 					 errhint("Use ALTER TABLE %s DISABLE ROW LEVEL SECURITY CASCADE",
@@ -10683,6 +10688,7 @@ ATExecDisableRowSecurity(Relation rel, DropBehavior behavior)
 		RemovePolicyById(HeapTupleGetOid(tuple));
 	}
 
+	/* Pull the record for this relation and update it */
 	pg_class = heap_open(RelationRelationId, RowExclusiveLock);
 
 	tuple = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(relid));
