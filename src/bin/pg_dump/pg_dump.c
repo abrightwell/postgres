@@ -2786,6 +2786,7 @@ getRowSecurity(Archive *fout, TableInfo tblinfo[], int numTables)
 	int				i_rseccmd;
 	int				i_rsecroles;
 	int				i_rsecqual;
+	int				i_rsecwithcheck;
 	int				i, j, ntups;
 
 	if (fout->remoteVersion < 90500)
@@ -2811,8 +2812,10 @@ getRowSecurity(Archive *fout, TableInfo tblinfo[], int numTables)
 
 		appendPQExpBuffer(query,
 						  "SELECT oid, tableoid, s.rsecpolname, s.rseccmd, "
-						  "array_to_string(ARRAY(SELECT rolname from pg_roles WHERE oid = ANY(s.rsecroles)), ', ') AS rsecroles, "
-						  "pg_get_expr(s.rsecqual, s.rsecrelid) AS rsecqual "
+						  "CASE WHEN s.rescroles IS NULL THEN NULL::text ELSE "
+						  "   array_to_string(ARRAY(SELECT rolname from pg_roles WHERE oid = ANY(s.rsecroles)), ', ') END AS rsecroles, "
+						  "pg_get_expr(s.rsecqual, s.rsecrelid) AS rsecqual, "
+						  "pg_get_expr(s.rsecwithcheck, s.rsecrelid) AS rsecwithcheck "
 						  "FROM pg_catalog.pg_rowsecurity s "
 						  "WHERE rsecrelid = '%u'",
 						  tbinfo->dobj.catId.oid);
@@ -2826,8 +2829,47 @@ getRowSecurity(Archive *fout, TableInfo tblinfo[], int numTables)
 		i_rseccmd = PQfnumber(res, "rseccmd");
 		i_rsecroles = PQfnumber(res, "rsecroles");
 		i_rsecqual = PQfnumber(res, "rsecqual");
+		i_rsecwithcheck = PQfnumber(res, "rwithcheck");
 
 		rsinfo = pg_malloc(ntups * sizeof(RowSecurityInfo));
+
+		/* Handle case where table has RLS enabled but no policies */
+		if (ntups == 0)
+		{
+			rsinfo[j].dobj.objType = DO_ROW_SECURITY;
+			rsinfo[j].dobj.catId.tableoid =
+				atooid(PQgetvalue(res, j, i_tableoid));
+			rsinfo[j].dobj.catId.oid = atooid(PQgetvalue(res, j, i_oid));
+			AssignDumpId(&rsinfo[j].dobj);
+			snprintf(namebuf, sizeof(namebuf), "row-security of %s",
+					 tbinfo->dobj.name);
+			rsinfo[j].dobj.name = namebuf;
+			rsinfo[j].dobj.namespace = tbinfo->dobj.namespace;
+			rsinfo[j].rstable = tbinfo;
+			rsinfo[j].rsecpolname = pg_strdup(PQgetvalue(res, j,
+														 i_rsecpolname));
+			if (PQgetisnull(res, j, i_rseccmd))
+				rsinfo[j].rseccmd = NULL;
+			else
+				rsinfo[j].rseccmd = pg_strdup(PQgetvalue(res, j, i_rseccmd));
+
+			if (PQgetisnull(res, j, i_rsecroles))
+				rsinfo[j].rsecroles = NULL;
+			else
+				rsinfo[j].rsecroles = pg_strdup(PQgetvalue(res, j,
+														   i_rsecroles));
+
+			if (PQgetisnull(res, j, i_rsecqual))
+				rsinfo[j].rsecqual = NULL;
+			else
+				rsinfo[j].rsecqual = pg_strdup(PQgetvalue(res, j, i_rsecqual));
+
+			if (PQgetisnull(res, j, i_rsecwithcheck))
+				rsinfo[j].rsecwithcheck = NULL;
+			else
+				rsinfo[j].rsecwithcheck
+					= pg_strdup(PQgetvalue(res, j, i_rsecwithcheck));
+		}
 
 		for (j = 0; j < ntups; j++)
 		{
@@ -2843,14 +2885,29 @@ getRowSecurity(Archive *fout, TableInfo tblinfo[], int numTables)
 			rsinfo[j].dobj.name = namebuf;
 			rsinfo[j].dobj.namespace = tbinfo->dobj.namespace;
 			rsinfo[j].rstable = tbinfo;
-			rsinfo[j].rsecpolname = pg_strdup(PQgetvalue(res, j, i_rsecpolname));
+			rsinfo[j].rsecpolname = pg_strdup(PQgetvalue(res, j,
+														 i_rsecpolname));
 			if (PQgetisnull(res, j, i_rseccmd))
 				rsinfo[j].rseccmd = NULL;
 			else
 				rsinfo[j].rseccmd = pg_strdup(PQgetvalue(res, j, i_rseccmd));
 
-			rsinfo[j].rsecroles = pg_strdup(PQgetvalue(res, j, i_rsecroles));
-			rsinfo[j].rsecqual = pg_strdup(PQgetvalue(res, j, i_rsecqual));
+			if (PQgetisnull(res, j, i_rsecroles))
+				rsinfo[j].rsecroles = NULL;
+			else
+				rsinfo[j].rsecroles = pg_strdup(PQgetvalue(res, j,
+														   i_rsecroles));
+
+			if (PQgetisnull(res, j, i_rsecqual))
+				rsinfo[j].rsecqual = NULL;
+			else
+				rsinfo[j].rsecqual = pg_strdup(PQgetvalue(res, j, i_rsecqual));
+
+			if (PQgetisnull(res, j, i_rsecwithcheck))
+				rsinfo[j].rsecwithcheck = NULL;
+			else
+				rsinfo[j].rsecwithcheck
+					= pg_strdup(PQgetvalue(res, j, i_rsecwithcheck));
 		}
 		PQclear(res);
 	}
@@ -2894,12 +2951,14 @@ dumpRowSecurity(Archive *fout, RowSecurityInfo *rsinfo)
 	appendPQExpBuffer(query, "CREATE POLICY %s ON %s FOR %s ",
 					  rsinfo->rsecpolname, fmtId(tbinfo->dobj.name), cmd);
 
-	if (strcmp(rsinfo->rsecroles, "") == 0)
-		appendPQExpBuffer(query, "TO PUBLIC ");
-	else
+	if (rsinfo->rsecroles != NULL)
 		appendPQExpBuffer(query, "TO %s ", rsinfo->rsecroles);
 
-	appendPQExpBuffer(query, "USING %s\n", rsinfo->rsecqual);
+	if (rsinfo->rsecqual != NULL)
+		appendPQExpBuffer(query, "USING %s\n", rsinfo->rsecqual);
+
+	if (rsinfo->rsecwithcheck != NULL)
+		appendPQExpBuffer(query, "WITH CHECK %s\n", rsinfo->rsecwithcheck);
 
 	appendPQExpBuffer(delqry, "DROP POLICY %s ON %s;\n",
 					  rsinfo->rsecpolname, fmtId(tbinfo->dobj.name));
