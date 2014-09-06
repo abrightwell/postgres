@@ -164,12 +164,12 @@ parse_role_ids(List *roles)
 
 	foreach(cell, roles)
 	{
-		char	   *role_name = strVal(lfirst(cell));
+		Oid		roleid = get_role_oid_or_public(strVal(lfirst(cell)));
 
 		/*
 		 * PUBLIC covers all roles, so it only makes sense alone.
 		 */
-		if (strcmp(role_name, "public") == 0)
+		if (roleid == ACL_ID_PUBLIC)
 		{
 			if (num_roles != 1)
 				ereport(WARNING,
@@ -177,12 +177,12 @@ parse_role_ids(List *roles)
 						 errmsg("ignoring roles specified other than public"),
 						 errhint("All roles are members of the public role.")));
 
-			temp_array[0] = ObjectIdGetDatum(ACL_ID_PUBLIC);
+			temp_array[0] = ObjectIdGetDatum(roleid);
 			num_roles = 1;
 			break;
 		}
 		else
-			temp_array[i++] = ObjectIdGetDatum(get_role_oid(role_name, false));
+			temp_array[i++] = ObjectIdGetDatum(roleid);
 	}
 
 	role_ids = construct_array(temp_array, num_roles, OIDOID, sizeof(Oid), true,
@@ -406,11 +406,13 @@ CreatePolicy(CreatePolicyStmt *stmt)
 	ObjectAddress	target;
 	ObjectAddress	myself;
 
+	/* Parse command */
+	rseccmd = parse_row_security_command(stmt->cmd);
+
 	/*
 	 * If the command is SELECT or DELETE then WITH CHECK should be NULL.
 	 */
-	if (((strcmp(stmt->cmd, "select") == 0)
-		|| (strcmp(stmt->cmd, "delete") == 0))
+	if ((rseccmd == ACL_SELECT_CHR || rseccmd == ACL_DELETE_CHR)
 		&& stmt->with_check != NULL)
 		ereport(ERROR,
 				(errcode(ERRCODE_SYNTAX_ERROR),
@@ -420,15 +422,11 @@ CreatePolicy(CreatePolicyStmt *stmt)
 	 * If the command is INSERT then WITH CHECK should be the only expression
 	 * provided.
 	 */
-	if ((strcmp(stmt->cmd, "insert") == 0)
-		&& stmt->qual != NULL)
+	if (rseccmd == ACL_INSERT_CHR && stmt->qual != NULL)
 		ereport(ERROR,
 				(errcode(ERRCODE_SYNTAX_ERROR),
-				 errmsg("INSERT must only have a WITH CHECK expression")));
+				 errmsg("Only WITH CHECK expression allowed for INSERT")));
 
-
-	/* Parse command */
-	rseccmd = parse_row_security_command(stmt->cmd);
 
 	/* Collect role ids */
 	role_ids = parse_role_ids(stmt->roles);
