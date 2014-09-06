@@ -239,7 +239,7 @@ pull_row_security_policies(CmdType cmd, Relation relation)
 			policy = (RowSecurityPolicy *) lfirst(item);
 
 			/* Always add ALL policy if they exist. */
-			if (policy->cmd == '\0' && check_role_for_policy(policy))
+			if (policy->cmd == 0 && check_role_for_policy(policy))
 				policies = lcons(policy, policies);
 
 			/* Build the list of policies to return. */
