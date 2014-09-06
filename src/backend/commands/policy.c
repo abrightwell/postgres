@@ -445,18 +445,21 @@ CreatePolicy(CreatePolicyStmt *stmt)
 										RangeVarCallbackForPolicy,
 										(void *) stmt);
 
-	/* Open target_table to build qual. No lock is necessary.*/
+	/* Open target_table to build quals. No lock is necessary.*/
 	target_table = relation_open(table_id, NoLock);
 
+	/* Add for the regular security quals */
 	rte = addRangeTableEntryForRelation(qual_pstate, target_table,
 										NULL, false, false);
 	addRTEtoQuery(qual_pstate, rte, false, true, true);
 
+	/* Add for the with-check quals */
 	rte = addRangeTableEntryForRelation(with_check_pstate, target_table,
 										NULL, false, false);
 	addRTEtoQuery(with_check_pstate, rte, false, true, true);
 
-	qual = transformWhereClause(qual_pstate, copyObject(stmt->qual),
+	qual = transformWhereClause(qual_pstate,
+								copyObject(stmt->qual),
 								EXPR_KIND_ROW_SECURITY,
 								"ROW SECURITY");
 
@@ -486,49 +489,42 @@ CreatePolicy(CreatePolicyStmt *stmt)
 
 	rsec_tuple = systable_getnext(sscan);
 
-	/*
-	 * If the policy does not already exist, then create it.  Otherwise, raise
-	 * an error notifying that the policy already exists.
-	 */
-	if (!HeapTupleIsValid(rsec_tuple))
-	{
-		values[Anum_pg_rowsecurity_rsecrelid - 1]
-			= ObjectIdGetDatum(table_id);
-		values[Anum_pg_rowsecurity_rsecpolname - 1]
-			= CStringGetDatum(stmt->policy_name);
-
-		if (rseccmd)
-			values[Anum_pg_rowsecurity_rseccmd - 1]
-				= CharGetDatum(rseccmd);
-		else
-			isnull[Anum_pg_rowsecurity_rseccmd - 1] = true;
-
-		values[Anum_pg_rowsecurity_rsecroles - 1]
-			= PointerGetDatum(role_ids);
-
-		/* Add qual if present. */
-		if (qual)
-			values[Anum_pg_rowsecurity_rsecqual - 1]
-				= CStringGetTextDatum(nodeToString(qual));
-		else
-			isnull[Anum_pg_rowsecurity_rsecqual - 1] = true;
-
-		/* Add WITH CHECK qual if present */
-		if (with_check_qual)
-			values[Anum_pg_rowsecurity_rsecwithcheck - 1]
-				= CStringGetTextDatum(nodeToString(with_check_qual));
-		else
-			isnull[Anum_pg_rowsecurity_rsecwithcheck - 1] = true;
-
-		rsec_tuple = heap_form_tuple(RelationGetDescr(pg_rowsecurity_rel),
-									 values, isnull);
-		rowsec_id = simple_heap_insert(pg_rowsecurity_rel, rsec_tuple);
-	}
-	else
+	/* Complain if the policy name already exists for the table */
+	if (HeapTupleIsValid(rsec_tuple))
 		ereport(ERROR,
 				(errcode(ERRCODE_DUPLICATE_OBJECT),
-		  errmsg("policy \"%s\" for relation \"%s\" already exists",
+				 errmsg("policy \"%s\" for relation \"%s\" already exists",
 				 stmt->policy_name, RelationGetRelationName(target_table))));
+
+	values[Anum_pg_rowsecurity_rsecrelid - 1] = ObjectIdGetDatum(table_id);
+	values[Anum_pg_rowsecurity_rsecpolname - 1]
+		= CStringGetDatum(stmt->policy_name);
+
+	if (rseccmd)
+		values[Anum_pg_rowsecurity_rseccmd - 1] = CharGetDatum(rseccmd);
+	else
+		isnull[Anum_pg_rowsecurity_rseccmd - 1] = true;
+
+	values[Anum_pg_rowsecurity_rsecroles - 1] = PointerGetDatum(role_ids);
+
+	/* Add qual if present. */
+	if (qual)
+		values[Anum_pg_rowsecurity_rsecqual - 1]
+			= CStringGetTextDatum(nodeToString(qual));
+	else
+		isnull[Anum_pg_rowsecurity_rsecqual - 1] = true;
+
+	/* Add WITH CHECK qual if present */
+	if (with_check_qual)
+		values[Anum_pg_rowsecurity_rsecwithcheck - 1]
+			= CStringGetTextDatum(nodeToString(with_check_qual));
+	else
+		isnull[Anum_pg_rowsecurity_rsecwithcheck - 1] = true;
+
+	rsec_tuple = heap_form_tuple(RelationGetDescr(pg_rowsecurity_rel), values,
+								 isnull);
+
+	rowsec_id = simple_heap_insert(pg_rowsecurity_rel, rsec_tuple);
 
 	/* Update Indexes */
 	CatalogUpdateIndexes(pg_rowsecurity_rel, rsec_tuple);
@@ -550,13 +546,13 @@ CreatePolicy(CreatePolicyStmt *stmt)
 	recordDependencyOnExpr(&myself, with_check_qual,
 						   with_check_pstate->p_rtable, DEPENDENCY_NORMAL);
 
-	/* Turn on relhasrowsecurity on table. */
+	/* Turn on relhasrowsecurity for the table, if not done. */
 	if (!RelationGetForm(target_table)->relhasrowsecurity)
 	{
-		Relation class_rel = heap_open(RelationRelationId, RowExclusiveLock);
-
 		HeapTuple tuple;
+		Relation class_rel;
 
+		class_rel = heap_open(RelationRelationId, RowExclusiveLock);
 		tuple = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(table_id));
 
 		if (!HeapTupleIsValid(tuple))
@@ -599,26 +595,22 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	Relation		target_table;
 	Oid				table_id;
 	ArrayType	   *role_ids = NULL;
-	ParseState	   *qual_pstate;
-	ParseState	   *with_check_pstate;
 	List		   *qual_parse_rtable = NIL;
 	List		   *with_check_parse_rtable = NIL;
-	RangeTblEntry  *rte;
-	Node		   *qual;
-	Node		   *with_check_qual;
+	Node		   *qual = NULL;
+	Node		   *with_check_qual = NULL;
 	ScanKeyData		skeys[2];
 	SysScanDesc		sscan;
 	HeapTuple		rsec_tuple;
 	HeapTuple		new_tuple;
-	Datum	values[Natts_pg_rowsecurity];
-	bool	isnull[Natts_pg_rowsecurity];
-	bool	replaces[Natts_pg_rowsecurity];
-	ObjectAddress target;
-	ObjectAddress myself;
-	Datum			 cmd_datum;
+	Datum			values[Natts_pg_rowsecurity];
+	bool			isnull[Natts_pg_rowsecurity];
+	bool			replaces[Natts_pg_rowsecurity];
+	ObjectAddress	target;
+	ObjectAddress	myself;
+	Datum			cmd_datum;
 	char			rseccmd;
 	bool			rseccmd_isnull;
-
 
 	/* Parse role_ids */
 	if (stmt->roles != NULL)
@@ -635,7 +627,8 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	/* Parse the row-security clause */
 	if (stmt->qual)
 	{
-		qual_pstate = make_parsestate(NULL);
+		RangeTblEntry  *rte;
+		ParseState	   *qual_pstate = make_parsestate(NULL);
 
 		rte = addRangeTableEntryForRelation(qual_pstate, target_table,
 											NULL, false, false);
@@ -649,12 +642,12 @@ AlterPolicy(AlterPolicyStmt *stmt)
 		qual_parse_rtable = qual_pstate->p_rtable;
 		free_parsestate(qual_pstate);
 	}
-	else
-		qual = NULL;
 
+	/* Parse the with-check row-security clause */
 	if (stmt->with_check)
 	{
-		with_check_pstate = make_parsestate(NULL);
+		RangeTblEntry  *rte;
+		ParseState	   *with_check_pstate = make_parsestate(NULL);
 
 		rte = addRangeTableEntryForRelation(with_check_pstate, target_table,
 											NULL, false, false);
@@ -667,11 +660,8 @@ AlterPolicy(AlterPolicyStmt *stmt)
 											   "ROW SECURITY");
 
 		with_check_parse_rtable = with_check_pstate->p_rtable;
-
 		free_parsestate(with_check_pstate);
 	}
-	else
-		with_check_qual = NULL;
 
 	/* zero-clear */
 	memset(values,   0, sizeof(values));
@@ -740,8 +730,7 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	if (role_ids != NULL)
 	{
 		replaces[Anum_pg_rowsecurity_rsecroles - 1] = true;
-		values[Anum_pg_rowsecurity_rsecroles - 1]
-			= PointerGetDatum(role_ids);
+		values[Anum_pg_rowsecurity_rsecroles - 1] = PointerGetDatum(role_ids);
 	}
 
 	if (qual != NULL)
@@ -777,7 +766,6 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	myself.classId = RowSecurityRelationId;
 	myself.objectId = rowsec_id;
 	myself.objectSubId = 0;
-
 
 	recordDependencyOn(&myself, &target, DEPENDENCY_AUTO);
 
@@ -867,35 +855,36 @@ rename_policy(RenameStmt *stmt)
 							   RowSecurityRelidPolnameIndexId, true, NULL, 2,
 							   skeys);
 
-	if (HeapTupleIsValid(rsec_tuple = systable_getnext(sscan)))
-	{
-		opoloid = HeapTupleGetOid(rsec_tuple);
+	rsec_tuple = systable_getnext(sscan);
 
-		rsec_tuple = heap_copytuple(rsec_tuple);
-
-		namestrcpy(&((Form_pg_rowsecurity) GETSTRUCT(rsec_tuple))->rsecpolname,
-				   stmt->newname);
-
-		simple_heap_update(pg_rowsecurity_rel, &rsec_tuple->t_self, rsec_tuple);
-
-		/* keep system catalog indexes current */
-		CatalogUpdateIndexes(pg_rowsecurity_rel, rsec_tuple);
-
-		InvokeObjectPostAlterHook(RowSecurityRelationId,
-								  HeapTupleGetOid(rsec_tuple), 0);
-
-		/*
-		 * Invalidate relation's relcache entry so that other backends (and
-		 * this one too!) are sent SI message to make them rebuild relcache
-		 * entries.  (Ideally this should happen automatically...)
-		 */
-		CacheInvalidateRelcache(target_table);
-	}
-	else
+	/* Complain if we did not find the policy */
+	if (!HeapTupleIsValid(rsec_tuple))
 		ereport(ERROR,
 				(errcode(ERRCODE_UNDEFINED_OBJECT),
 				 errmsg("row-policy \"%s\" for table \"%s\" does not exist",
 						stmt->subname, RelationGetRelationName(target_table))));
+
+	opoloid = HeapTupleGetOid(rsec_tuple);
+
+	rsec_tuple = heap_copytuple(rsec_tuple);
+
+	namestrcpy(&((Form_pg_rowsecurity) GETSTRUCT(rsec_tuple))->rsecpolname,
+			   stmt->newname);
+
+	simple_heap_update(pg_rowsecurity_rel, &rsec_tuple->t_self, rsec_tuple);
+
+	/* keep system catalog indexes current */
+	CatalogUpdateIndexes(pg_rowsecurity_rel, rsec_tuple);
+
+	InvokeObjectPostAlterHook(RowSecurityRelationId,
+							  HeapTupleGetOid(rsec_tuple), 0);
+
+	/*
+	 * Invalidate relation's relcache entry so that other backends (and
+	 * this one too!) are sent SI message to make them rebuild relcache
+	 * entries.  (Ideally this should happen automatically...)
+	 */
+	CacheInvalidateRelcache(target_table);
 
 	/* Clean up. */
 	systable_endscan(sscan);
