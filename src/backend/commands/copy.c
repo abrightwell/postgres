@@ -812,7 +812,6 @@ DoCopy(const CopyStmt *stmt, const char *queryString, uint64 *processed)
 		RangeTblEntry *rte;
 		List	   *attnums;
 		ListCell   *cur;
-		const char *rls_option;
 
 		Assert(!stmt->query);
 
@@ -841,8 +840,6 @@ DoCopy(const CopyStmt *stmt, const char *queryString, uint64 *processed)
 				rte->selectedCols = bms_add_member(rte->selectedCols, attno);
 		}
 		ExecCheckRTPerms(list_make1(rte), true);
-
-		rls_option = GetConfigOption("row_security", true, false);
 
 		/*
 		 * If the relation has a row security policy and we are to apply it

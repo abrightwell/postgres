@@ -153,7 +153,8 @@ parse_role_ids(List *roles)
 		temp_array = (Datum *) palloc(sizeof(Datum));
 		temp_array[0] = ObjectIdGetDatum(ACL_ID_PUBLIC);
 
-		role_ids = construct_array(temp_array, 1, OIDOID, sizeof(Oid), true, 'i');
+		role_ids = construct_array(temp_array, 1, OIDOID, sizeof(Oid), true,
+								   'i');
 		return role_ids;
 	}
 
@@ -173,7 +174,7 @@ parse_role_ids(List *roles)
 				ereport(WARNING,
 						(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 						 errmsg("ignoring roles specified other than public"),
-						 errhint("all roles are considered members of public")));
+						 errhint("All roles are members of the public role.")));
 
 			temp_array[0] = ObjectIdGetDatum(ACL_ID_PUBLIC);
 			num_roles = 1;
@@ -183,7 +184,8 @@ parse_role_ids(List *roles)
 			temp_array[i++] = ObjectIdGetDatum(get_role_oid(role_name, false));
 	}
 
-	role_ids = construct_array(temp_array, num_roles, OIDOID, sizeof(Oid), true, 'i');
+	role_ids = construct_array(temp_array, num_roles, OIDOID, sizeof(Oid), true,
+							   'i');
 
 	return role_ids;
 }
@@ -479,8 +481,9 @@ CreatePolicy(CreatePolicyStmt *stmt)
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(table_id));
 
-	sscan = systable_beginscan(pg_rowsecurity_rel, RowSecurityPolnameRelidIndexId,
-							   true, NULL, 2, skeys);
+	sscan = systable_beginscan(pg_rowsecurity_rel,
+							   RowSecurityPolnameRelidIndexId, true, NULL, 2,
+							   skeys);
 
 	rsec_tuple = systable_getnext(sscan);
 
@@ -545,8 +548,8 @@ CreatePolicy(CreatePolicyStmt *stmt)
 	recordDependencyOnExpr(&myself, qual, qual_pstate->p_rtable,
 						   DEPENDENCY_NORMAL);
 
-	recordDependencyOnExpr(&myself, with_check_qual, with_check_pstate->p_rtable,
-						   DEPENDENCY_NORMAL);
+	recordDependencyOnExpr(&myself, with_check_qual,
+						   with_check_pstate->p_rtable, DEPENDENCY_NORMAL);
 
 	/* Turn on relhasrowsecurity on table. */
 	if (!RelationGetForm(target_table)->relhasrowsecurity)
@@ -613,6 +616,10 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	bool	replaces[Natts_pg_rowsecurity];
 	ObjectAddress target;
 	ObjectAddress myself;
+	Datum			 cmd_datum;
+	char			rseccmd;
+	bool			rseccmd_isnull;
+
 
 	/* Parse role_ids */
 	if (stmt->roles != NULL)
@@ -687,102 +694,100 @@ AlterPolicy(AlterPolicyStmt *stmt)
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(table_id));
 
-	sscan = systable_beginscan(pg_rowsecurity_rel, RowSecurityPolnameRelidIndexId,
-							   true, NULL, 2, skeys);
+	sscan = systable_beginscan(pg_rowsecurity_rel,
+							   RowSecurityPolnameRelidIndexId, true, NULL, 2,
+							   skeys);
 
 	rsec_tuple = systable_getnext(sscan);
 
-	/* If the policy exists, then alter it.  Otherwise, raise an error. */
-	if (HeapTupleIsValid(rsec_tuple))
+	/* Check that the policy is found, raise an error if not. */
+	if (!HeapTupleIsValid(rsec_tuple))
+		ereport(ERROR,
+				(errcode(ERRCODE_UNDEFINED_OBJECT),
+				 errmsg("policy '%s' for does not exist on table %s",
+						stmt->policy_name,
+						RelationGetRelationName(target_table))));
+
+	/* Get policy command */
+	cmd_datum = heap_getattr(rsec_tuple, Anum_pg_rowsecurity_rseccmd,
+							 RelationGetDescr(pg_rowsecurity_rel),
+							 &rseccmd_isnull);
+	if (rseccmd_isnull)
+		rseccmd = 0;
+	else
+		rseccmd = DatumGetChar(cmd_datum);
+
+	/*
+	 * If the command is SELECT or DELETE then WITH CHECK should be NULL.
+	 */
+	if ((rseccmd == ACL_SELECT_CHR || rseccmd == ACL_DELETE_CHR)
+		&& stmt->with_check != NULL)
+		ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+				 errmsg("only USING expression allowed for SELECT, DELETE")));
+
+	/*
+	 * If the command is INSERT then WITH CHECK should be the only
+	 * expression provided.
+	 */
+	if ((rseccmd == ACL_INSERT_CHR)
+		&& stmt->qual != NULL)
+		ereport(ERROR,
+				(errcode(ERRCODE_SYNTAX_ERROR),
+				 errmsg("only WITH CHECK expression allowed for INSERT")));
+
+	rowsec_id = HeapTupleGetOid(rsec_tuple);
+
+	if (role_ids != NULL)
 	{
-		Datum cmd_datum;
-		char rseccmd;
-		bool rseccmd_isnull;
-
-		/* Get policy command */
-		cmd_datum = heap_getattr(rsec_tuple, Anum_pg_rowsecurity_rseccmd,
-								 RelationGetDescr(pg_rowsecurity_rel),
-								 &rseccmd_isnull);
-		if (rseccmd_isnull)
-			rseccmd = 0;
-		else
-			rseccmd = DatumGetChar(cmd_datum);
-
-		/*
-		 * If the command is SELECT or DELETE then WITH CHECK should be NULL.
-		 */
-		if ((rseccmd == ACL_SELECT_CHR || rseccmd == ACL_DELETE_CHR)
-			&& stmt->with_check != NULL)
-			ereport(ERROR,
-					(errcode(ERRCODE_SYNTAX_ERROR),
-					 errmsg("WITH CHECK cannot be applied to SELECT or DELETE")));
-
-		/*
-		 * If the command is INSERT then WITH CHECK should be the only expression
-		 * provided.
-		 */
-		if ((rseccmd == ACL_INSERT_CHR)
-			&& stmt->qual != NULL)
-			ereport(ERROR,
-					(errcode(ERRCODE_SYNTAX_ERROR),
-					 errmsg("INSERT policy can only have a WITH CHECK expression")));
-
-		rowsec_id = HeapTupleGetOid(rsec_tuple);
-
-		if (role_ids != NULL)
-		{
-			replaces[Anum_pg_rowsecurity_rsecroles - 1] = true;
-			values[Anum_pg_rowsecurity_rsecroles - 1] = PointerGetDatum(role_ids);
-		}
-
-		if (qual != NULL)
-		{
-			replaces[Anum_pg_rowsecurity_rsecqual - 1] = true;
-			values[Anum_pg_rowsecurity_rsecqual - 1]
-				= CStringGetTextDatum(nodeToString(qual));
-		}
-
-		if (with_check_qual != NULL)
-		{
-			replaces[Anum_pg_rowsecurity_rsecwithcheck - 1] = true;
-			values[Anum_pg_rowsecurity_rsecwithcheck - 1]
-				= CStringGetTextDatum(nodeToString(with_check_qual));
-		}
-
-		new_tuple = heap_modify_tuple(rsec_tuple,
-									  RelationGetDescr(pg_rowsecurity_rel),
-									  values, isnull, replaces);
-		simple_heap_update(pg_rowsecurity_rel, &new_tuple->t_self, new_tuple);
-
-		/* Update Catalog Indexes */
-		CatalogUpdateIndexes(pg_rowsecurity_rel, new_tuple);
-
-		/* Update Dependencies. */
-		deleteDependencyRecordsFor(RowSecurityRelationId, rowsec_id, false);
-
-		/* Record Dependencies */
-		target.classId = RelationRelationId;
-		target.objectId = table_id;
-		target.objectSubId = 0;
-
-		myself.classId = RowSecurityRelationId;
-		myself.objectId = rowsec_id;
-		myself.objectSubId = 0;
-
-
-		recordDependencyOn(&myself, &target, DEPENDENCY_AUTO);
-
-		recordDependencyOnExpr(&myself, qual, qual_parse_rtable,
-							   DEPENDENCY_NORMAL);
-
-		recordDependencyOnExpr(&myself, with_check_qual, with_check_parse_rtable,
-							   DEPENDENCY_NORMAL);
-
-		heap_freetuple(new_tuple);
-	} else {
-		elog(ERROR, "policy '%s' for does not exist on table %s",
-			 stmt->policy_name, RelationGetRelationName(target_table));
+		replaces[Anum_pg_rowsecurity_rsecroles - 1] = true;
+		values[Anum_pg_rowsecurity_rsecroles - 1]
+			= PointerGetDatum(role_ids);
 	}
+
+	if (qual != NULL)
+	{
+		replaces[Anum_pg_rowsecurity_rsecqual - 1] = true;
+		values[Anum_pg_rowsecurity_rsecqual - 1]
+			= CStringGetTextDatum(nodeToString(qual));
+	}
+
+	if (with_check_qual != NULL)
+	{
+		replaces[Anum_pg_rowsecurity_rsecwithcheck - 1] = true;
+		values[Anum_pg_rowsecurity_rsecwithcheck - 1]
+			= CStringGetTextDatum(nodeToString(with_check_qual));
+	}
+
+	new_tuple = heap_modify_tuple(rsec_tuple,
+								  RelationGetDescr(pg_rowsecurity_rel),
+								  values, isnull, replaces);
+	simple_heap_update(pg_rowsecurity_rel, &new_tuple->t_self, new_tuple);
+
+	/* Update Catalog Indexes */
+	CatalogUpdateIndexes(pg_rowsecurity_rel, new_tuple);
+
+	/* Update Dependencies. */
+	deleteDependencyRecordsFor(RowSecurityRelationId, rowsec_id, false);
+
+	/* Record Dependencies */
+	target.classId = RelationRelationId;
+	target.objectId = table_id;
+	target.objectSubId = 0;
+
+	myself.classId = RowSecurityRelationId;
+	myself.objectId = rowsec_id;
+	myself.objectSubId = 0;
+
+
+	recordDependencyOn(&myself, &target, DEPENDENCY_AUTO);
+
+	recordDependencyOnExpr(&myself, qual, qual_parse_rtable, DEPENDENCY_NORMAL);
+
+	recordDependencyOnExpr(&myself, with_check_qual, with_check_parse_rtable,
+						   DEPENDENCY_NORMAL);
+
+	heap_freetuple(new_tuple);
 
 	/* Invalidate Relation Cache */
 	CacheInvalidateRelcache(target_table);
@@ -821,6 +826,7 @@ rename_policy(RenameStmt *stmt)
 	pg_rowsecurity_rel = heap_open(RowSecurityRelationId, RowExclusiveLock);
 
 	/* First pass- check for conflict */
+
 	/* Add key - row security policy name. */
 	ScanKeyInit(&skeys[0],
 				Anum_pg_rowsecurity_rsecpolname,
@@ -833,14 +839,16 @@ rename_policy(RenameStmt *stmt)
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(table_id));
 
-	sscan = systable_beginscan(pg_rowsecurity_rel, RowSecurityPolnameRelidIndexId,
-							   true, NULL, 2, skeys);
+	sscan = systable_beginscan(pg_rowsecurity_rel,
+							   RowSecurityPolnameRelidIndexId, true, NULL, 2,
+							   skeys);
 
 	if (HeapTupleIsValid(rsec_tuple = systable_getnext(sscan)))
 		ereport(ERROR,
 				(errcode(ERRCODE_DUPLICATE_OBJECT),
 				 errmsg("row-policy \"%s\" for table \"%s\" already exists",
 						stmt->newname, RelationGetRelationName(target_table))));
+
 	systable_endscan(sscan);
 
 	/* Second pass -- find existing policy and update */
@@ -856,8 +864,9 @@ rename_policy(RenameStmt *stmt)
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(table_id));
 
-	sscan = systable_beginscan(pg_rowsecurity_rel, RowSecurityPolnameRelidIndexId,
-							   true, NULL, 2, skeys);
+	sscan = systable_beginscan(pg_rowsecurity_rel,
+							   RowSecurityPolnameRelidIndexId, true, NULL, 2,
+							   skeys);
 
 	if (HeapTupleIsValid(rsec_tuple = systable_getnext(sscan)))
 	{
@@ -935,8 +944,9 @@ DropPolicy(DropPolicyStmt *stmt)
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(table_id));
 
-	sscan = systable_beginscan(pg_rowsecurity_rel, RowSecurityPolnameRelidIndexId,
-							   true, NULL, 2, skeys);
+	sscan = systable_beginscan(pg_rowsecurity_rel,
+							   RowSecurityPolnameRelidIndexId, true, NULL, 2,
+							   skeys);
 
 	rsec_tuple = systable_getnext(sscan);
 
@@ -958,20 +968,16 @@ DropPolicy(DropPolicyStmt *stmt)
 	else
 	{
 		if (!stmt->missing_ok)
-		{
 			ereport(ERROR,
 					(errcode(ERRCODE_UNDEFINED_OBJECT),
 					 errmsg("row-security policy \"%s\" does not exist on table"
 							" \"%s\"",
 							stmt->policy_name, stmt->table->relname)));
-		}
 		else
-		{
 			ereport(NOTICE,
 					(errmsg("row-security policy \"%s\" does not exist on table"
 							" \"%s\", skipping",
 						   stmt->policy_name, stmt->table->relname)));
-		}
 	}
 
 	/* Clean up. */
@@ -1009,8 +1015,9 @@ get_relation_policy_oid(Oid relid, const char *policy_name, bool missing_ok)
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(relid));
 
-	sscan = systable_beginscan(pg_rowsecurity_rel, RowSecurityPolnameRelidIndexId,
-							   true, NULL, 2, skeys);
+	sscan = systable_beginscan(pg_rowsecurity_rel,
+							   RowSecurityPolnameRelidIndexId, true, NULL, 2,
+							   skeys);
 
 	rsec_tuple = systable_getnext(sscan);
 

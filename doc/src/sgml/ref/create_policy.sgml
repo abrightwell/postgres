@@ -24,8 +24,8 @@ PostgreSQL documentation
 CREATE POLICY <replaceable class="parameter">name</replaceable> ON <replaceable class="parameter">table_name</replaceable>
     [ FOR { ALL | SELECT | INSERT | UPDATE | DELETE } ]
     [ TO { <replaceable class="parameter">role_name</replaceable> | PUBLIC } [, ...] ]
-    [ USING ( <replaceable class="parameter">condition</replaceable> ) ]
-    [ WITH CHECK ( <replaceable class="parameter">check_condition</replaceable> ) ]
+    [ USING ( <replaceable class="parameter">expression</replaceable> ) ]
+    [ WITH CHECK ( <replaceable class="parameter">check_expression</replaceable> ) ]
 </synopsis>
  </refsynopsisdiv>
 
@@ -117,8 +117,9 @@ CREATE POLICY <replaceable class="parameter">name</replaceable> ON <replaceable 
     <listitem>
      <para>
       Any <acronym>SQL</acronym> conditional expression (returning
-      <type>boolean</type>).  The condition expression cannot contain
-      any aggregate or window functions.
+      <type>boolean</type>).  The conditional expression cannot contain
+      any aggregate or window functions.  This expression will be added
+      to queries to filter out the records which are visible to the query. 
      </para>
     </listitem>
    </varlistentry>
@@ -129,7 +130,10 @@ CREATE POLICY <replaceable class="parameter">name</replaceable> ON <replaceable 
      <para>
       Any <acronym>SQL</acronym> conditional expression (returning
       <type>boolean</type>).  The condition expression cannot contain
-      any aggregate or window functions.
+      any aggregate or window functions.  This expression will be added
+      to queries which are attempting to add records to the table as
+      with-check options, and an error will be thrown if this condition
+      returns false for any records being added.
      </para>
     </listitem>
    </varlistentry>
@@ -210,13 +214,14 @@ CREATE POLICY <replaceable class="parameter">name</replaceable> ON <replaceable 
          involves pulling an existing record and then making changes to some
          portion (but possibly not all) of the record, the
          <literal>UPDATE</literal> policy accepts both a USING expression and
-         a WITH CHECK expression.  The USING expression will be used to determine
-         which records the <literal>UPDATE</literal> command will see to operate
-         against, while the <literal>WITH CHECK</literal> expression defines what
-         rows are allowed to be added back into the relation (similar to the
-         <literal>INSERT</literal> policy).
-         Any rows whose resulting values do not pass the <literal>WITH CHECK</literal>
-         expression will cause an ERROR and the entire command will be aborted.
+         a WITH CHECK expression.  The USING expression will be used to
+         determine which records the <literal>UPDATE</literal> command will
+         see to operate against, while the <literal>WITH CHECK</literal>
+         expression defines what rows are allowed to be added back into the
+         relation (similar to the <literal>INSERT</literal> policy).
+         Any rows whose resulting values do not pass the
+         <literal>WITH CHECK</literal> expression will cause an ERROR and the
+         entire command will be aborted.
        </para>
       </listitem>
      </varlistentry>
@@ -226,16 +231,16 @@ CREATE POLICY <replaceable class="parameter">name</replaceable> ON <replaceable 
       <listitem>
        <para>
          Using <literal>DELETE</literal> for a policy means that it will apply
-         to <literal>DELETE</literal> commands.  Only rows which pass this policy
-         will be seen by a <literal>DELETE</literal> command.  Rows may be visible
-         through a <literal>SELECT</literal> which are not seen by a
-         <literal>DELETE</literal>, as they do not pass the USING expression for the
-         <literal>DELETE</literal>, and rows which are not visible through the
-         <literal>SELECT</literal> policy may be deleted if they pass the
-         <literal>DELETE</literal> USING policy.
-         The <literal>DELETE</literal> policy only accept the USING expression as it
-         only ever applies in cases where records are being extracted from the
-         relation for deletion.
+         to <literal>DELETE</literal> commands.  Only rows which pass this
+         policy will be seen by a <literal>DELETE</literal> command.  Rows may
+         be visible through a <literal>SELECT</literal> which are not seen by a
+         <literal>DELETE</literal>, as they do not pass the USING expression
+         for the <literal>DELETE</literal>, and rows which are not visible
+         through the <literal>SELECT</literal> policy may be deleted if they
+         pass the <literal>DELETE</literal> USING policy.  The
+         <literal>DELETE</literal> policy only accept the USING expression as
+         it only ever applies in cases where records are being extracted from
+         the relation for deletion.
        </para>
       </listitem>
      </varlistentry>
@@ -251,9 +256,9 @@ CREATE POLICY <replaceable class="parameter">name</replaceable> ON <replaceable 
   </para>
 
   <para>
-   In order to maintain <firstterm>referential integrity</firstterm> between two
-   related tables, row-security policies are not applied when the system performs
-   checks on foreign key constraints.
+   In order to maintain <firstterm>referential integrity</firstterm> between
+   two related tables, row-security policies are not applied when the system
+   performs checks on foreign key constraints.
   </para>
 
  </refsect1>
@@ -262,7 +267,8 @@ CREATE POLICY <replaceable class="parameter">name</replaceable> ON <replaceable 
   <title>Compatibility</title>
 
   <para>
-   <command>CREATE POLICY</command> is a <productname>PostgreSQL</productname> extension.
+   <command>CREATE POLICY</command> is a <productname>PostgreSQL</productname>
+   extension.
   </para>
  </refsect1>
 
