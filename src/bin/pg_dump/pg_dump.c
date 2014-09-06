@@ -2836,39 +2836,20 @@ getRowSecurity(Archive *fout, TableInfo tblinfo[], int numTables)
 		/* Handle case where table has RLS enabled but no policies */
 		if (ntups == 0)
 		{
+			char	namebuf[NAMEDATALEN + 1];
+
 			rsinfo[j].dobj.objType = DO_ROW_SECURITY;
 			rsinfo[j].dobj.catId.tableoid =
 				atooid(PQgetvalue(res, j, i_tableoid));
-			rsinfo[j].dobj.catId.oid = atooid(PQgetvalue(res, j, i_oid));
+			rsinfo[j].dobj.catId.oid = InvalidOid;
 			AssignDumpId(&rsinfo[j].dobj);
-			snprintf(namebuf, sizeof(namebuf), "row-security of %s",
-					 tbinfo->dobj.name);
-			rsinfo[j].dobj.name = namebuf;
 			rsinfo[j].dobj.namespace = tbinfo->dobj.namespace;
 			rsinfo[j].rstable = tbinfo;
-			rsinfo[j].rsecpolname = pg_strdup(PQgetvalue(res, j,
-														 i_rsecpolname));
-			if (PQgetisnull(res, j, i_rseccmd))
-				rsinfo[j].rseccmd = NULL;
-			else
-				rsinfo[j].rseccmd = pg_strdup(PQgetvalue(res, j, i_rseccmd));
-
-			if (PQgetisnull(res, j, i_rsecroles))
-				rsinfo[j].rsecroles = NULL;
-			else
-				rsinfo[j].rsecroles = pg_strdup(PQgetvalue(res, j,
-														   i_rsecroles));
-
-			if (PQgetisnull(res, j, i_rsecqual))
-				rsinfo[j].rsecqual = NULL;
-			else
-				rsinfo[j].rsecqual = pg_strdup(PQgetvalue(res, j, i_rsecqual));
-
-			if (PQgetisnull(res, j, i_rsecwithcheck))
-				rsinfo[j].rsecwithcheck = NULL;
-			else
-				rsinfo[j].rsecwithcheck
-					= pg_strdup(PQgetvalue(res, j, i_rsecwithcheck));
+			rsinfo[j].dobj.name = pg_strdup("default_deny_policy");
+			rsinfo[j].rseccmd = NULL;
+			rsinfo[j].rsecroles = NULL;
+			rsinfo[j].rsecqual = NULL;
+			rsinfo[j].rsecwithcheck = NULL;
 		}
 
 		for (j = 0; j < ntups; j++)
@@ -2880,13 +2861,13 @@ getRowSecurity(Archive *fout, TableInfo tblinfo[], int numTables)
 				atooid(PQgetvalue(res, j, i_tableoid));
 			rsinfo[j].dobj.catId.oid = atooid(PQgetvalue(res, j, i_oid));
 			AssignDumpId(&rsinfo[j].dobj);
-			snprintf(namebuf, sizeof(namebuf), "row-security of %s",
-					 tbinfo->rolname);
-			rsinfo[j].dobj.name = namebuf;
 			rsinfo[j].dobj.namespace = tbinfo->dobj.namespace;
 			rsinfo[j].rstable = tbinfo;
 			rsinfo[j].rsecpolname = pg_strdup(PQgetvalue(res, j,
 														 i_rsecpolname));
+
+			rsinfo[j].dobj.name = pg_strdup(rsinfo[j].rsecpolname);
+
 			if (PQgetisnull(res, j, i_rseccmd))
 				rsinfo[j].rseccmd = NULL;
 			else
@@ -2928,6 +2909,24 @@ dumpRowSecurity(Archive *fout, RowSecurityInfo *rsinfo)
 
 	if (dataOnly || !tbinfo->hasrowsec)
 		return;
+
+	/* Handle tables which just have RLS turned on but no policies */
+	if (rsinfo->dobj.catId.oid == InvalidOid)
+	{
+		appendPQExpBuffer(query, "ALTER TABLE %s ENABLE ROW SECURITY",
+						  fmtId(tbinfo->dobj.name));
+		ArchiveEntry(fout, rsinfo->dobj.catId, rsinfo->dobj.dumpId,
+					 rsinfo->dobj.name,
+					 rsinfo->dobj.namespace->dobj.name,
+					 NULL,
+					 ?? tbinfo->rolname, false,
+					 "ROW SECURITY", SECTION_POST_DATA,
+					 query->data, delqry->data, NULL,
+					 NULL, 0,
+					 NULL, NULL);
+
+	}
+	
 
 	if (!rsinfo->rseccmd)
 		cmd = "ALL";
