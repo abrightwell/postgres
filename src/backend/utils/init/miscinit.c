@@ -416,9 +416,6 @@ InitializeSessionUserId(const char *rolename)
 					AuthenticatedUserIsSuperuser ? "on" : "off",
 					PGC_INTERNAL, PGC_S_OVERRIDE);
 
-	if (AuthenticatedUserIsSuperuser)
-		SetConfigOption("row_security", "off", PGC_INTERNAL, PGC_S_OVERRIDE);
-
 	ReleaseSysCache(roleTup);
 }
 
@@ -475,9 +472,6 @@ SetSessionAuthorization(Oid userid, bool is_superuser)
 	SetConfigOption("is_superuser",
 					is_superuser ? "on" : "off",
 					PGC_INTERNAL, PGC_S_OVERRIDE);
-
-	if (is_superuser)
-		SetConfigOption("row_security", "off", PGC_INTERNAL, PGC_S_OVERRIDE);
 }
 
 /*
@@ -535,8 +529,6 @@ SetCurrentRoleId(Oid roleid, bool is_superuser)
 	SetConfigOption("is_superuser",
 					is_superuser ? "on" : "off",
 					PGC_INTERNAL, PGC_S_OVERRIDE);
-	if (is_superuser)
-		SetConfigOption("row_security", "off", PGC_INTERNAL, PGC_S_OVERRIDE);
 }
 
 

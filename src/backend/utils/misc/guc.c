@@ -3404,6 +3404,7 @@ static struct config_enum ConfigureNamesEnum[] =
 		LOGSTMT_NONE, log_statement_options,
 		NULL, NULL, NULL
 	},
+
 	{
 		{"syslog_facility", PGC_SIGHUP, LOGGING_WHERE,
 			gettext_noop("Sets the syslog \"facility\" to be used when syslog enabled."),
