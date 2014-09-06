@@ -85,6 +85,7 @@ static event_trigger_support_data event_trigger_support[] = {
 	{"OPERATOR", true},
 	{"OPERATOR CLASS", true},
 	{"OPERATOR FAMILY", true},
+	{"POLICY", true},
 	{"ROLE", false},
 	{"RULE", true},
 	{"SCHEMA", true},
