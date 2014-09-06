@@ -377,9 +377,9 @@ RestoreArchive(Archive *AHX)
 	 * Enable row-security if necessary.
 	 */
 	if (!ropt->enable_row_security)
-		ahprintf(AH, "SET row_security = off\n");
+		ahprintf(AH, "SET row_security = off;\n");
 	else
-		ahprintf(AH, "SET row_security = on\n");
+		ahprintf(AH, "SET row_security = on;\n");
 
 	/*
 	 * Establish important parameter values right away.

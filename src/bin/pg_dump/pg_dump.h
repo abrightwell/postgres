@@ -496,6 +496,7 @@ typedef struct _rowSecurityInfo
 	char		   *rseccmd;
 	char		   *rsecroles;
 	char		   *rsecqual;
+	char		   *rsecwithcheck;
 } RowSecurityInfo;
 
 /* global decls */
