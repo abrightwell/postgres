@@ -36,6 +36,23 @@ static void process_policies(List *policies, int rt_index,
 							 Expr **final_qual,
 							 Expr **final_with_check_qual);
 
+/* hook to allow extensions to apply their own security policy */
+row_security_policy_hook_type	row_security_policy_hook = NULL;
+
+/*
+ * RLS could be completely disabled on the tables involved in the query,
+ * which is the simple case, or it may depend on the current environment
+ * (the role which is running the query or the value of the row_security
+ * GUC- on, off, or force), or it might be simply enabled as usual.
+ *
+ * If RLS isn't on the table involved then RLS_NONE is returned to indicate
+ * that we don't need to worry about invalidating the query plan for RLS
+ * reasons.  If RLS is on the table, but we are bypassing it for now, then
+ * we return RLS_ENVIRONMENT to indicate that, if the environment changes,
+ * we need to invalidate and replan.  Finally, if RLS should be turned on
+ * for the query, then we return RLS_ENABLED, which means we also need to
+ * invalidate if the environment changes.
+ */
 enum CheckEnableRlsResult
 {
 	RLS_NONE,
@@ -43,9 +60,17 @@ enum CheckEnableRlsResult
 	RLS_ENABLED
 };
 
-/* hook to allow extensions to apply their own security policy */
-row_security_policy_hook_type	row_security_policy_hook = NULL;
-
+/*
+ * check_enable_rls
+ *
+ * Determine, based on the relation, row_security setting, and current role,
+ * if RLS is applicable to this query.  RLS_ENVIRONMENT indicates that, while
+ * RLS is not to be added for this query, a change in the environment may change
+ * that.  RLS_NONE means that RLS is not on the relation at all and therefore
+ * we don't need to worry about it.  RLS_ENABLED means RLS should be implemented
+ * for the table and the plan cache needs to be invalidated if the environment
+ * changes.
+ */
 static int
 check_enable_rls(Oid relid)
 {
@@ -74,11 +99,13 @@ check_enable_rls(Oid relid)
 	 * is off, then check if the user has rights to bypass RLS for this
 	 * relation.  Table owners can always bypass, as can any role with the
 	 * BYPASSRLS capability.
-	 */
-
-	/*
+	 *
 	 * If the role is the table owner, then we bypass RLS unless row_security
 	 * is set to 'force'.  Note that superuser is always considered an owner.
+	 *
+	 * Return RLS_ENVIRONMENT to indicate that this decision depends on the
+	 * environment (in this case, what the current values of GetUserId() and
+	 * row_security are).
 	 */
 	if (row_security != ROW_SECURITY_FORCE
 		&& (pg_class_ownercheck(relid, GetUserId())))
@@ -100,6 +127,7 @@ check_enable_rls(Oid relid)
 					 errmsg("insufficient privilege to bypass row security.")));
 	}
 
+	/* RLS should be fully enabled for this relation. */
 	return RLS_ENABLED;
 }
 
@@ -143,11 +171,8 @@ process_policies(List *policies, int rt_index, Expr **qual_eval,
 	 * was for INSERT), then create a single all-false one.
 	 */
 	if (quals == NIL)
-	{
 		quals = lcons(makeConst(BOOLOID, -1, InvalidOid, sizeof(bool),
-								BoolGetDatum(false), false, true),
-					  quals);
-	}
+								BoolGetDatum(false), false, true), quals);
 
 	/*
 	 * If we end up with only USING quals, then use those as
@@ -216,152 +241,163 @@ prepend_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index)
 
 	GetUserIdAndSecContext(&userid, &sec_context);
 
-	if (rte->relid >= FirstNormalObjectId
-		&& rte->relkind == RELKIND_RELATION
-		&& !(sec_context & SECURITY_ROW_LEVEL_DISABLED))
+	/*
+	 * If this is not a normal relation, or we have been told
+	 * to explicitly skip RLS (perhaps because this is an FK check)
+	 * then just return immediately.
+	 */
+	if (rte->relid < FirstNormalObjectId
+		|| rte->relkind != RELKIND_RELATION
+		|| (sec_context & SECURITY_ROW_LEVEL_DISABLED))
+		return false;
+
+	/* Check if we are adding RLS */
+	rls_status = check_enable_rls(rte->relid);
+
+	/* If there is no RLS on this table at all, nothing to do */
+	if (rls_status == RLS_NONE)
+		return false;
+
+	/* Check if RLS status depends on the environment (GUCs, role) */
+	if (rls_status == RLS_ENVIRONMENT)
 	{
-		/* Check if we are adding RLS */
-		rls_status = check_enable_rls(rte->relid);
-
-		/* If there is no RLS on this table at all, nothing to do */
-		if (rls_status == RLS_NONE)
-			return false;
-
-		/* Check if RLS status depends on the environment (GUCs, role) */
-		if (rls_status == RLS_ENVIRONMENT)
-		{
-			/*
-			 * Indicate that this query may involve RLS and must therefore
-			 * be replanned if the environment changes (GUCs, role), but we
-			 * are not adding anything here.
-			 */
-			root->hasRowSecurity = true;
-			return false;
-		}
-
 		/*
-		 * Grab the built-in policies to apply.
-		 *
-		 * Fetch any row-security policies and add the quals to the list of
-		 * quals to be expanded by expand_security_quals.  For with-check
-		 * quals, add them to the Query's with-check-options list.
+		 * Indicate that this query may involve RLS and must therefore
+		 * be replanned if the environment changes (GUCs, role), but we
+		 * are not adding anything here.
 		 */
-		rel = heap_open(rte->relid, NoLock);
+		root->hasRowSecurity = true;
 
-		rowsec_policies = pull_row_security_policies(root->commandType, rel);
-
-		/*
-		 * Check if this is only the default-deny policy.
-		 *
-		 * Normally, if the table has row-security enabled but there are
-		 * no policies, we use a default-deny policy and not allow anything.
-		 * However, when an extension uses the hook to add their own
-		 * policies, we don't want to include the default deny policy or
-		 * there won't be any way for a user to use an extension exclusively
-		 * for the policies to be used.
-		 */
-		if (((RowSecurityPolicy *) linitial(rowsec_policies))->rsecid
-				== InvalidOid)
-			defaultDeny = true;
-
-		/* Now that we have our policies, build the expressions from them. */
-		process_policies(rowsec_policies, rt_index, &rowsec_expr,
-						 &rowsec_with_check_expr);
-
-		/*
-		 * Also, allow extension to add their own policies.
-		 *
-		 * Note that, as with the internal policies, if multiple policies are
-		 * returned then they will be combined into a single expression with
-		 * all of them OR'd together.  However, to avoid the situation of an
-		 * extension granting more access to a table than the internal policies
-		 * would allow, the extension's policies are AND'd with the internal
-		 * policies.  In other words- extensions can only provide further
-		 * filtering of the result set (or allowed records to be added).
-		 *
-		 * If only a USING policy is returned by the extension then it will be
-		 * used for WITH CHECK as well, similar to how internal policies are
-		 * handled.
-		 *
-		 * The only caveat to this is that if there are NO internal policies
-		 * defined but RLS is enabled on the table, then we will drop the
-		 * default-deny policy, if there are policies returned by the extension.
-		 */
-		if (row_security_policy_hook)
-		{
-			hook_policies = (*row_security_policy_hook)(root->commandType, rel);
-			process_policies(hook_policies, rt_index, &hook_expr,
-							 &hook_with_check_expr);
-		}
-
-		/*
-		 * If the only built-in policy is the default-deny one, and hook
-		 * policies exist, then use the hook policies only and do not apply
-		 * the default-deny policy.  Otherwise, apply both sets.
-		 */
-		if (defaultDeny && hook_policies != NIL)
-			rowsec_expr = NULL;
-
-		/*
-		 * For INSERT or UPDATE, we need to add the WITH CHECK quals to
-		 * Query's withCheckOptions to verify the any new records pass the
-		 * WITH CHECK policy (this will be a copy of the USING policy, if no
-		 * explicit WITH CHECK policy exists).
-		 */
-		if (root->commandType == CMD_INSERT || root->commandType == CMD_UPDATE)
-		{
-			/*
-			 * WITH CHECK OPTIONS wants a node for each Expr, so create one as
-			 * necessary.
-			 */
-			if (rowsec_with_check_expr)
-			{
-				WithCheckOption	   *wco;
-
-				wco = (WithCheckOption *) makeNode(WithCheckOption);
-				wco->viewname = RelationGetRelationName(rel);
-				wco->qual = (Node *) rowsec_with_check_expr;
-				wco->cascaded = false;
-				root->withCheckOptions = lcons(wco, root->withCheckOptions);
-			}
-
-			/*
-			 * Ditto for the expression, if any, returned from the extension.
-			 */
-			if (hook_with_check_expr)
-			{
-				WithCheckOption	   *wco;
-
-				wco = (WithCheckOption *) makeNode(WithCheckOption);
-				wco->viewname = RelationGetRelationName(rel);
-				wco->qual = (Node *) hook_with_check_expr;
-				wco->cascaded = false;
-				root->withCheckOptions = lcons(wco, root->withCheckOptions);
-			}
-		}
-
-		/* For SELECT, UPDATE, and DELETE, set the security quals */
-		if (root->commandType == CMD_SELECT
-			|| root->commandType == CMD_UPDATE
-			|| root->commandType == CMD_DELETE)
-		{
-			if (rowsec_expr)
-				rte->securityQuals = lcons(rowsec_expr, rte->securityQuals);
-
-			if (hook_expr)
-				rte->securityQuals = lcons(hook_expr,
-										   rte->securityQuals);
-		}
-
-		heap_close(rel, NoLock);
+		return false;
 	}
 
 	/*
-	 * Mark this query as having row security, so plancache can invalidate it
-	 * when necessary (eg: role changes)
+	 * Grab the built-in policies to apply.
+	 *
+	 * Fetch any row-security policies and add the quals to the list of
+	 * quals to be expanded by expand_security_quals.  For with-check
+	 * quals, add them to the Query's with-check-options list.
+	 */
+	rel = heap_open(rte->relid, NoLock);
+
+	rowsec_policies = pull_row_security_policies(root->commandType, rel);
+
+	/*
+	 * Check if this is only the default-deny policy.
+	 *
+	 * Normally, if the table has row-security enabled but there are
+	 * no policies, we use a default-deny policy and not allow anything.
+	 * However, when an extension uses the hook to add their own
+	 * policies, we don't want to include the default deny policy or
+	 * there won't be any way for a user to use an extension exclusively
+	 * for the policies to be used.
+	 */
+	if (((RowSecurityPolicy *) linitial(rowsec_policies))->rsecid
+			== InvalidOid)
+		defaultDeny = true;
+
+	/* Now that we have our policies, build the expressions from them. */
+	process_policies(rowsec_policies, rt_index, &rowsec_expr,
+					 &rowsec_with_check_expr);
+
+	/*
+	 * Also, allow extensions to add their own policies.
+	 *
+	 * Note that, as with the internal policies, if multiple policies are
+	 * returned then they will be combined into a single expression with
+	 * all of them OR'd together.  However, to avoid the situation of an
+	 * extension granting more access to a table than the internal policies
+	 * would allow, the extension's policies are AND'd with the internal
+	 * policies.  In other words- extensions can only provide further
+	 * filtering of the result set (or further reduce the set of records
+	 * allowed to be added).
+	 *
+	 * If only a USING policy is returned by the extension then it will be
+	 * used for WITH CHECK as well, similar to how internal policies are
+	 * handled.
+	 *
+	 * The only caveat to this is that if there are NO internal policies
+	 * defined, there ARE policies returned by the extension, and RLS is
+	 * enabled on the table, then we will ignore the internally-generated
+	 * default-deny policy and use only the policies returned by the
+	 * extension.
+	 */
+	if (row_security_policy_hook)
+	{
+		hook_policies = (*row_security_policy_hook)(root->commandType, rel);
+		process_policies(hook_policies, rt_index, &hook_expr,
+						 &hook_with_check_expr);
+	}
+
+	/*
+	 * If the only built-in policy is the default-deny one, and hook
+	 * policies exist, then use the hook policies only and do not apply
+	 * the default-deny policy.  Otherwise, apply both sets (AND'd
+	 * together).
+	 */
+	if (defaultDeny && hook_policies != NIL)
+		rowsec_expr = NULL;
+
+	/*
+	 * For INSERT or UPDATE, we need to add the WITH CHECK quals to
+	 * Query's withCheckOptions to verify that any new records pass the
+	 * WITH CHECK policy (this will be a copy of the USING policy, if no
+	 * explicit WITH CHECK policy exists).
+	 */
+	if (root->commandType == CMD_INSERT || root->commandType == CMD_UPDATE)
+	{
+		/*
+		 * WITH CHECK OPTIONS wants a WCO node which wraps each Expr, so
+		 * create them as necessary.
+		 */
+		if (rowsec_with_check_expr)
+		{
+			WithCheckOption	   *wco;
+
+			wco = (WithCheckOption *) makeNode(WithCheckOption);
+			wco->viewname = RelationGetRelationName(rel);
+			wco->qual = (Node *) rowsec_with_check_expr;
+			wco->cascaded = false;
+			root->withCheckOptions = lcons(wco, root->withCheckOptions);
+		}
+
+		/*
+		 * Ditto for the expression, if any, returned from the extension.
+		 */
+		if (hook_with_check_expr)
+		{
+			WithCheckOption	   *wco;
+
+			wco = (WithCheckOption *) makeNode(WithCheckOption);
+			wco->viewname = RelationGetRelationName(rel);
+			wco->qual = (Node *) hook_with_check_expr;
+			wco->cascaded = false;
+			root->withCheckOptions = lcons(wco, root->withCheckOptions);
+		}
+	}
+
+	/* For SELECT, UPDATE, and DELETE, set the security quals */
+	if (root->commandType == CMD_SELECT
+		|| root->commandType == CMD_UPDATE
+		|| root->commandType == CMD_DELETE)
+	{
+		if (rowsec_expr)
+			rte->securityQuals = lcons(rowsec_expr, rte->securityQuals);
+
+		if (hook_expr)
+			rte->securityQuals = lcons(hook_expr,
+									   rte->securityQuals);
+	}
+
+	heap_close(rel, NoLock);
+
+	/*
+	 * Mark this query as having row security, so plancache can invalidate
+	 * it when necessary (eg: role changes)
 	 */
 	root->hasRowSecurity = true;
 
+	/* If we got this far, we must have added quals */
 	return true;
 }
 
