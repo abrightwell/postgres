@@ -31,9 +31,94 @@
 
 static bool check_role_for_policy(RowSecurityPolicy *policy);
 static List *pull_row_security_policies(CmdType cmd, Relation relation);
+static void process_policies(List *policies, Relation rel, Query *root,
+							 RangeTblEntry* rte, int rt_index);
 
 /* hook to allow extensions to apply their own security policy */
 row_security_policy_hook_type	row_security_policy_hook = NULL;
+
+static void
+process_policies(List *policies, Relation rel, Query *root, RangeTblEntry* rte,
+				 int rt_index)
+{
+	List			   *sec_quals = NIL;
+	List			   *with_check_quals = NIL;
+	WithCheckOption	   *wco;
+	ListCell		   *item;
+
+	/*
+	 * Extract the USING and WITH CHECK quals from each of the policies
+	 * and add them to our lists.
+	 */
+	foreach(item, policies)
+	{
+		RowSecurityPolicy *policy = (RowSecurityPolicy *) lfirst(item);
+
+		if (policy->qual != NULL)
+			sec_quals = lcons(copyObject(policy->qual), sec_quals);
+
+		if (policy->with_check_qual != NULL)
+			with_check_quals =
+				lcons(copyObject(policy->with_check_qual),
+									 with_check_quals);
+	}
+
+	/*
+	 * If we end up with only sec_quals, then use those for
+	 * with_check_quals also.
+	 */
+	if (with_check_quals == NIL)
+		with_check_quals = sec_quals;
+
+	/*
+	 * Row security quals always have the target table as varno 1, as no
+	 * joins are permitted in row security expressions. We must walk the
+	 * expression, updating any references to varno 1 to the varno
+	 * the table has in the outer query.
+	 *
+	 * We rewrite the expression in-place.
+	 */
+	ChangeVarNodes((Node *) sec_quals, 1, rt_index, 0);
+	ChangeVarNodes((Node *) with_check_quals, 1, rt_index, 0);
+
+	/*
+	 * If more than one security qual is returned, then they need to be
+	 * OR'ed together.
+	 */
+	if (list_length(sec_quals) > 1)
+		sec_quals = list_make1(makeBoolExpr(OR_EXPR, sec_quals, -1));
+
+	/*
+	 * If more than one WITH CHECK qual is returned, then they need to
+	 * be OR'ed together.
+	 */
+	if (list_length(with_check_quals) > 1)
+		with_check_quals =
+			list_make1(makeBoolExpr(OR_EXPR, with_check_quals, -1));
+
+	/*
+	 * For INSERT or UPDATE, we need to add the WITH CHECK quals to
+	 * Query's withCheckOptions to verify the any new records pass the
+	 * WITH CHECK policy (or USING policy, if no WITH CHECK policy
+	 * exists).
+	 */
+	if ((root->commandType == CMD_INSERT
+		|| root->commandType == CMD_UPDATE)
+		&& with_check_quals != NIL)
+	{
+		wco = (WithCheckOption *) makeNode(WithCheckOption);
+		wco->viewname = RelationGetRelationName(rel);
+		wco->qual = (Node *) lfirst(list_head(with_check_quals));
+		wco->cascaded = false;
+		root->withCheckOptions = lcons(wco, root->withCheckOptions);
+	}
+
+	/* For SELECT, UPDATE, and DELETE, set the security quals */
+	if (sec_quals != NIL && (root->commandType == CMD_SELECT
+							 || root->commandType == CMD_UPDATE
+							 || root->commandType == CMD_DELETE))
+		rte->securityQuals = list_concat(sec_quals, rte->securityQuals);
+}
 
 /*
  * Check the given RTE to see whether it's already had row-security quals
@@ -47,8 +132,9 @@ row_security_policy_hook_type	row_security_policy_hook = NULL;
 bool
 prepend_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index)
 {
-	List			   *rowsec_policies;
-	WithCheckOption	   *wco;
+	List			   *rowsec_policies = NIL;
+	List			   *hook_policies = NIL;
+	RowSecurityPolicy *policy;
 	Relation 			rel;
 	Oid					userid;
 	int					sec_context;
@@ -67,87 +153,36 @@ prepend_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index)
 		 */
 		rel = heap_open(rte->relid, NoLock);
 
+		/*
+		 * Also, allow extension to add their own policies.  Need to process
+		 * these policies first in case a default-deny exists for the builtin
+		 * policies.
+		 */
+		if (row_security_policy_hook)
+		{
+			hook_policies = (*row_security_policy_hook)(root->commandType, rel);
+			process_policies(hook_policies, rel, root, rte, rt_index);
+			qualsAdded = true;
+		}
+
 		rowsec_policies = pull_row_security_policies(root->commandType, rel);
 
 		if (rowsec_policies)
 		{
-			List	   *sec_quals = NIL;
-			List	   *with_check_quals = NIL;
-			ListCell   *item;
+			/* Need first policy to check for default-deny. */
+			policy = (RowSecurityPolicy *) lfirst(list_head(rowsec_policies));
 
 			/*
-			 * Extract the USING and WITH CHECK quals from each of the policies
-			 * and add them to our lists.
+			 * If policy is default-deny and hook policies exist, then use the
+			 * hook policies and do not apply the default-deny policy. Otherwise,
+			 * apply the builtin policies.
 			 */
-			foreach(item, rowsec_policies)
+			if (!hook_policies
+				|| (hook_policies && policy->rsecid != InvalidOid))
 			{
-				RowSecurityPolicy *policy = (RowSecurityPolicy *) lfirst(item);
-
-				if (policy->qual != NULL)
-					sec_quals = lcons(copyObject(policy->qual), sec_quals);
-
-				if (policy->with_check_qual != NULL)
-					with_check_quals =
-						lcons(copyObject(policy->with_check_qual),
-											 with_check_quals);
+				process_policies(rowsec_policies, rel, root, rte, rt_index);
+				qualsAdded = true;
 			}
-
-			/*
-			 * If we end up with only sec_quals, then use those for
-			 * with_check_quals also.
-			 */
-			if (with_check_quals == NIL)
-				with_check_quals = sec_quals;
-
-			/*
-			 * Row security quals always have the target table as varno 1, as no
-			 * joins are permitted in row security expressions. We must walk the
-			 * expression, updating any references to varno 1 to the varno
-			 * the table has in the outer query.
-			 *
-			 * We rewrite the expression in-place.
-			 */
-			qualsAdded = true;
-			ChangeVarNodes((Node *) sec_quals, 1, rt_index, 0);
-			ChangeVarNodes((Node *) with_check_quals, 1, rt_index, 0);
-
-			/*
-			 * If more than one security qual is returned, then they need to be
-			 * OR'ed together.
-			 */
-			if (list_length(sec_quals) > 1)
-				sec_quals = list_make1(makeBoolExpr(OR_EXPR, sec_quals, -1));
-
-			/*
-			 * If more than one WITH CHECK qual is returned, then they need to
-			 * be OR'ed together.
-			 */
-			if (list_length(with_check_quals) > 1)
-				with_check_quals =
-					list_make1(makeBoolExpr(OR_EXPR, with_check_quals, -1));
-
-			/*
-			 * For INSERT or UPDATE, we need to add the WITH CHECK quals to
-			 * Query's withCheckOptions to verify the any new records pass the
-			 * WITH CHECK policy (or USING policy, if no WITH CHECK policy
-			 * exists).
-			 */
-			if ((root->commandType == CMD_INSERT
-				|| root->commandType == CMD_UPDATE)
-				&& with_check_quals != NIL)
-			{
-				wco = (WithCheckOption *) makeNode(WithCheckOption);
-				wco->viewname = RelationGetRelationName(rel);
-				wco->qual = (Node *) lfirst(list_head(with_check_quals));
-				wco->cascaded = false;
-				root->withCheckOptions = lcons(wco, root->withCheckOptions);
-			}
-
-			/* For SELECT, UPDATE, and DELETE, set the security quals */
-			if (sec_quals != NIL && (root->commandType == CMD_SELECT
-									 || root->commandType == CMD_UPDATE
-									 || root->commandType == CMD_DELETE))
-				rte->securityQuals = list_concat(sec_quals, rte->securityQuals);
 		}
 
 		heap_close(rel, NoLock);
