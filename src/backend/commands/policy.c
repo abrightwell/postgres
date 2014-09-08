@@ -329,7 +329,7 @@ RelationBuildRowSecurity(Relation relation)
 			policy = palloc0(sizeof(RowSecurityPolicy));
 			policy->policy_name = pstrdup("default-deny policy");
 			policy->rsecid = InvalidOid;
-			policy->cmd = 0;
+			policy->cmd = '\0';
 			policy->roles = construct_array(&role, 1, OIDOID, sizeof(Oid), true,
 											'i');;
 			policy->qual = (Expr *) makeConst(BOOLOID, -1, InvalidOid,
