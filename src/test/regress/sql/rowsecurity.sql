@@ -535,6 +535,94 @@ SET ROLE rls_regress_user2;
 EXPLAIN (COSTS OFF) EXECUTE role_inval;
 
 --
+-- CTE and RLS
+--
+RESET SESSION AUTHORIZATION;
+DROP TABLE t1 CASCADE;
+CREATE TABLE t1 (a integer, b text);
+CREATE POLICY p1 ON t1 USING (a % 2 = 0);
+
+GRANT ALL ON t1 TO rls_regress_user1;
+
+INSERT INTO t1 (SELECT x, md5(x::text) FROM generate_series(0,20) x);
+
+SET SESSION AUTHORIZATION rls_regress_user1;
+
+WITH cte1 AS (SELECT * FROM t1 WHERE f_leak(b)) SELECT * FROM cte1;
+EXPLAIN (COSTS OFF) WITH cte1 AS (SELECT * FROM t1 WHERE f_leak(b)) SELECT * FROM cte1;
+
+WITH cte1 AS (UPDATE t1 SET a = a + 1 RETURNING *) SELECT * FROM cte1; --fail
+WITH cte1 AS (UPDATE t1 SET a = a RETURNING *) SELECT * FROM cte1; --ok
+
+WITH cte1 AS (INSERT INTO t1 VALUES (21, 'Fail') RETURNING *) SELECT * FROM cte1; --fail
+WITH cte1 AS (INSERT INTO t1 VALUES (20, 'Success') RETURNING *) SELECT * FROM cte1; --ok
+
+--
+-- Rename Policy
+--
+RESET SESSION AUTHORIZATION;
+ALTER POLICY p1 ON t1 RENAME TO p1; --fail
+
+SELECT rsecpolname, relname 
+    FROM pg_rowsecurity rs
+    JOIN pg_class pc ON (pc.oid = rs.rsecrelid)
+    WHERE relname = 't1';
+
+ALTER POLICY p1 ON t1 RENAME TO p2; --ok
+
+SELECT rsecpolname, relname 
+    FROM pg_rowsecurity rs
+    JOIN pg_class pc ON (pc.oid = rs.rsecrelid)
+    WHERE relname = 't1';
+
+--
+-- Check INSERT SELECT
+--
+SET SESSION AUTHORIZATION rls_regress_user1;
+CREATE TABLE t2 (a integer, b text);
+INSERT INTO t2 (SELECT * FROM t1);
+EXPLAIN (COSTS OFF) INSERT INTO t2 (SELECT * FROM t1);
+SELECT * FROM t2;
+EXPLAIN (COSTS OFF) SELECT * FROM t2;
+
+--
+-- Default Deny Policy
+--
+RESET SESSION AUTHORIZATION;
+DROP POLICY p2 ON t1;
+ALTER TABLE t1 OWNER TO rls_regress_user0;
+
+-- Check that default deny does not apply to superuser.
+RESET SESSION AUTHORIZATION;
+SELECT * FROM t1;
+EXPLAIN (COSTS OFF) SELECT * FROM t1;
+
+-- Check that default deny does not apply to table owner.
+SET SESSION AUTHORIZATION rls_regress_user0;
+SELECT * FROM t1;
+EXPLAIN (COSTS OFF) SELECT * FROM t1;
+
+-- Check that default deny does apply to superuser when RLS force.
+SET row_security TO FORCE;
+RESET SESSION AUTHORIZATION;
+SELECT * FROM t1;
+EXPLAIN (COSTS OFF) SELECT * FROM t1;
+
+-- Check that default deny does apply to table owner when RLS force.
+SET SESSION AUTHORIZATION rls_regress_user0;
+SELECT * FROM t1;
+EXPLAIN (COSTS OFF) SELECT * FROM t1;
+
+-- Check that default deny applies to non-owner/non-superuser when RLS on.
+SET SESSION AUTHORIZATION rls_regress_user1;
+SET row_security TO ON;
+SELECT * FROM t1;
+EXPLAIN (COSTS OFF) SELECT * FROM t1;
+SET SESSION AUTHORIZATION rls_regress_user1;
+SELECT * FROM t1;
+EXPLAIN (COSTS OFF) SELECT * FROM t1;
+
+--
 -- Clean up objects
 --
 RESET SESSION AUTHORIZATION;

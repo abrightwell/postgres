@@ -1437,11 +1437,282 @@ EXPLAIN (COSTS OFF) EXECUTE role_inval;
 (2 rows)
 
 --
+-- CTE and RLS
+--
+RESET SESSION AUTHORIZATION;
+DROP TABLE t1 CASCADE;
+CREATE TABLE t1 (a integer, b text);
+CREATE POLICY p1 ON t1 USING (a % 2 = 0);
+GRANT ALL ON t1 TO rls_regress_user1;
+INSERT INTO t1 (SELECT x, md5(x::text) FROM generate_series(0,20) x);
+SET SESSION AUTHORIZATION rls_regress_user1;
+WITH cte1 AS (SELECT * FROM t1 WHERE f_leak(b)) SELECT * FROM cte1;
+NOTICE:  f_leak => cfcd208495d565ef66e7dff9f98764da
+NOTICE:  f_leak => c81e728d9d4c2f636f067f89cc14862c
+NOTICE:  f_leak => a87ff679a2f3e71d9181a67b7542122c
+NOTICE:  f_leak => 1679091c5a880faf6fb5e6087eb1b2dc
+NOTICE:  f_leak => c9f0f895fb98ab9159f51fd0297e236d
+NOTICE:  f_leak => d3d9446802a44259755d38e6d163e820
+NOTICE:  f_leak => c20ad4d76fe97759aa27a0c99bff6710
+NOTICE:  f_leak => aab3238922bcc25a6f606eb525ffdc56
+NOTICE:  f_leak => c74d97b01eae257e44aa9d5bade97baf
+NOTICE:  f_leak => 6f4922f45568161a8cdf4ad2299f6d23
+NOTICE:  f_leak => 98f13708210194c475687be6106a3b84
+ a  |                b                 
+----+----------------------------------
+  0 | cfcd208495d565ef66e7dff9f98764da
+  2 | c81e728d9d4c2f636f067f89cc14862c
+  4 | a87ff679a2f3e71d9181a67b7542122c
+  6 | 1679091c5a880faf6fb5e6087eb1b2dc
+  8 | c9f0f895fb98ab9159f51fd0297e236d
+ 10 | d3d9446802a44259755d38e6d163e820
+ 12 | c20ad4d76fe97759aa27a0c99bff6710
+ 14 | aab3238922bcc25a6f606eb525ffdc56
+ 16 | c74d97b01eae257e44aa9d5bade97baf
+ 18 | 6f4922f45568161a8cdf4ad2299f6d23
+ 20 | 98f13708210194c475687be6106a3b84
+(11 rows)
+
+EXPLAIN (COSTS OFF) WITH cte1 AS (SELECT * FROM t1 WHERE f_leak(b)) SELECT * FROM cte1;
+              QUERY PLAN               
+---------------------------------------
+ CTE Scan on cte1
+   CTE cte1
+     ->  Subquery Scan on t1
+           Filter: f_leak(t1.b)
+           ->  Seq Scan on t1 t1_1
+                 Filter: ((a % 2) = 0)
+(6 rows)
+
+WITH cte1 AS (UPDATE t1 SET a = a + 1 RETURNING *) SELECT * FROM cte1; --fail
+ERROR:  new row violates WITH CHECK OPTION for "t1"
+DETAIL:  Failing row contains (1, cfcd208495d565ef66e7dff9f98764da).
+WITH cte1 AS (UPDATE t1 SET a = a RETURNING *) SELECT * FROM cte1; --ok
+ a  |                b                 
+----+----------------------------------
+  0 | cfcd208495d565ef66e7dff9f98764da
+  2 | c81e728d9d4c2f636f067f89cc14862c
+  4 | a87ff679a2f3e71d9181a67b7542122c
+  6 | 1679091c5a880faf6fb5e6087eb1b2dc
+  8 | c9f0f895fb98ab9159f51fd0297e236d
+ 10 | d3d9446802a44259755d38e6d163e820
+ 12 | c20ad4d76fe97759aa27a0c99bff6710
+ 14 | aab3238922bcc25a6f606eb525ffdc56
+ 16 | c74d97b01eae257e44aa9d5bade97baf
+ 18 | 6f4922f45568161a8cdf4ad2299f6d23
+ 20 | 98f13708210194c475687be6106a3b84
+(11 rows)
+
+WITH cte1 AS (INSERT INTO t1 VALUES (21, 'Fail') RETURNING *) SELECT * FROM cte1; --fail
+ERROR:  new row violates WITH CHECK OPTION for "t1"
+DETAIL:  Failing row contains (21, Fail).
+WITH cte1 AS (INSERT INTO t1 VALUES (20, 'Success') RETURNING *) SELECT * FROM cte1; --ok
+ a  |    b    
+----+---------
+ 20 | Success
+(1 row)
+
+--
+-- Rename Policy
+--
+RESET SESSION AUTHORIZATION;
+ALTER POLICY p1 ON t1 RENAME TO p1; --fail
+ERROR:  row-policy "p1" for table "t1" already exists
+SELECT rsecpolname, relname 
+    FROM pg_rowsecurity rs
+    JOIN pg_class pc ON (pc.oid = rs.rsecrelid)
+    WHERE relname = 't1';
+ rsecpolname | relname 
+-------------+---------
+ p1          | t1
+(1 row)
+
+ALTER POLICY p1 ON t1 RENAME TO p2; --ok
+SELECT rsecpolname, relname 
+    FROM pg_rowsecurity rs
+    JOIN pg_class pc ON (pc.oid = rs.rsecrelid)
+    WHERE relname = 't1';
+ rsecpolname | relname 
+-------------+---------
+ p2          | t1
+(1 row)
+
+--
+-- Check INSERT SELECT
+--
+SET SESSION AUTHORIZATION rls_regress_user1;
+CREATE TABLE t2 (a integer, b text);
+INSERT INTO t2 (SELECT * FROM t1);
+EXPLAIN (COSTS OFF) INSERT INTO t2 (SELECT * FROM t1);
+          QUERY PLAN           
+-------------------------------
+ Insert on t2
+   ->  Seq Scan on t1
+         Filter: ((a % 2) = 0)
+(3 rows)
+
+SELECT * FROM t2;
+ a  |                b                 
+----+----------------------------------
+  0 | cfcd208495d565ef66e7dff9f98764da
+  2 | c81e728d9d4c2f636f067f89cc14862c
+  4 | a87ff679a2f3e71d9181a67b7542122c
+  6 | 1679091c5a880faf6fb5e6087eb1b2dc
+  8 | c9f0f895fb98ab9159f51fd0297e236d
+ 10 | d3d9446802a44259755d38e6d163e820
+ 12 | c20ad4d76fe97759aa27a0c99bff6710
+ 14 | aab3238922bcc25a6f606eb525ffdc56
+ 16 | c74d97b01eae257e44aa9d5bade97baf
+ 18 | 6f4922f45568161a8cdf4ad2299f6d23
+ 20 | 98f13708210194c475687be6106a3b84
+ 20 | Success
+(12 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM t2;
+   QUERY PLAN   
+----------------
+ Seq Scan on t2
+(1 row)
+
+--
+-- Default Deny Policy
+--
+RESET SESSION AUTHORIZATION;
+DROP POLICY p2 ON t1;
+ALTER TABLE t1 OWNER TO rls_regress_user0;
+-- Check that default deny does not apply to superuser.
+RESET SESSION AUTHORIZATION;
+SELECT * FROM t1;
+ a  |                b                 
+----+----------------------------------
+  1 | c4ca4238a0b923820dcc509a6f75849b
+  3 | eccbc87e4b5ce2fe28308fd9f2a7baf3
+  5 | e4da3b7fbbce2345d7772b0674a318d5
+  7 | 8f14e45fceea167a5a36dedd4bea2543
+  9 | 45c48cce2e2d7fbdea1afc51c7c6ad26
+ 11 | 6512bd43d9caa6e02c990b0a82652dca
+ 13 | c51ce410c124a10e0db5e4b97fc2af39
+ 15 | 9bf31c7ff062936a96d3c8bd1f8f2ff3
+ 17 | 70efdf2ec9b086079795c442636b55fb
+ 19 | 1f0e3dad99908345f7439f8ffabdffc4
+  0 | cfcd208495d565ef66e7dff9f98764da
+  2 | c81e728d9d4c2f636f067f89cc14862c
+  4 | a87ff679a2f3e71d9181a67b7542122c
+  6 | 1679091c5a880faf6fb5e6087eb1b2dc
+  8 | c9f0f895fb98ab9159f51fd0297e236d
+ 10 | d3d9446802a44259755d38e6d163e820
+ 12 | c20ad4d76fe97759aa27a0c99bff6710
+ 14 | aab3238922bcc25a6f606eb525ffdc56
+ 16 | c74d97b01eae257e44aa9d5bade97baf
+ 18 | 6f4922f45568161a8cdf4ad2299f6d23
+ 20 | 98f13708210194c475687be6106a3b84
+ 20 | Success
+(22 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM t1;
+   QUERY PLAN   
+----------------
+ Seq Scan on t1
+(1 row)
+
+-- Check that default deny does not apply to table owner.
+SET SESSION AUTHORIZATION rls_regress_user0;
+SELECT * FROM t1;
+ a  |                b                 
+----+----------------------------------
+  1 | c4ca4238a0b923820dcc509a6f75849b
+  3 | eccbc87e4b5ce2fe28308fd9f2a7baf3
+  5 | e4da3b7fbbce2345d7772b0674a318d5
+  7 | 8f14e45fceea167a5a36dedd4bea2543
+  9 | 45c48cce2e2d7fbdea1afc51c7c6ad26
+ 11 | 6512bd43d9caa6e02c990b0a82652dca
+ 13 | c51ce410c124a10e0db5e4b97fc2af39
+ 15 | 9bf31c7ff062936a96d3c8bd1f8f2ff3
+ 17 | 70efdf2ec9b086079795c442636b55fb
+ 19 | 1f0e3dad99908345f7439f8ffabdffc4
+  0 | cfcd208495d565ef66e7dff9f98764da
+  2 | c81e728d9d4c2f636f067f89cc14862c
+  4 | a87ff679a2f3e71d9181a67b7542122c
+  6 | 1679091c5a880faf6fb5e6087eb1b2dc
+  8 | c9f0f895fb98ab9159f51fd0297e236d
+ 10 | d3d9446802a44259755d38e6d163e820
+ 12 | c20ad4d76fe97759aa27a0c99bff6710
+ 14 | aab3238922bcc25a6f606eb525ffdc56
+ 16 | c74d97b01eae257e44aa9d5bade97baf
+ 18 | 6f4922f45568161a8cdf4ad2299f6d23
+ 20 | 98f13708210194c475687be6106a3b84
+ 20 | Success
+(22 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM t1;
+   QUERY PLAN   
+----------------
+ Seq Scan on t1
+(1 row)
+
+-- Check that default deny does apply to superuser when RLS force.
+SET row_security TO FORCE;
+RESET SESSION AUTHORIZATION;
+SELECT * FROM t1;
+ a | b 
+---+---
+(0 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM t1;
+        QUERY PLAN        
+--------------------------
+ Result
+   One-Time Filter: false
+(2 rows)
+
+-- Check that default deny does apply to table owner when RLS force.
+SET SESSION AUTHORIZATION rls_regress_user0;
+SELECT * FROM t1;
+ a | b 
+---+---
+(0 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM t1;
+        QUERY PLAN        
+--------------------------
+ Result
+   One-Time Filter: false
+(2 rows)
+
+-- Check that default deny applies to non-owner/non-superuser when RLS on.
+SET SESSION AUTHORIZATION rls_regress_user1;
+SET row_security TO ON;
+SELECT * FROM t1;
+ a | b 
+---+---
+(0 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM t1;
+        QUERY PLAN        
+--------------------------
+ Result
+   One-Time Filter: false
+(2 rows)
+
+SET SESSION AUTHORIZATION rls_regress_user1;
+SELECT * FROM t1;
+ a | b 
+---+---
+(0 rows)
+
+EXPLAIN (COSTS OFF) SELECT * FROM t1;
+        QUERY PLAN        
+--------------------------
+ Result
+   One-Time Filter: false
+(2 rows)
+
+--
 -- Clean up objects
 --
 RESET SESSION AUTHORIZATION;
 DROP SCHEMA rls_regress_schema CASCADE;
-NOTICE:  drop cascades to 18 other objects
+NOTICE:  drop cascades to 19 other objects
 DETAIL:  drop cascades to function f_leak(text)
 drop cascades to table uaccount
 drop cascades to table category
@@ -1460,6 +1731,7 @@ drop cascades to table y1
 drop cascades to table y2
 drop cascades to view rls_sbv
 drop cascades to table t1
+drop cascades to table t2
 DROP USER rls_regress_user0;
 DROP USER rls_regress_user1;
 DROP USER rls_regress_user2;
