@@ -135,7 +135,7 @@ parse_row_security_command(const char *cmd_name)
  *   helper function to convert a list of role names in to an array of
  *   role ids.
  *
- * Note: If PUBLIC is provided as a role name, then ACL_PUBLIC_ID is
+ * Note: If PUBLIC is provided as a role name, then ACL_ID_PUBLIC is
  *       used as the role id.
  *
  * roles - the list of role names to convert.
@@ -320,23 +320,27 @@ RelationBuildRowSecurity(Relation relation)
 		if (rsdesc->policies == NIL)
 		{
 			RowSecurityPolicy  *policy = NULL;
+			Datum				role;
 
 			oldcxt = MemoryContextSwitchTo(rscxt);
+
+			role = ObjectIdGetDatum(ACL_ID_PUBLIC);
 
 			policy = palloc0(sizeof(RowSecurityPolicy));
 			policy->policy_name = pstrdup("default-deny policy");
 			policy->rsecid = InvalidOid;
-			policy->cmd = '\0';
-			policy->roles = NULL;
+			policy->cmd = 0;
+			policy->roles = construct_array(&role, 1, OIDOID, sizeof(Oid), true,
+											'i');;
 			policy->qual = (Expr *) makeConst(BOOLOID, -1, InvalidOid,
 											  sizeof(bool), BoolGetDatum(false),
 											  false, true);
 			policy->with_check_qual = copyObject(policy->qual);
 			policy->hassublinks = false;
 
-			MemoryContextSwitchTo(oldcxt);
-
 			rsdesc->policies = lcons(policy, rsdesc->policies);
+
+			MemoryContextSwitchTo(oldcxt);
 		}
 	}
 	PG_CATCH();
