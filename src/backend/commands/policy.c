@@ -316,7 +316,14 @@ RelationBuildRowSecurity(Relation relation)
 				pfree(with_check_qual);
 		}
 
-		/* Check if no policies were added */
+		/*
+		 * Check if no policies were added
+		 *
+		 * If no policies exist in pg_rowsecurity for this relation, then we
+		 * need to create a single default-deny policy.  We use InvalidOid for
+		 * the Oid to indicate that this is the default-deny policy (we may
+		 * decide to ignore the default policy if an extension adds policies).
+		 */
 		if (rsdesc->policies == NIL)
 		{
 			RowSecurityPolicy  *policy = NULL;

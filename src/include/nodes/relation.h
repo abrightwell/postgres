@@ -102,7 +102,6 @@ typedef struct PlannerGlobal
 
 	bool		has_rls;		/* row-security is applied? */
 
-	Oid			targetRelId;	/* Oid of the target relation */
 } PlannerGlobal;
 
 /* macro for fetching the Plan associated with a SubPlan node */

@@ -851,7 +851,7 @@ DoCopy(const CopyStmt *stmt, const char *queryString, uint64 *processed)
 		 */
 		if (rel->rd_rel->relhasrowsecurity
 			&& row_security == ROW_SECURITY_OFF
-			&& rel->rd_rel->relowner != GetUserId()
+			&& !pg_class_ownercheck(rte->relid, GetUserId())
 			&& !has_bypassrls_privilege(GetUserId()))
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
@@ -859,9 +859,9 @@ DoCopy(const CopyStmt *stmt, const char *queryString, uint64 *processed)
 
 		/*
 		 * If the relation has a row security policy and we are to apply it
-		 * (row_security is 'force', or 'on' but the user is not the owner or a
-		 * superuser), then perform a "query" copy.  This will allow for the
-		 * policies to be applied appropriately to the relation.
+		 * (row_security is 'force', or 'on' but the user is not the owner),
+		 * then perform a "query" copy.  This will allow for the policies to
+		 * be applied appropriately to the relation.
 		 *
 		 * Permission checks are done above, so it's fine that if anything
 		 * in the below conditional results in 'false' that we just go ahead
@@ -872,8 +872,7 @@ DoCopy(const CopyStmt *stmt, const char *queryString, uint64 *processed)
 		if (rel->rd_rel->relhasrowsecurity
 			&& (row_security == ROW_SECURITY_FORCE
 				|| (row_security == ROW_SECURITY_ON
-					&& rel->rd_rel->relowner != GetUserId()
-					&& !superuser())))
+					&& !pg_class_ownercheck(rte->relid, GetUserId()))))
 		{
 			SelectStmt *select;
 			ColumnRef  *cr;

@@ -70,7 +70,6 @@ typedef struct PlannedStmt
 
 	bool		has_rls;		/* row-security applied? */
 
-	Oid			targetRelId;	/* Oid of the target relation */
 } PlannedStmt;
 
 /* macro for fetching the Plan associated with a SubPlan node */

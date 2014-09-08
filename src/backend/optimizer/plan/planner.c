@@ -178,7 +178,6 @@ standard_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 	glob->lastRowMarkId = 0;
 	glob->transientPlan = false;
 	glob->has_rls = false;
-	glob->targetRelId = InvalidOid;
 
 	/* Determine what fraction of the plan is likely to be scanned */
 	if (cursorOptions & CURSOR_OPT_FAST_PLAN)
@@ -257,7 +256,6 @@ standard_planner(Query *parse, int cursorOptions, ParamListInfo boundParams)
 	result->invalItems = glob->invalItems;
 	result->nParamExec = glob->nParamExec;
 	result->has_rls = glob->has_rls;
-	result->targetRelId = glob->targetRelId;
 
 	return result;
 }

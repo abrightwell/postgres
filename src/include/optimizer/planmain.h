@@ -136,7 +136,6 @@ extern void record_plan_function_dependency(PlannerInfo *root, Oid funcid);
 extern void extract_query_dependencies(Node *query,
 						   List **relationOids,
 						   List **invalItems,
-						   bool *hasRowSecurity,
-						   Oid  *targetRelId);
+						   bool *hasRowSecurity);
 
 #endif   /* PLANMAIN_H */

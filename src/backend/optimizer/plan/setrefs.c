@@ -2082,8 +2082,7 @@ void
 extract_query_dependencies(Node *query,
 						   List **relationOids,
 						   List **invalItems,
-						   bool *hasRowSecurity,
-						   Oid  *targetRelId)
+						   bool *hasRowSecurity)
 {
 	PlannerGlobal glob;
 	PlannerInfo root;
@@ -2094,7 +2093,6 @@ extract_query_dependencies(Node *query,
 	glob.relationOids = NIL;
 	glob.invalItems = NIL;
 	glob.has_rls = false;
-	glob.targetRelId = InvalidOid;
 
 	MemSet(&root, 0, sizeof(root));
 	root.type = T_PlannerInfo;
@@ -2105,7 +2103,6 @@ extract_query_dependencies(Node *query,
 	*relationOids = glob.relationOids;
 	*invalItems = glob.invalItems;
 	*hasRowSecurity = glob.has_rls;
-	*targetRelId = glob.targetRelId;
 }
 
 static bool
@@ -2133,19 +2130,6 @@ extract_query_dependencies_walker(Node *node, PlannerInfo *context)
 			query = UtilityContainsQuery(query->utilityStmt);
 			if (query == NULL)
 				return false;
-		}
-
-		/* Collect Target Relation Information */
-		if (query->rtable != NULL)
-		{
-			if (list_length(query->rtable) > query->resultRelation)
-			{
-				ListCell *targetCell = list_nth_cell(query->rtable, query->resultRelation);
-				RangeTblEntry *rte = (RangeTblEntry *) lfirst(targetCell);
-
-				if (rte->rtekind == RTE_RELATION)
-					context->glob->targetRelId = rte->relid;
-			}
 		}
 
 		/* Collect relation OIDs in this Query's rtable */
