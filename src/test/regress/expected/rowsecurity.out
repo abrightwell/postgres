@@ -766,7 +766,7 @@ SELECT * FROM rec1;    -- fail, mutual recursion via views
 ERROR:  infinite recursion detected in row-security policy for relation "rec1"
 --
 -- Mutual recursion via .s.b views
--- 
+--
 SET SESSION AUTHORIZATION rls_regress_user0;
 DROP VIEW rec1v, rec2v CASCADE;
 NOTICE:  drop cascades to 2 other objects
@@ -1518,7 +1518,7 @@ WITH cte1 AS (INSERT INTO t1 VALUES (20, 'Success') RETURNING *) SELECT * FROM c
 RESET SESSION AUTHORIZATION;
 ALTER POLICY p1 ON t1 RENAME TO p1; --fail
 ERROR:  row-policy "p1" for table "t1" already exists
-SELECT rsecpolname, relname 
+SELECT rsecpolname, relname
     FROM pg_rowsecurity rs
     JOIN pg_class pc ON (pc.oid = rs.rsecrelid)
     WHERE relname = 't1';
@@ -1528,7 +1528,7 @@ SELECT rsecpolname, relname
 (1 row)
 
 ALTER POLICY p1 ON t1 RENAME TO p2; --ok
-SELECT rsecpolname, relname 
+SELECT rsecpolname, relname
     FROM pg_rowsecurity rs
     JOIN pg_class pc ON (pc.oid = rs.rsecrelid)
     WHERE relname = 't1';
