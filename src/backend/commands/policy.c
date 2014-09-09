@@ -521,13 +521,13 @@ CreatePolicy(CreatePolicyStmt *stmt)
 
 	qual = transformWhereClause(qual_pstate,
 								copyObject(stmt->qual),
-								EXPR_KIND_ROW_SECURITY,
-								"ROW SECURITY");
+								EXPR_KIND_WHERE,
+								"POLICY");
 
 	with_check_qual = transformWhereClause(with_check_pstate,
 								copyObject(stmt->with_check),
-								EXPR_KIND_ROW_SECURITY,
-								"ROW SECURITY");
+								EXPR_KIND_WHERE,
+								"POLICY");
 
 	/* Open pg_rowsecurity catalog */
 	pg_rowsecurity_rel = heap_open(RowSecurityRelationId, RowExclusiveLock);
@@ -697,7 +697,7 @@ AlterPolicy(AlterPolicyStmt *stmt)
 		addRTEtoQuery(qual_pstate, rte, false, true, true);
 
 		qual = transformWhereClause(qual_pstate, copyObject(stmt->qual),
-									EXPR_KIND_ROW_SECURITY,
+									EXPR_KIND_WHERE,
 									"ROW SECURITY");
 
 		qual_parse_rtable = qual_pstate->p_rtable;
@@ -717,7 +717,7 @@ AlterPolicy(AlterPolicyStmt *stmt)
 
 		with_check_qual = transformWhereClause(with_check_pstate,
 											   copyObject(stmt->with_check),
-											   EXPR_KIND_ROW_SECURITY,
+											   EXPR_KIND_WHERE,
 											   "ROW SECURITY");
 
 		with_check_parse_rtable = with_check_pstate->p_rtable;

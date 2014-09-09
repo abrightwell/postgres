@@ -333,9 +333,6 @@ transformAggregateCall(ParseState *pstate, Aggref *agg,
 		case EXPR_KIND_TRIGGER_WHEN:
 			err = _("aggregate functions are not allowed in trigger WHEN conditions");
 			break;
-		case EXPR_KIND_ROW_SECURITY:
-			err = _("aggregate functions are not allowed in row-security policy");
-			break;
 
 			/*
 			 * There is intentionally no default: case here, so that the
@@ -664,9 +661,6 @@ transformWindowFuncCall(ParseState *pstate, WindowFunc *wfunc,
 			break;
 		case EXPR_KIND_TRIGGER_WHEN:
 			err = _("window functions are not allowed in trigger WHEN conditions");
-			break;
-		case EXPR_KIND_ROW_SECURITY:
-			err = _("window functions are not allowed in row-security policy");
 			break;
 
 			/*

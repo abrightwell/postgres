@@ -33,14 +33,15 @@ CREATE POLICY <replaceable class="parameter">name</replaceable> ON <replaceable 
   <title>Description</title>
 
   <para>
-   The <command>CREATE POLICY</command> command defines a new row-security policy for a table.
+   The <command>CREATE POLICY</command> command defines a new row-security
+   policy for a table.
   </para>
 
   <para>
    A row-security policy is an expression which is added to the security-barrier
-   qualifications of queries which are run against the table the policy is on, or
-   an expression which is added to the with-check options for a table and which
-   is applied to rows which would be added to the table.
+   qualifications of queries which are run against the table the policy is on,
+   or an expression which is added to the with-check options for a table and
+   which is applied to rows which would be added to the table.
    The security-barrier qualifications will always be evaluated prior to any
    user-defined functions or user-provided WHERE clauses, while the with-check
    expression will be evaluated against the rows which are going to be added to
@@ -60,6 +61,25 @@ CREATE POLICY <replaceable class="parameter">name</replaceable> ON <replaceable 
    default for newly created policies is that they apply for all commands and
    roles, unless otherwise specified.  If multiple policies apply to a given
    query, they will be combined using OR.
+  </para>
+
+  <para>
+   Note that while row-security policies will be applied for explicit queries
+   against tables in the system, they are not applied when the system is
+   performing internal referential integrity checks or validating constraints.
+   This means there are indirect ways to determine that a given value exists.
+   An example of this is attempting to insert a duplicate value
+   into a column which is the primary key or has a unique constraint.  If the
+   insert fails then the user can infer that the value already exists (this
+   example assumes that the user is permitted by policy to insert
+   records which they are not allowed to see).  Another example is where a user
+   is allowed to insert into a table which references another, otherwise hidden
+   table.  Existence can be determined by the user inserting values into the
+   referencing table, where success would indicate that the value exists in the
+   referenced table.  These issues can be addressed by carefully crafting
+   policies which prevent users from being able to insert, delete, or update
+   records at all which might possibly indicate a value they are not otherwise
+   able to see, or by using generated values (eg: surrogate keys) instead.
   </para>
 
  </refsect1>

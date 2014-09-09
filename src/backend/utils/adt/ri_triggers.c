@@ -2303,6 +2303,18 @@ RI_Initial_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 	if (!ExecCheckRTPerms(list_make2(fkrte, pkrte), false))
 		return false;
 
+	/*
+	 * Also punt if RLS is enabled on either table unless this role has the
+	 * bypassrls right or is the table owner of the table(s) involved which
+	 * have RLS enabled.
+	 */
+	if (!has_bypassrls_privilege(GetUserId()) &&
+		((pk_rel->rd_rel->relhasrowsecurity &&
+		  !pg_class_ownercheck(pkrte->relid, GetUserId())) ||
+		 (fk_rel->rd_rel->relhasrowsecurity &&
+		  !pg_class_ownercheck(fkrte->relid, GetUserId()))))
+		return false;
+
 	/*----------
 	 * The query string built is:
 	 *	SELECT fk.keycols FROM ONLY relname fk

@@ -2012,7 +2012,7 @@ describeOneTableDetails(const char *schemaname,
 		{
 			printfPQExpBuffer(&buf,
 						   "SELECT rs.rsecpolname,\n"
-						   "CASE WHEN rs.rsecroles = '{0}' THEN NULL ELSE array(select rolname from pg_authid where oid = any (rs.rsecroles) order by 1) END,\n"
+						   "CASE WHEN rs.rsecroles = '{0}' THEN NULL ELSE array(select rolname from pg_roles where oid = any (rs.rsecroles) order by 1) END,\n"
 						   "pg_catalog.pg_get_expr(rs.rsecqual, rs.rsecrelid),\n"
 						   "rs.rseccmd AS cmd\n"
 							  "FROM pg_catalog.pg_rowsecurity rs\n"
