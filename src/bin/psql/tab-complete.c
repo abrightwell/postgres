@@ -1384,6 +1384,12 @@ psql_completion(const char *text, int start, int end)
 
 		COMPLETE_WITH_LIST(list_ALTERPOLICY);
 	}
+	/* ALTER POLICY <name> ON <table> TO <role> */
+	else if (pg_strcasecmp(prev6_wd, "ALTER") == 0 &&
+			 pg_strcasecmp(prev5_wd, "POLICY") == 0 &&
+			 pg_strcasecmp(prev3_wd, "ON") == 0 &&
+			 pg_strcasecmp(prev_wd, "TO") == 0)
+		COMPLETE_WITH_QUERY(Query_for_list_of_grant_roles);
 	/* ALTER POLICY <name> ON <table> USING ( */
 	else if (pg_strcasecmp(prev6_wd, "ALTER") == 0 &&
 			 pg_strcasecmp(prev5_wd, "POLICY") == 0 &&
@@ -2365,29 +2371,20 @@ psql_completion(const char *text, int start, int end)
 
 		COMPLETE_WITH_LIST(list_POLICYOPTIONS);
 	}
-	/*
-	 * Complete "CREATE POLICY <name> ON <table> TO <role>"
-	 * Complete "CREATE POLICY <name> ON <table> FOR <cmd> TO <role>"
-	 */
-	else if ((pg_strcasecmp(prev3_wd, "FOR") == 0 ||
-			 pg_strcasecmp(prev3_wd, "ON") == 0) &&
+	/* Complete "CREATE POLICY <name> ON <table> TO <role>" */
+	else if (pg_strcasecmp(prev6_wd, "CREATE") == 0 &&
+			 pg_strcasecmp(prev5_wd, "POLICY") == 0 &&
+			 pg_strcasecmp(prev3_wd, "ON") == 0 &&
 			 pg_strcasecmp(prev_wd, "TO") == 0)
-		COMPLETE_WITH_QUERY(Query_for_list_of_roles);
-	/*
-	 * Complete "CREATE POLICY <name> ON <table> USING ("
-	 * Complete "CREATE POLICY <name> ON <table> FOR ALL USING ("
-	 * Complete "CREATE POLICY <name> ON <table> FOR SELECT USING ("
- 	 * Complete "CREATE POLICY <name> ON <table> FOR UPDATE USING ("
-	 * Complete "CREATE POLICY <name> ON <table> FOR DELETE USING ("
-	 */
-	else if (((pg_strcasecmp(prev3_wd, "ON") == 0 &&
-			  pg_strcasecmp(prev5_wd, "POLICY") == 0) ||
-			  (pg_strcasecmp(prev5_wd, "ON") == 0 &&
-			  pg_strcasecmp(prev3_wd, "FOR") == 0)) &&
+		COMPLETE_WITH_QUERY(Query_for_list_of_grant_roles);
+	/* Complete "CREATE POLICY <name> ON <table> USING (" */
+	else if (pg_strcasecmp(prev6_wd, "CREATE") == 0 &&
+			 pg_strcasecmp(prev5_wd, "POLICY") == 0 &&
+			 pg_strcasecmp(prev3_wd, "ON") == 0 &&
 			 pg_strcasecmp(prev_wd, "USING") == 0)
 		COMPLETE_WITH_CONST("(");
 
-/* CREATE RULE */ 
+/* CREATE RULE */
 	/* Complete "CREATE RULE <sth>" with "AS" */
 	else if (pg_strcasecmp(prev3_wd, "CREATE") == 0 &&
 			 pg_strcasecmp(prev2_wd, "RULE") == 0)
