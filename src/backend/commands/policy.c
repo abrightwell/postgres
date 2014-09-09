@@ -338,7 +338,7 @@ RelationBuildRowSecurity(Relation relation)
 			policy->rsecid = InvalidOid;
 			policy->cmd = '\0';
 			policy->roles = construct_array(&role, 1, OIDOID, sizeof(Oid), true,
-											'i');;
+											'i');
 			policy->qual = (Expr *) makeConst(BOOLOID, -1, InvalidOid,
 											  sizeof(bool), BoolGetDatum(false),
 											  false, true);

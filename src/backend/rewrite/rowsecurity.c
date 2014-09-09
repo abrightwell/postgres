@@ -314,11 +314,33 @@ pull_row_security_policies(CmdType cmd, Relation relation)
 	}
 
 	/*
-	 * There should always be a policy applied.  If there are none defined then
-	 * RelationBuildRowSecurity should have created a single default-deny
-	 * policy.
+	 * There should always be a policy applied.  If there are none found then
+	 * create a simply defauly-deny policy (might be that policies exist but
+	 * that none of them apply to the role which is querying the table).
 	 */
-	Assert (policies != NIL);
+	if (policies == NIL)
+	{
+		RowSecurityPolicy  *policy = NULL;
+		Datum               role;
+
+		role = ObjectIdGetDatum(ACL_ID_PUBLIC);
+
+		policy = palloc0(sizeof(RowSecurityPolicy));
+		policy->policy_name = pstrdup("default-deny policy");
+		policy->rsecid = InvalidOid;
+		policy->cmd = '\0';
+		policy->roles = construct_array(&role, 1, OIDOID, sizeof(Oid), true,
+										'i');
+		policy->qual = (Expr *) makeConst(BOOLOID, -1, InvalidOid,
+										  sizeof(bool), BoolGetDatum(false),
+										  false, true);
+		policy->with_check_qual = copyObject(policy->qual);
+		policy->hassublinks = false;
+
+		policies = list_make1(policy);
+	}
+
+	Assert(policies != NIL);
 
 	return policies;
 }
