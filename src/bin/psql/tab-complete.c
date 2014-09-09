@@ -782,6 +782,7 @@ static const pgsql_thing_t words_after_create[] = {
 								 * good idea. */
 	{"OWNED", NULL, NULL, THING_NO_CREATE},		/* for DROP OWNED BY ... */
 	{"PARSER", Query_for_list_of_ts_parsers, NULL, THING_NO_SHOW},
+	{"POLICY", NULL, NULL},
 	{"ROLE", Query_for_list_of_roles},
 	{"RULE", "SELECT pg_catalog.quote_ident(rulename) FROM pg_catalog.pg_rules WHERE substring(pg_catalog.quote_ident(rulename),1,%d)='%s'"},
 	{"SCHEMA", Query_for_list_of_schemas},
@@ -964,7 +965,7 @@ psql_completion(const char *text, int start, int end)
 		{"AGGREGATE", "COLLATION", "CONVERSION", "DATABASE", "DEFAULT PRIVILEGES", "DOMAIN",
 			"EVENT TRIGGER", "EXTENSION", "FOREIGN DATA WRAPPER", "FOREIGN TABLE", "FUNCTION",
 			"GROUP", "INDEX", "LANGUAGE", "LARGE OBJECT", "MATERIALIZED VIEW", "OPERATOR",
-			"ROLE", "RULE", "SCHEMA", "SERVER", "SEQUENCE", "SYSTEM", "TABLE",
+			"POLICY", "ROLE", "RULE", "SCHEMA", "SERVER", "SEQUENCE", "SYSTEM", "TABLE",
 			"TABLESPACE", "TEXT SEARCH", "TRIGGER", "TYPE",
 		"USER", "USER MAPPING FOR", "VIEW", NULL};
 
@@ -1364,6 +1365,38 @@ psql_completion(const char *text, int start, int end)
 		COMPLETE_WITH_LIST(list_ALTERMATVIEW);
 	}
 
+	/* ALTER POLICY <name> ON */
+	else if (pg_strcasecmp(prev3_wd, "ALTER") == 0 &&
+			 pg_strcasecmp(prev2_wd, "POLICY") == 0)
+		COMPLETE_WITH_CONST("ON");
+	/* ALTER POLICY <name> ON <table> */
+	else if (pg_strcasecmp(prev4_wd, "ALTER") == 0 &&
+			 pg_strcasecmp(prev3_wd, "POLICY") == 0 &&
+			 pg_strcasecmp(prev_wd, "ON") == 0)
+		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_tables, NULL);
+	/* ALTER POLICY <name> ON <table> - show options */
+	else if (pg_strcasecmp(prev5_wd, "ALTER") == 0 &&
+			 pg_strcasecmp(prev4_wd, "POLICY") == 0 &&
+			 pg_strcasecmp(prev2_wd, "ON") == 0)
+	{
+		static const char *const list_ALTERPOLICY[] =
+		{"RENAME TO", "TO", "USING", "WITH CHECK", NULL};
+
+		COMPLETE_WITH_LIST(list_ALTERPOLICY);
+	}
+	/* ALTER POLICY <name> ON <table> USING ( */
+	else if (pg_strcasecmp(prev6_wd, "ALTER") == 0 &&
+			 pg_strcasecmp(prev5_wd, "POLICY") == 0 &&
+			 pg_strcasecmp(prev3_wd, "ON") == 0 &&
+			 pg_strcasecmp(prev_wd, "USING") == 0)
+		COMPLETE_WITH_CONST("(");
+	/* ALTER POLICY <name> ON <table> WITH CHECK ( */
+	else if (pg_strcasecmp(prev6_wd, "POLICY") == 0 &&
+			 pg_strcasecmp(prev4_wd, "ON") == 0 &&
+			 pg_strcasecmp(prev2_wd, "WITH") == 0 &&
+			 pg_strcasecmp(prev_wd, "CHECK") == 0)
+		COMPLETE_WITH_CONST("(");
+
 	/* ALTER RULE <name>, add ON */
 	else if (pg_strcasecmp(prev3_wd, "ALTER") == 0 &&
 			 pg_strcasecmp(prev2_wd, "RULE") == 0)
@@ -1428,7 +1461,7 @@ psql_completion(const char *text, int start, int end)
 			 pg_strcasecmp(prev_wd, "ENABLE") == 0)
 	{
 		static const char *const list_ALTERENABLE[] =
-		{"ALWAYS", "REPLICA", "RULE", "TRIGGER", NULL};
+		{"ALWAYS", "REPLICA", "ROW LEVEL SECURITY", "RULE", "TRIGGER", NULL};
 
 		COMPLETE_WITH_LIST(list_ALTERENABLE);
 	}
@@ -1495,7 +1528,7 @@ psql_completion(const char *text, int start, int end)
 			 pg_strcasecmp(prev_wd, "DISABLE") == 0)
 	{
 		static const char *const list_ALTERDISABLE[] =
-		{"RULE", "TRIGGER", NULL};
+		{ "ROW LEVEL SECURITY", "RULE", "TRIGGER", NULL};
 
 		COMPLETE_WITH_LIST(list_ALTERDISABLE);
 	}
@@ -1514,6 +1547,16 @@ psql_completion(const char *text, int start, int end)
 	{
 		completion_info_charp = prev3_wd;
 		COMPLETE_WITH_QUERY(Query_for_trigger_of_table);
+	}
+	else if (pg_strcasecmp(prev4_wd, "DISABLE") == 0 &&
+			 pg_strcasecmp(prev3_wd, "ROW") == 0 &&
+			 pg_strcasecmp(prev2_wd, "LEVEL") == 0 &&
+			 pg_strcasecmp(prev_wd, "SECURITY") == 0)
+	{
+		static const char *const list_DISABLERLS[] =
+		{ "CASCADE", NULL};
+
+		COMPLETE_WITH_LIST(list_DISABLERLS);
 	}
 
 	/* ALTER TABLE xxx ALTER */
@@ -2238,13 +2281,113 @@ psql_completion(const char *text, int start, int end)
 			 pg_strcasecmp(prev_wd, "(") == 0)
 		COMPLETE_WITH_ATTR(prev4_wd, "");
 	/* Complete USING with an index method */
-	else if (pg_strcasecmp(prev_wd, "USING") == 0)
+	else if ((pg_strcasecmp(prev6_wd, "INDEX") == 0 ||
+			 pg_strcasecmp(prev5_wd, "INDEX") == 0 ||
+			 pg_strcasecmp(prev4_wd, "INDEX") == 0) &&
+			 pg_strcasecmp(prev3_wd, "ON") == 0 &&
+			 pg_strcasecmp(prev_wd, "USING") == 0)
 		COMPLETE_WITH_QUERY(Query_for_list_of_access_methods);
 	else if (pg_strcasecmp(prev4_wd, "ON") == 0 &&
+			 (!(pg_strcasecmp(prev6_wd, "POLICY") == 0) &&
+			  !(pg_strcasecmp(prev4_wd, "FOR") == 0)) &&
 			 pg_strcasecmp(prev2_wd, "USING") == 0)
 		COMPLETE_WITH_CONST("(");
 
-/* CREATE RULE */
+	/* CREATE POLICY */
+	/* Complete "CREATE POLICY <name> ON" */
+	else if (pg_strcasecmp(prev3_wd, "CREATE") == 0 &&
+			 pg_strcasecmp(prev2_wd, "POLICY") == 0)
+		COMPLETE_WITH_CONST("ON");
+	/* Complete "CREATE POLICY <name> ON <table>" */
+	else if (pg_strcasecmp(prev4_wd, "CREATE") == 0 &&
+			 pg_strcasecmp(prev3_wd, "POLICY") == 0 &&
+			 pg_strcasecmp(prev_wd, "ON") == 0)
+		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_tables, NULL);
+	/* Complete "CREATE POLICY <name> ON <table> FOR|TO|USING|WITH CHECK" */
+	else if (pg_strcasecmp(prev5_wd, "CREATE") == 0 &&
+			 pg_strcasecmp(prev4_wd, "POLICY") == 0 &&
+			 pg_strcasecmp(prev2_wd, "ON") == 0)
+	{
+		static const char *const list_POLICYOPTIONS[] =
+		{"FOR", "TO", "USING", "WITH CHECK", NULL};
+
+		COMPLETE_WITH_LIST(list_POLICYOPTIONS);
+	}
+	/* Complete "CREATE POLICY <name> ON <table> FOR ALL|SELECT|INSERT|UPDATE|DELETE" */
+	else if (pg_strcasecmp(prev6_wd, "CREATE") == 0 &&
+			 pg_strcasecmp(prev5_wd, "POLICY") == 0 &&
+			 pg_strcasecmp(prev3_wd, "ON") == 0 &&
+			 pg_strcasecmp(prev_wd, "FOR") == 0)
+	{
+		static const char *const list_POLICYCMDS[] =
+		{"ALL", "SELECT", "INSERT", "UPDATE", "DELETE", NULL};
+
+		COMPLETE_WITH_LIST(list_POLICYCMDS);
+	}
+	/* Complete "CREATE POLICY <name> ON <table> FOR INSERT TO|WITH CHECK" */
+	else if (pg_strcasecmp(prev6_wd, "POLICY") == 0 &&
+			 pg_strcasecmp(prev4_wd, "ON") == 0 &&
+			 pg_strcasecmp(prev2_wd, "FOR") == 0 &&
+			 pg_strcasecmp(prev_wd, "INSERT") == 0)
+	{
+		static const char *const list_POLICYOPTIONS[] =
+		{"TO", "WITH CHECK", NULL};
+
+		COMPLETE_WITH_LIST(list_POLICYOPTIONS);
+	}
+	/*
+	 * Complete "CREATE POLICY <name> ON <table> FOR SELECT TO|USING"
+	 * Complete "CREATE POLICY <name> ON <table> FOR DELETE TO|USING"
+	 */
+	else if (pg_strcasecmp(prev6_wd, "POLICY") == 0 &&
+			 pg_strcasecmp(prev4_wd, "ON") == 0 &&
+			 pg_strcasecmp(prev2_wd, "FOR") == 0 &&
+			 (pg_strcasecmp(prev_wd, "SELECT") == 0 ||
+			 pg_strcasecmp(prev_wd, "DELETE") == 0))
+	{
+		static const char *const list_POLICYOPTIONS[] =
+		{"TO", "USING", NULL};
+
+		COMPLETE_WITH_LIST(list_POLICYOPTIONS);
+	}
+	/*
+	 * Complete "CREATE POLICY <name> ON <table> FOR ALL TO|USING|WITH CHECK"
+	 * Complete "CREATE POLICY <name> ON <table> FOR UPDATE TO|USING|WITH CHECK"
+	 */
+	else if (pg_strcasecmp(prev6_wd, "POLICY") == 0 &&
+			 pg_strcasecmp(prev4_wd, "ON") == 0 &&
+			 pg_strcasecmp(prev2_wd, "FOR") == 0 &&
+			 (pg_strcasecmp(prev_wd, "ALL") == 0 ||
+			 pg_strcasecmp(prev_wd, "UPDATE") == 0))
+	{
+		static const char *const list_POLICYOPTIONS[] =
+		{"TO", "USING", "WITH CHECK", NULL};
+
+		COMPLETE_WITH_LIST(list_POLICYOPTIONS);
+	}
+	/*
+	 * Complete "CREATE POLICY <name> ON <table> TO <role>"
+	 * Complete "CREATE POLICY <name> ON <table> FOR <cmd> TO <role>"
+	 */
+	else if ((pg_strcasecmp(prev3_wd, "FOR") == 0 ||
+			 pg_strcasecmp(prev3_wd, "ON") == 0) &&
+			 pg_strcasecmp(prev_wd, "TO") == 0)
+		COMPLETE_WITH_QUERY(Query_for_list_of_roles);
+	/*
+	 * Complete "CREATE POLICY <name> ON <table> USING ("
+	 * Complete "CREATE POLICY <name> ON <table> FOR ALL USING ("
+	 * Complete "CREATE POLICY <name> ON <table> FOR SELECT USING ("
+ 	 * Complete "CREATE POLICY <name> ON <table> FOR UPDATE USING ("
+	 * Complete "CREATE POLICY <name> ON <table> FOR DELETE USING ("
+	 */
+	else if (((pg_strcasecmp(prev3_wd, "ON") == 0 &&
+			  pg_strcasecmp(prev5_wd, "POLICY") == 0) ||
+			  (pg_strcasecmp(prev5_wd, "ON") == 0 &&
+			  pg_strcasecmp(prev3_wd, "FOR") == 0)) &&
+			 pg_strcasecmp(prev_wd, "USING") == 0)
+		COMPLETE_WITH_CONST("(");
+
+/* CREATE RULE */ 
 	/* Complete "CREATE RULE <sth>" with "AS" */
 	else if (pg_strcasecmp(prev3_wd, "CREATE") == 0 &&
 			 pg_strcasecmp(prev2_wd, "RULE") == 0)
@@ -2712,6 +2855,16 @@ psql_completion(const char *text, int start, int end)
 	{
 		COMPLETE_WITH_QUERY(Query_for_list_of_event_triggers);
 	}
+
+	/* DROP POLICY <name> ON */
+	else if (pg_strcasecmp(prev3_wd, "DROP") == 0 &&
+			 pg_strcasecmp(prev2_wd, "POLICY") == 0)
+		COMPLETE_WITH_CONST("ON");
+	/* DROP POLICY <name> ON <table> */
+	else if (pg_strcasecmp(prev4_wd, "DROP") == 0 &&
+			 pg_strcasecmp(prev3_wd, "POLICY") == 0 &&
+			 pg_strcasecmp(prev_wd, "ON") == 0)
+		COMPLETE_WITH_SCHEMA_QUERY(Query_for_list_of_tables, NULL);
 
 	/* DROP RULE */
 	else if (pg_strcasecmp(prev3_wd, "DROP") == 0 &&
