@@ -584,6 +584,53 @@ INSERT INTO t2 (SELECT * FROM t1);
 EXPLAIN (COSTS OFF) INSERT INTO t2 (SELECT * FROM t1);
 SELECT * FROM t2;
 EXPLAIN (COSTS OFF) SELECT * FROM t2;
+CREATE TABLE t3 AS SELECT * FROM t1;
+SELECT * FROM t3;
+SELECT * INTO t4 FROM t1;
+SELECT * FROM t4;
+
+--
+-- RLS with JOIN
+--
+SET SESSION AUTHORIZATION rls_regress_user0;
+CREATE TABLE blog (id integer, author text, post text);
+CREATE TABLE comment (blog_id integer, message text);
+
+GRANT ALL ON blog, comment TO rls_regress_user1;
+
+CREATE POLICY blog_1 ON blog USING (id % 2 = 0);
+
+INSERT INTO blog VALUES
+    (1, 'alice', 'blog #1'),
+    (2, 'bob', 'blog #1'),
+    (3, 'alice', 'blog #2'),
+    (4, 'alice', 'blog #3'),
+    (5, 'john', 'blog #1');
+
+INSERT INTO comment VALUES
+    (1, 'cool blog'),
+    (1, 'fun blog'),
+    (3, 'crazy blog'),
+    (5, 'what?'),
+    (4, 'insane!'),
+    (2, 'who did it?');
+
+SET SESSION AUTHORIZATION rls_regress_user1;
+-- Check RLS JOIN with Non-RLS.
+SELECT id, author, message FROM blog JOIN comment ON id = blog_id;
+-- Check Non-RLS JOIN with RLS.
+SELECT id, author, message FROM comment JOIN blog ON id = blog_id;
+
+SET SESSION AUTHORIZATION rls_regress_user0;
+CREATE POLICY comment_1 ON comment USING (blog_id < 4);
+
+SET SESSION AUTHORIZATION rls_regress_user1;
+-- Check RLS JOIN RLS
+SELECT id, author, message FROM blog JOIN comment ON id = blog_id;
+SELECT id, author, message FROM comment JOIN blog ON id = blog_id;
+
+SET SESSION AUTHORIZATION rls_regress_user0;
+DROP TABLE blog, comment;
 
 --
 -- Default Deny Policy
@@ -656,12 +703,22 @@ CREATE EVENT TRIGGER end_rls_command ON ddl_command_end
     WHEN TAG IN ('CREATE POLICY', 'ALTER POLICY', 'DROP POLICY') EXECUTE PROCEDURE end_command();
 
 CREATE EVENT TRIGGER sql_drop_command ON sql_drop
-    EXECUTE PROCEDURE drop_sql_command();
+    WHEN TAG IN ('DROP POLICY') EXECUTE PROCEDURE drop_sql_command();
 
 CREATE POLICY p1 ON event_trigger_test USING (FALSE);
 ALTER POLICY p1 ON event_trigger_test USING (TRUE);
 ALTER POLICY p1 ON event_trigger_test RENAME TO p2;
 DROP POLICY p2 ON event_trigger_test;
+
+DROP EVENT TRIGGER start_rls_command;
+DROP EVENT TRIGGER end_rls_command;
+DROP EVENT TRIGGER sql_drop_command;
+
+--
+-- Test psql \dp command
+--
+DROP POLICY p2 ON category; -- too long qual
+\dp
 
 --
 -- Clean up objects
