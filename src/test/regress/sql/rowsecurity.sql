@@ -311,7 +311,7 @@ SELECT * FROM rec1;    -- fail, mutual recursion via views
 
 --
 -- Mutual recursion via .s.b views
--- 
+--
 SET SESSION AUTHORIZATION rls_regress_user0;
 DROP VIEW rec1v, rec2v CASCADE;
 CREATE VIEW rec1v WITH (security_barrier) AS SELECT * FROM rec1;
@@ -563,14 +563,14 @@ WITH cte1 AS (INSERT INTO t1 VALUES (20, 'Success') RETURNING *) SELECT * FROM c
 RESET SESSION AUTHORIZATION;
 ALTER POLICY p1 ON t1 RENAME TO p1; --fail
 
-SELECT rsecpolname, relname 
+SELECT rsecpolname, relname
     FROM pg_rowsecurity rs
     JOIN pg_class pc ON (pc.oid = rs.rsecrelid)
     WHERE relname = 't1';
 
 ALTER POLICY p1 ON t1 RENAME TO p2; --ok
 
-SELECT rsecpolname, relname 
+SELECT rsecpolname, relname
     FROM pg_rowsecurity rs
     JOIN pg_class pc ON (pc.oid = rs.rsecrelid)
     WHERE relname = 't1';
