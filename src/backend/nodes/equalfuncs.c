@@ -2034,15 +2034,6 @@ _equalAlterPolicyStmt(const AlterPolicyStmt *a, const AlterPolicyStmt *b)
 }
 
 static bool
-_equalDropPolicyStmt(const DropPolicyStmt *a, const DropPolicyStmt *b)
-{
-	COMPARE_STRING_FIELD(policy_name);
-	COMPARE_NODE_FIELD(table);
-
-	return true;
-}
-
-static bool
 _equalAExpr(const A_Expr *a, const A_Expr *b)
 {
 	COMPARE_SCALAR_FIELD(kind);
@@ -3066,10 +3057,6 @@ equal(const void *a, const void *b)
 		case T_AlterPolicyStmt:
 			retval = _equalAlterPolicyStmt(a, b);
 			break;
-		case T_DropPolicyStmt:
-			retval = _equalDropPolicyStmt(a, b);
-			break;
-
 		case T_A_Expr:
 			retval = _equalAExpr(a, b);
 			break;

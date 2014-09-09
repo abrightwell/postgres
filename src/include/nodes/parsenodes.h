@@ -1888,18 +1888,6 @@ typedef struct AlterPolicyStmt
 	Node	   *with_check;		/* the policy's WITH CHECK condition. */
 } AlterPolicyStmt;
 
-/*----------------------
- *		Drop POLICY Statement
- *----------------------
- */
-typedef struct DropPolicyStmt
-{
-	NodeTag		type;
-	char	   *policy_name;	/* Policy's name */
-	RangeVar   *table;			/* the table name the policy applies to */
-	bool		missing_ok;		/* skip error if policy is missing. */
-} DropPolicyStmt;
-
 /* ----------------------
  *		Create TRIGGER Statement
  * ----------------------

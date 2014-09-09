@@ -837,16 +837,6 @@ standard_ProcessUtility(Node *parsetree,
 			}
 			break;
 
-		case T_CreatePolicyStmt:
-			CreatePolicy((CreatePolicyStmt *) parsetree);
-			break;
-		case T_AlterPolicyStmt:
-			AlterPolicy((AlterPolicyStmt *) parsetree);
-			break;
-		case T_DropPolicyStmt:
-			DropPolicy((DropPolicyStmt *) parsetree);
-			break;
-
 		default:
 			/* All other statement types have event trigger support */
 			ProcessUtilitySlow(parsetree, queryString,
@@ -1329,6 +1319,14 @@ ProcessUtilitySlow(Node *parsetree,
 
 			case T_AlterDefaultPrivilegesStmt:
 				ExecAlterDefaultPrivilegesStmt((AlterDefaultPrivilegesStmt *) parsetree);
+				break;
+
+			case T_CreatePolicyStmt:	/* CREATE POLICY */
+				CreatePolicy((CreatePolicyStmt *) parsetree);
+				break;
+
+			case T_AlterPolicyStmt:		/* ALTER POLICY */
+				AlterPolicy((AlterPolicyStmt *) parsetree);
 				break;
 
 			default:
@@ -2304,6 +2302,14 @@ CreateCommandTag(Node *parsetree)
 			tag = "ALTER TEXT SEARCH CONFIGURATION";
 			break;
 
+		case T_CreatePolicyStmt:
+			tag = "CREATE POLICY";
+			break;
+
+		case T_AlterPolicyStmt:
+			tag = "ALTER POLICY";
+			break;
+
 		case T_PrepareStmt:
 			tag = "PREPARE";
 			break;
@@ -2452,16 +2458,6 @@ CreateCommandTag(Node *parsetree)
 						break;
 				}
 			}
-			break;
-
-		case T_CreatePolicyStmt:
-			tag = "CREATE POLICY";
-			break;
-		case T_AlterPolicyStmt:
-			tag = "ALTER POLICY";
-			break;
-		case T_DropPolicyStmt:
-			tag = "DROP POLICY";
 			break;
 
 		default:

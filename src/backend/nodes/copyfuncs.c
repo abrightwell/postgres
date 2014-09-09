@@ -3879,17 +3879,6 @@ _copyAlterPolicyStmt(const AlterPolicyStmt *from)
 	return newnode;
 }
 
-static DropPolicyStmt *
-_copyDropPolicyStmt(const DropPolicyStmt *from)
-{
-	DropPolicyStmt *newnode = makeNode(DropPolicyStmt);
-
-	COPY_STRING_FIELD(policy_name);
-	COPY_NODE_FIELD(table);
-
-	return newnode;
-}
-
 /* ****************************************************************
  *					pg_list.h copy functions
  * ****************************************************************
@@ -4608,10 +4597,6 @@ copyObject(const void *from)
 		case T_AlterPolicyStmt:
 			retval = _copyAlterPolicyStmt(from);
 			break;
-		case T_DropPolicyStmt:
-			retval = _copyDropPolicyStmt(from);
-			break;
-
 		case T_A_Expr:
 			retval = _copyAExpr(from);
 			break;

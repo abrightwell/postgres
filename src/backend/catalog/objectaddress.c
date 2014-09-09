@@ -347,6 +347,18 @@ static const ObjectPropertyType ObjectProperty[] =
 		false
 	},
 	{
+		RowSecurityRelationId,
+		RowSecurityOidIndexId,
+		-1,
+		-1,
+		Anum_pg_rowsecurity_rsecpolname,
+		InvalidAttrNumber,
+		InvalidAttrNumber,
+		InvalidAttrNumber,
+		-1,
+		false
+	},
+	{
 		EventTriggerRelationId,
 		EventTriggerOidIndexId,
 		EVENTTRIGGEROID,
@@ -1166,6 +1178,7 @@ check_object_ownership(Oid roleid, ObjectType objtype, ObjectAddress address,
 		case OBJECT_COLUMN:
 		case OBJECT_RULE:
 		case OBJECT_TRIGGER:
+		case OBJECT_POLICY:
 		case OBJECT_CONSTRAINT:
 			if (!pg_class_ownercheck(RelationGetRelid(relation), roleid))
 				aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_CLASS,
@@ -2180,20 +2193,20 @@ getObjectDescription(const ObjectAddress *object)
 		case OCLASS_ROWSECURITY:
 			{
 				Relation	rsec_rel;
-				ScanKeyData	skey;
+				ScanKeyData	skey[1];
 				SysScanDesc	sscan;
 				HeapTuple	tuple;
 				Form_pg_rowsecurity form_rsec;
 
 				rsec_rel = heap_open(RowSecurityRelationId, AccessShareLock);
 
-				ScanKeyInit(&skey,
+				ScanKeyInit(&skey[0],
 							ObjectIdAttributeNumber,
 							BTEqualStrategyNumber, F_OIDEQ,
 							ObjectIdGetDatum(object->objectId));
 
 				sscan = systable_beginscan(rsec_rel, RowSecurityOidIndexId,
-										   true, NULL, 1, &skey);
+										   true, NULL, 1, skey);
 
 				tuple = systable_getnext(sscan);
 

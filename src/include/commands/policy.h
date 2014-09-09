@@ -23,9 +23,10 @@ extern void RemovePolicyById(Oid policy_id);
 
 extern Oid CreatePolicy(CreatePolicyStmt *stmt);
 extern Oid AlterPolicy(AlterPolicyStmt *stmt);
-extern void DropPolicy(DropPolicyStmt *stmt);
 
-Oid get_relation_policy_oid(Oid relid, const char *policy_name, bool missing_ok);
+Oid get_relation_policy_oid(Oid relid,
+							const char *policy_name, bool missing_ok);
+
 Oid rename_policy(RenameStmt *stmt);
 
 

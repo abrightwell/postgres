@@ -375,21 +375,24 @@ void
 RemovePolicyById(Oid policy_id)
 {
 	Relation 	pg_rowsecurity_rel;
-	ScanKeyData skey;
 	SysScanDesc sscan;
+	ScanKeyData skey[1];
 	HeapTuple	tuple;
-	Relation	rel;
 	Oid			relid;
+	Relation	rel;
 
 	pg_rowsecurity_rel = heap_open(RowSecurityRelationId, RowExclusiveLock);
 
-	ScanKeyInit(&skey,
+	/*
+	 * Find the policy to delete.
+	 */
+	ScanKeyInit(&skey[0],
 				ObjectIdAttributeNumber,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(policy_id));
 
 	sscan = systable_beginscan(pg_rowsecurity_rel, RowSecurityOidIndexId, true,
-							   NULL, 1, &skey);
+							   NULL, 1, skey);
 
 	tuple = systable_getnext(sscan);
 
@@ -397,17 +400,42 @@ RemovePolicyById(Oid policy_id)
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "could not find tuple for row-security %u", policy_id);
 
+	/*
+	 * Open and exclusive-lock the relation the policy belong to.
+	 */
 	relid = ((Form_pg_rowsecurity) GETSTRUCT(tuple))->rsecrelid;
 
 	rel = heap_open(relid, AccessExclusiveLock);
+	if (rel->rd_rel->relkind != RELKIND_RELATION)
+		ereport(ERROR,
+				(errcode(ERRCODE_WRONG_OBJECT_TYPE),
+				 errmsg("\"%s\" is not a table",
+						RelationGetRelationName(rel))));
+
+	if (!allowSystemTableMods && IsSystemRelation(rel))
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				 errmsg("permission denied: \"%s\" is a system catalog",
+						RelationGetRelationName(rel))));
 
 	simple_heap_delete(pg_rowsecurity_rel, &tuple->t_self);
+
+	systable_endscan(sscan);
+	heap_close(rel, AccessExclusiveLock);
+
+	/*
+	 * Note that, unlike some of the other flags in pg_class, relhasrowsecurity
+	 * is not just an indication of if policies exist.  When relhasrowsecurity
+	 * is set (which can be done directly by the user or indirectly by creating
+	 * a policy on the table), then all access to the relation must be through
+	 * a policy.  If no policy is defined for the relation then a default-deny
+	 * policy is created and all records are filtered (except for queries from
+	 * the owner).
+	 */
 
 	CacheInvalidateRelcache(rel);
 
 	/* Clean up */
-	heap_close(rel, AccessExclusiveLock);
-	systable_endscan(sscan);
 	heap_close(pg_rowsecurity_rel, RowExclusiveLock);
 }
 
@@ -431,7 +459,7 @@ CreatePolicy(CreatePolicyStmt *stmt)
 	RangeTblEntry  *rte;
 	Node		   *qual;
 	Node		   *with_check_qual;
-	ScanKeyData		skeys[2];
+	ScanKeyData		skey[2];
 	SysScanDesc		sscan;
 	HeapTuple		rsec_tuple;
 	Datum			values[Natts_pg_rowsecurity];
@@ -505,20 +533,20 @@ CreatePolicy(CreatePolicyStmt *stmt)
 	pg_rowsecurity_rel = heap_open(RowSecurityRelationId, RowExclusiveLock);
 
 	/* Set key - row security relation id. */
-	ScanKeyInit(&skeys[0],
+	ScanKeyInit(&skey[0],
 				Anum_pg_rowsecurity_rsecrelid,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(table_id));
 
 	/* Set key - row security policy name. */
-	ScanKeyInit(&skeys[1],
+	ScanKeyInit(&skey[1],
 				Anum_pg_rowsecurity_rsecpolname,
 				BTEqualStrategyNumber, F_NAMEEQ,
 				CStringGetDatum(stmt->policy_name));
 
 	sscan = systable_beginscan(pg_rowsecurity_rel,
 							   RowSecurityRelidPolnameIndexId, true, NULL, 2,
-							   skeys);
+							   skey);
 
 	rsec_tuple = systable_getnext(sscan);
 
@@ -632,7 +660,7 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	List		   *with_check_parse_rtable = NIL;
 	Node		   *qual = NULL;
 	Node		   *with_check_qual = NULL;
-	ScanKeyData		skeys[2];
+	ScanKeyData		skey[2];
 	SysScanDesc		sscan;
 	HeapTuple		rsec_tuple;
 	HeapTuple		new_tuple;
@@ -705,20 +733,20 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	pg_rowsecurity_rel = heap_open(RowSecurityRelationId, RowExclusiveLock);
 
 	/* Set key - row security relation id. */
-	ScanKeyInit(&skeys[0],
+	ScanKeyInit(&skey[0],
 				Anum_pg_rowsecurity_rsecrelid,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(table_id));
 
 	/* Set key - row security policy name. */
-	ScanKeyInit(&skeys[1],
+	ScanKeyInit(&skey[1],
 				Anum_pg_rowsecurity_rsecpolname,
 				BTEqualStrategyNumber, F_NAMEEQ,
 				CStringGetDatum(stmt->policy_name));
 
 	sscan = systable_beginscan(pg_rowsecurity_rel,
 							   RowSecurityRelidPolnameIndexId, true, NULL, 2,
-							   skeys);
+							   skey);
 
 	rsec_tuple = systable_getnext(sscan);
 
@@ -831,7 +859,7 @@ rename_policy(RenameStmt *stmt)
 	Relation		target_table;
 	Oid				table_id;
 	Oid				opoloid;
-	ScanKeyData		skeys[2];
+	ScanKeyData		skey[2];
 	SysScanDesc		sscan;
 	HeapTuple		rsec_tuple;
 
@@ -848,20 +876,20 @@ rename_policy(RenameStmt *stmt)
 	/* First pass- check for conflict */
 
 	/* Add key - row security relation id. */
-	ScanKeyInit(&skeys[0],
+	ScanKeyInit(&skey[0],
 				Anum_pg_rowsecurity_rsecrelid,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(table_id));
 
 	/* Add key - row security policy name. */
-	ScanKeyInit(&skeys[1],
+	ScanKeyInit(&skey[1],
 				Anum_pg_rowsecurity_rsecpolname,
 				BTEqualStrategyNumber, F_NAMEEQ,
 				CStringGetDatum(stmt->newname));
 
 	sscan = systable_beginscan(pg_rowsecurity_rel,
 							   RowSecurityRelidPolnameIndexId, true, NULL, 2,
-							   skeys);
+							   skey);
 
 	if (HeapTupleIsValid(rsec_tuple = systable_getnext(sscan)))
 		ereport(ERROR,
@@ -873,20 +901,20 @@ rename_policy(RenameStmt *stmt)
 
 	/* Second pass -- find existing policy and update */
 	/* Add key - row security relation id. */
-	ScanKeyInit(&skeys[0],
+	ScanKeyInit(&skey[0],
 				Anum_pg_rowsecurity_rsecrelid,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(table_id));
 
 	/* Add key - row security policy name. */
-	ScanKeyInit(&skeys[1],
+	ScanKeyInit(&skey[1],
 				Anum_pg_rowsecurity_rsecpolname,
 				BTEqualStrategyNumber, F_NAMEEQ,
 				CStringGetDatum(stmt->subname));
 
 	sscan = systable_beginscan(pg_rowsecurity_rel,
 							   RowSecurityRelidPolnameIndexId, true, NULL, 2,
-							   skeys);
+							   skey);
 
 	rsec_tuple = systable_getnext(sscan);
 
@@ -928,86 +956,6 @@ rename_policy(RenameStmt *stmt)
 }
 
 /*
- * DropPolicy -
- *   handle the execution of the DROP POLICY command.
- *
- * stmt - the DropPolicyStmt that describes the policy to drop.
- */
-void
-DropPolicy(DropPolicyStmt *stmt)
-{
-	Relation		pg_rowsecurity_rel;
-	Relation		target_table;
-	Oid				table_id;
-	ScanKeyData		skeys[2];
-	SysScanDesc		sscan;
-	HeapTuple		rsec_tuple;
-
-	/* Get id of table.  Also handles permissions checks. */
-	table_id = RangeVarGetRelidExtended(stmt->table, AccessExclusiveLock,
-										false, false,
-										RangeVarCallbackForPolicy,
-										(void *) stmt);
-
-	target_table = relation_open(table_id, NoLock);
-
-	pg_rowsecurity_rel = heap_open(RowSecurityRelationId, RowExclusiveLock);
-
-	/* Add key - row security relation id. */
-	ScanKeyInit(&skeys[0],
-				Anum_pg_rowsecurity_rsecrelid,
-				BTEqualStrategyNumber, F_OIDEQ,
-				ObjectIdGetDatum(table_id));
-
-	/* Add key - row security policy name. */
-	ScanKeyInit(&skeys[1],
-				Anum_pg_rowsecurity_rsecpolname,
-				BTEqualStrategyNumber, F_NAMEEQ,
-				CStringGetDatum(stmt->policy_name));
-
-	sscan = systable_beginscan(pg_rowsecurity_rel,
-							   RowSecurityRelidPolnameIndexId, true, NULL, 2,
-							   skeys);
-
-	rsec_tuple = systable_getnext(sscan);
-
-	/*
-	 * If the policy exists, then remove it.  If policy does not exists and
-	 * the statment uses IF EXISTS, then raise a notice.  If policy does not
-	 * exist and the statment does not use IF EXISTS, then raise an error.
-	 */
-	if (HeapTupleIsValid(rsec_tuple))
-	{
-		ObjectAddress address;
-
-		address.classId = RowSecurityRelationId;
-		address.objectId = HeapTupleHeaderGetOid(rsec_tuple->t_data);
-		address.objectSubId = 0;
-
-		performDeletion(&address, DROP_RESTRICT, 0);
-	}
-	else
-	{
-		if (!stmt->missing_ok)
-			ereport(ERROR,
-					(errcode(ERRCODE_UNDEFINED_OBJECT),
-					 errmsg("row-security policy \"%s\" does not exist on table"
-							" \"%s\"",
-							stmt->policy_name, stmt->table->relname)));
-		else
-			ereport(NOTICE,
-					(errmsg("row-security policy \"%s\" does not exist on table"
-							" \"%s\", skipping",
-						   stmt->policy_name, stmt->table->relname)));
-	}
-
-	/* Clean up. */
-	systable_endscan(sscan);
-	relation_close(target_table, NoLock);
-	heap_close(pg_rowsecurity_rel, RowExclusiveLock);
-}
-
-/*
  * get_relation_policy_oid - Look up a policy by name to find its OID
  *
  * If missing_ok is false, throw an error if policy not found.  If
@@ -1017,7 +965,7 @@ Oid
 get_relation_policy_oid(Oid relid, const char *policy_name, bool missing_ok)
 {
 	Relation		pg_rowsecurity_rel;
-	ScanKeyData		skeys[2];
+	ScanKeyData		skey[2];
 	SysScanDesc		sscan;
 	HeapTuple		rsec_tuple;
 	Oid				policy_oid;
@@ -1025,20 +973,20 @@ get_relation_policy_oid(Oid relid, const char *policy_name, bool missing_ok)
 	pg_rowsecurity_rel = heap_open(RowSecurityRelationId, AccessShareLock);
 
 	/* Add key - row security relation id. */
-	ScanKeyInit(&skeys[0],
+	ScanKeyInit(&skey[0],
 				Anum_pg_rowsecurity_rsecrelid,
 				BTEqualStrategyNumber, F_OIDEQ,
 				ObjectIdGetDatum(relid));
 
 	/* Add key - row security policy name. */
-	ScanKeyInit(&skeys[1],
+	ScanKeyInit(&skey[1],
 				Anum_pg_rowsecurity_rsecpolname,
 				BTEqualStrategyNumber, F_NAMEEQ,
 				CStringGetDatum(policy_name));
 
 	sscan = systable_beginscan(pg_rowsecurity_rel,
 							   RowSecurityRelidPolnameIndexId, true, NULL, 2,
-							   skeys);
+							   skey);
 
 	rsec_tuple = systable_getnext(sscan);
 
@@ -1047,7 +995,7 @@ get_relation_policy_oid(Oid relid, const char *policy_name, bool missing_ok)
 		if (!missing_ok)
 			ereport(ERROR,
 					(errcode(ERRCODE_UNDEFINED_OBJECT),
-					 errmsg("row-security policy \"%s\" for table  \"%s\" does not exist",
+					 errmsg("policy \"%s\" for table  \"%s\" does not exist",
 							policy_name, get_rel_name(relid))));
 
 		policy_oid = InvalidOid;
@@ -1057,7 +1005,7 @@ get_relation_policy_oid(Oid relid, const char *policy_name, bool missing_ok)
 
 	/* Clean up. */
 	systable_endscan(sscan);
-	heap_close(pg_rowsecurity_rel, RowExclusiveLock);
+	heap_close(pg_rowsecurity_rel, AccessShareLock);
 
 	return policy_oid;
 }

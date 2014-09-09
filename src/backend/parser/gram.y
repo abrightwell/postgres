@@ -243,8 +243,8 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 		CreateUserStmt CreateUserMappingStmt CreateRoleStmt CreatePolicyStmt
 		CreatedbStmt DeclareCursorStmt DefineStmt DeleteStmt DiscardStmt DoStmt
 		DropGroupStmt DropOpClassStmt DropOpFamilyStmt DropPLangStmt DropStmt
-		DropAssertStmt DropTrigStmt DropRuleStmt DropCastStmt DropRoleStmt DropPolicyStmt
-		DropUserStmt DropdbStmt DropTableSpaceStmt DropFdwStmt
+		DropAssertStmt DropTrigStmt DropRuleStmt DropCastStmt DropRoleStmt
+		DropPolicyStmt DropUserStmt DropdbStmt DropTableSpaceStmt DropFdwStmt
 		DropForeignServerStmt DropUserMappingStmt ExplainStmt FetchStmt
 		GrantStmt GrantRoleStmt ImportForeignSchemaStmt IndexStmt InsertStmt
 		ListenStmt LoadStmt LockStmt NotifyStmt ExplainableStmt PreparableStmt
@@ -4563,20 +4563,26 @@ AlterPolicyStmt:
 		;
 
 DropPolicyStmt:
-			DROP POLICY name ON qualified_name
+			DROP POLICY name ON any_name opt_drop_behavior
 				{
-					DropPolicyStmt *n = makeNode(DropPolicyStmt);
-					n->policy_name = $3;
-					n->table = $5;
-					n->missing_ok = FALSE;
+					DropStmt *n = makeNode(DropStmt);
+					n->removeType = OBJECT_POLICY;
+					n->objects = list_make1(lappend($5, makeString($3)));
+					n->arguments = NIL;
+					n->behavior = $6;
+					n->missing_ok = false;
+					n->concurrent = false;
 					$$ = (Node *) n;
 				}
-			| DROP POLICY IF_P EXISTS name ON qualified_name
+			| DROP POLICY IF_P EXISTS name ON any_name opt_drop_behavior
 				{
-					DropPolicyStmt *n = makeNode(DropPolicyStmt);
-					n->policy_name = $5;
-					n->table = $7;
-					n->missing_ok = TRUE;
+					DropStmt *n = makeNode(DropStmt);
+					n->removeType = OBJECT_POLICY;
+					n->objects = list_make1(lappend($7, makeString($5)));
+					n->arguments = NIL;
+					n->behavior = $8;
+					n->missing_ok = true;
+					n->concurrent = false;
 					$$ = (Node *) n;
 				}
 		;
