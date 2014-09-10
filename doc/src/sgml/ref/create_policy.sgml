@@ -82,6 +82,18 @@ CREATE POLICY <replaceable class="parameter">name</replaceable> ON <replaceable 
    able to see, or by using generated values (eg: surrogate keys) instead.
   </para>
 
+  <para>
+   Regarding how policy expressions interact with the user: as the expressions
+   are added to the user's query directly, they will be run with the rights of
+   the user running the overall query.  Therefore, users who are using a given
+   policy must be able to access any tables or functions referenced in the
+   expression or they will simply receive a permission denied error when
+   attempting to query the RLS-enabled table.  This does not change how views
+   work, however.  As with normal queries and views, permission checks and
+   policies for the tables which are referenced by a view will use the view
+   owner's rights and any policies which apply to the view owner.
+  </para>
+
  </refsect1>
 
  <refsect1>
