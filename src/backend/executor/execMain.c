@@ -503,7 +503,9 @@ ExecutorRewind(QueryDesc *queryDesc)
  * error if ereport_on_violation is true, or simply returns false otherwise.
  *
  * Note that this does NOT address row-level security policies (aka: RLS).  If
- * rows will be returned to the user then RLS also need to be consulted.
+ * rows will be returned to the user as a result of this permission check
+ * passing, then RLS also needs to be consulted (and check_enable_rls()).
+ *
  * See rewrite/rowsecurity.c.
  */
 bool
