@@ -2014,6 +2014,7 @@ describeOneTableDetails(const char *schemaname,
 						   "SELECT rs.rsecpolname,\n"
 						   "CASE WHEN rs.rsecroles = '{0}' THEN NULL ELSE array(select rolname from pg_roles where oid = any (rs.rsecroles) order by 1) END,\n"
 						   "pg_catalog.pg_get_expr(rs.rsecqual, rs.rsecrelid),\n"
+						   "pg_catalog.pg_get_expr(rs.rsecwithcheck, rs.rsecrelid),\n"
 						   "rs.rseccmd AS cmd\n"
 							  "FROM pg_catalog.pg_rowsecurity rs\n"
 				  "WHERE rs.rsecrelid = '%s' ORDER BY 1;",
@@ -2029,15 +2030,20 @@ describeOneTableDetails(const char *schemaname,
 				printTableAddFooter(&cont, _("Policies:"));
 				for (i = 0; i < tuples; i++)
 				{
-					if (PQgetisnull(result, i, 3))
-						printfPQExpBuffer(&buf, "    POLICY \"%s\" EXPRESSION %s",
-										  PQgetvalue(result, i, 0),
+					printfPQExpBuffer(&buf, "    POLICY \"%s\"",
+										  PQgetvalue(result, i, 0));
+
+					if (!PQgetisnull(result, i, 4))
+						appendPQExpBuffer(&buf, " (%s)",
+										  PQgetvalue(result, i, 4));
+
+					if (!PQgetisnull(result, i, 2))
+						appendPQExpBuffer(&buf, " EXPRESSION %s",
 										  PQgetvalue(result, i, 2));
-					else
-						printfPQExpBuffer(&buf, "    POLICY \"%s\" (%s) EXPRESSION %s",
-										  PQgetvalue(result, i, 0),
-										  PQgetvalue(result, i, 3),
-										  PQgetvalue(result, i, 2));
+
+					if (!PQgetisnull(result, i, 3))
+						appendPQExpBuffer(&buf, " WITH CHECK %s",
+										  PQgetvalue(result, i, 3));
 
 					printTableAddFooter(&cont, buf.data);
 

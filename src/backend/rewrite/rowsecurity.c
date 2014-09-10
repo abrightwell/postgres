@@ -90,17 +90,17 @@ prepend_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index)
 	List			   *hook_policies = NIL;
 
 	Relation 			rel;
-	Oid					userid;
+	Oid					user_id;
 	int					sec_context;
 	int					rls_status;
 	bool				defaultDeny = true;
 	bool				hassublinks = false;
 
 	/* This is primairly just to get the security context */
-	GetUserIdAndSecContext(&userid, &sec_context);
+	GetUserIdAndSecContext(&user_id, &sec_context);
 
 	/* Switch to checkAsUser if it's set */
-	userid = rte->checkAsUser ? rte->checkAsUser : GetUserId();
+	user_id = rte->checkAsUser ? rte->checkAsUser : GetUserId();
 
 	/*
 	 * If this is not a normal relation, or we have been told
@@ -147,7 +147,7 @@ prepend_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index)
 	rel = heap_open(rte->relid, NoLock);
 
 	rowsec_policies = pull_row_security_policies(root->commandType, rel,
-												 rte->checkAsUser);
+												 user_id);
 
 	/*
 	 * Check if this is only the default-deny policy.
