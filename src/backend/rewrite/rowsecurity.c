@@ -136,6 +136,13 @@ prepend_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index)
 		return false;
 	}
 
+	/*
+	 * We may end up getting called multiple times for the same RTE, so check
+	 * to make sure we aren't doing double-work.
+	 */
+	if (rte->securityQuals != NIL)
+		return false;
+
 	/* Grab the built-in policies which should be applied to this relation. */
 	rel = heap_open(rte->relid, NoLock);
 
