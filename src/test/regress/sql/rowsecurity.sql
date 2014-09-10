@@ -780,12 +780,6 @@ DROP EVENT TRIGGER end_rls_command;
 DROP EVENT TRIGGER sql_drop_command;
 
 --
--- Test psql \dp command
---
-DROP POLICY p2 ON category; -- too long qual
-\dp
-
---
 -- Clean up objects
 --
 RESET SESSION AUTHORIZATION;
