@@ -21,6 +21,13 @@
  * added to the table.  Other parts of the system (eg: COPY) simply construct
  * a normal query and use that, if RLS is to be applied.
  *
+ * The check to see if RLS should be enabled is provided through
+ * check_enable_rls(), which returns an enum (defined in rowsecurity.h) to
+ * indicate if RLS should be enabled (RLS_ENABLED), or bypassed (RLS_NONE or
+ * RLS_ENVIRONMENT).  RLS_ENVIRONMENT indicates that RLS should be bypassed
+ * in the current environment, but that may change if the row_security GUC or
+ * the current role changes.
+ *
  * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
  */
