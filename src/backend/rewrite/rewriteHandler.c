@@ -1726,10 +1726,12 @@ fireRIRrules(Query *parsetree, List *activeRIRs, bool forUpdatePushedDown)
 					ereport(ERROR,
 							(errcode(ERRCODE_INVALID_OBJECT_DEFINITION),
 							 errmsg("infinite recursion detected in row-security policy for relation \"%s\"",
-											RelationGetRelationName(rel))));
+									RelationGetRelationName(rel))));
+
 			activeRIRs = lcons_oid(RelationGetRelid(rel), activeRIRs);
 
-			expression_tree_walker( (Node*) rte->securityQuals, fireRIRonSubLink, (void*)activeRIRs );
+			expression_tree_walker( (Node*) rte->securityQuals,
+									fireRIRonSubLink, (void*)activeRIRs );
 
 			activeRIRs = list_delete_first(activeRIRs);
 		}

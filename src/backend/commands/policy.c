@@ -303,7 +303,8 @@ RelationBuildRowSecurity(Relation relation)
 			policy->roles = roles;
 			policy->qual = copyObject(qual_expr);
 			policy->with_check_qual = copyObject(with_check_qual);
-			policy->hassublinks = contain_subplans((Node *) qual_expr);
+			policy->hassublinks = contain_subplans((Node *) qual_expr) ||
+								  contain_subplans((Node *) with_check_qual);
 
 			rsdesc->policies = lcons(policy, rsdesc->policies);
 

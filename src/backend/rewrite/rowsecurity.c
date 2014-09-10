@@ -29,12 +29,14 @@
 #include "utils/syscache.h"
 #include "tcop/utility.h"
 
-static bool check_role_for_policy(RowSecurityPolicy *policy);
-static int check_enable_rls(Oid relid);
-static List *pull_row_security_policies(CmdType cmd, Relation relation);
+static bool check_role_for_policy(RowSecurityPolicy *policy, Oid user_id);
+static int check_enable_rls(Oid relid, Oid checkAsUser);
+static List *pull_row_security_policies(CmdType cmd, Relation relation,
+										Oid user_id);
 static void process_policies(List *policies, int rt_index,
 							 Expr **final_qual,
-							 Expr **final_with_check_qual);
+							 Expr **final_with_check_qual,
+							 bool *hassublinks);
 
 /*
  * hook to allow extensions to apply their own security policy
@@ -92,8 +94,13 @@ prepend_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index)
 	int					sec_context;
 	int					rls_status;
 	bool				defaultDeny = true;
+	bool				hassublinks = false;
 
+	/* This is primairly just to get the security context */
 	GetUserIdAndSecContext(&userid, &sec_context);
+
+	/* Switch to checkAsUser if it's set */
+	userid = rte->checkAsUser ? rte->checkAsUser : GetUserId();
 
 	/*
 	 * If this is not a normal relation, or we have been told
@@ -105,8 +112,8 @@ prepend_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index)
 		|| (sec_context & SECURITY_ROW_LEVEL_DISABLED))
 		return false;
 
-	/* Determine the state of RLS for this */
-	rls_status = check_enable_rls(rte->relid);
+	/* Determine the state of RLS for this, pass checkAsUser explicitly */
+	rls_status = check_enable_rls(rte->relid, rte->checkAsUser);
 
 	/* If there is no RLS on this table at all, nothing to do */
 	if (rls_status == RLS_NONE)
@@ -132,7 +139,8 @@ prepend_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index)
 	/* Grab the built-in policies which should be applied to this relation. */
 	rel = heap_open(rte->relid, NoLock);
 
-	rowsec_policies = pull_row_security_policies(root->commandType, rel);
+	rowsec_policies = pull_row_security_policies(root->commandType, rel,
+												 rte->checkAsUser);
 
 	/*
 	 * Check if this is only the default-deny policy.
@@ -150,7 +158,7 @@ prepend_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index)
 
 	/* Now that we have our policies, build the expressions from them. */
 	process_policies(rowsec_policies, rt_index, &rowsec_expr,
-					 &rowsec_with_check_expr);
+					 &rowsec_with_check_expr, &hassublinks);
 
 	/*
 	 * Also, allow extensions to add their own policies.
@@ -180,7 +188,7 @@ prepend_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index)
 
 		/* Build the expression from any policies returned. */
 		process_policies(hook_policies, rt_index, &hook_expr,
-						 &hook_with_check_expr);
+						 &hook_with_check_expr, &hassublinks);
 	}
 
 	/*
@@ -251,6 +259,9 @@ prepend_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index)
 	 */
 	root->hasRowSecurity = true;
 
+	if (hassublinks)
+		root->hasSubLinks = true;
+
 	/* If we got this far, we must have added quals */
 	return true;
 }
@@ -263,7 +274,7 @@ prepend_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index)
  *
  */
 static List *
-pull_row_security_policies(CmdType cmd, Relation relation)
+pull_row_security_policies(CmdType cmd, Relation relation, Oid user_id)
 {
 	List			   *policies = NIL;
 	ListCell		   *item;
@@ -280,7 +291,7 @@ pull_row_security_policies(CmdType cmd, Relation relation)
 		policy = (RowSecurityPolicy *) lfirst(item);
 
 		/* Always add ALL policies, if they exist. */
-		if (policy->cmd == '\0' && check_role_for_policy(policy))
+		if (policy->cmd == '\0' && check_role_for_policy(policy, user_id))
 			policies = lcons(policy, policies);
 
 		/* Build the list of policies to return. */
@@ -288,23 +299,23 @@ pull_row_security_policies(CmdType cmd, Relation relation)
 		{
 			case CMD_SELECT:
 				if (policy->cmd == ACL_SELECT_CHR
-					&& check_role_for_policy(policy))
+					&& check_role_for_policy(policy, user_id))
 					policies = lcons(policy, policies);
 				break;
 			case CMD_INSERT:
 				/* If INSERT then only need to add the WITH CHECK qual */
 				if (policy->cmd == ACL_INSERT_CHR
-					&& check_role_for_policy(policy))
+					&& check_role_for_policy(policy, user_id))
 					policies = lcons(policy, policies);
 				break;
 			case CMD_UPDATE:
 				if (policy->cmd == ACL_UPDATE_CHR
-					&& check_role_for_policy(policy))
+					&& check_role_for_policy(policy, user_id))
 					policies = lcons(policy, policies);
 				break;
 			case CMD_DELETE:
 				if (policy->cmd == ACL_DELETE_CHR
-					&& check_role_for_policy(policy))
+					&& check_role_for_policy(policy, user_id))
 					policies = lcons(policy, policies);
 				break;
 			default:
@@ -354,11 +365,11 @@ pull_row_security_policies(CmdType cmd, Relation relation)
  * rewrite them as necessary, and produce an Expr for the normal security
  * quals and an Expr for the with check quals.
  *
- * qual_eval and with_check_eval are output variables
+ * qual_eval, with_check_eval, and hassublinks are output variables
  */
 static void
 process_policies(List *policies, int rt_index, Expr **qual_eval,
-				 Expr **with_check_eval)
+				 Expr **with_check_eval, bool *hassublinks)
 {
 	ListCell		   *item;
 	List			   *quals = NIL;
@@ -378,6 +389,9 @@ process_policies(List *policies, int rt_index, Expr **qual_eval,
 		if (policy->with_check_qual != NULL)
 			with_check_quals = lcons(copyObject(policy->with_check_qual),
 									 with_check_quals);
+
+		if (policy->hassublinks)
+			*hassublinks = true;
 	}
 
 	/*
@@ -437,13 +451,16 @@ process_policies(List *policies, int rt_index, Expr **qual_eval,
  * we don't need to worry about it.  RLS_ENABLED means RLS should be implemented
  * for the table and the plan cache needs to be invalidated if the environment
  * changes.
+ *
+ * Handle checking as another role via checkAsUser (for views, etc).
  */
 static int
-check_enable_rls(Oid relid)
+check_enable_rls(Oid relid, Oid checkAsUser)
 {
 	HeapTuple		tuple;
 	Form_pg_class	classform;
 	bool			relhasrowsecurity;
+	Oid				user_id = checkAsUser ? checkAsUser : GetUserId();
 
 	tuple = SearchSysCache1(RELOID, ObjectIdGetDatum(relid));
 	if (!HeapTupleIsValid(tuple))
@@ -471,21 +488,25 @@ check_enable_rls(Oid relid)
 	 * is set to 'force'.  Note that superuser is always considered an owner.
 	 *
 	 * Return RLS_ENVIRONMENT to indicate that this decision depends on the
-	 * environment (in this case, what the current values of GetUserId() and
+	 * environment (in this case, what the current values of user_id and
 	 * row_security are).
 	 */
 	if (row_security != ROW_SECURITY_FORCE
-		&& (pg_class_ownercheck(relid, GetUserId())))
+		&& (pg_class_ownercheck(relid, user_id)))
 		return RLS_ENVIRONMENT;
 
 	/*
 	 * If the row_security GUC is 'off' then check if the user has permission
 	 * to bypass it.  Note that we have already handled the case where the user
 	 * is the table owner above.
+	 *
+	 * Note that row_security is always considered 'on' when querying
+	 * through a view or other cases where checkAsUser is true, so skip this
+	 * if checkAsUser is in use.
 	 */
-	if (row_security == ROW_SECURITY_OFF)
+	if (!checkAsUser && row_security == ROW_SECURITY_OFF)
 	{
-		if (has_bypassrls_privilege(GetUserId()))
+		if (has_bypassrls_privilege(user_id))
 			/* OK to bypass */
 			return RLS_ENVIRONMENT;
 		else
@@ -503,7 +524,7 @@ check_enable_rls(Oid relid)
  *   determines if the policy should be applied for the current role
  */
 bool
-check_role_for_policy(RowSecurityPolicy *policy)
+check_role_for_policy(RowSecurityPolicy *policy, Oid user_id)
 {
 	int			i;
 	Oid		   *roles = (Oid *) ARR_DATA_PTR(policy->roles);
@@ -514,7 +535,7 @@ check_role_for_policy(RowSecurityPolicy *policy)
 
 	for (i = 0; i < ARR_DIMS(policy->roles)[0]; i++)
 	{
-		if (is_member_of_role(GetUserId(), roles[i]))
+		if (is_member_of_role(user_id, roles[i]))
 			return true;
 	}
 
