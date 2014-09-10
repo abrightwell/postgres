@@ -49,7 +49,7 @@
 static void RangeVarCallbackForPolicy(const RangeVar *rv,
 				Oid relid, Oid oldrelid, void *arg);
 static const char parse_row_security_command(const char *cmd_name);
-static ArrayType* parse_role_ids(List *roles);
+static ArrayType* rls_role_list_to_array(List *roles);
 
 /*
  * Callback to RangeVarGetRelidExtended().
@@ -131,7 +131,7 @@ parse_row_security_command(const char *cmd_name)
 }
 
 /*
- * parse_role_ids
+ * rls_role_list_to_array
  *   helper function to convert a list of role names in to an array of
  *   role ids.
  *
@@ -141,7 +141,7 @@ parse_row_security_command(const char *cmd_name)
  * roles - the list of role names to convert.
  */
 static ArrayType *
-parse_role_ids(List *roles)
+rls_role_list_to_array(List *roles)
 {
 	ArrayType  *role_ids;
 	Datum	   *temp_array;
@@ -491,7 +491,7 @@ CreatePolicy(CreatePolicyStmt *stmt)
 
 
 	/* Collect role ids */
-	role_ids = parse_role_ids(stmt->roles);
+	role_ids = rls_role_list_to_array(stmt->roles);
 
 	/* Parse the supplied clause */
 	qual_pstate = make_parsestate(NULL);
@@ -676,7 +676,7 @@ AlterPolicy(AlterPolicyStmt *stmt)
 
 	/* Parse role_ids */
 	if (stmt->roles != NULL)
-		role_ids = parse_role_ids(stmt->roles);
+		role_ids = rls_role_list_to_array(stmt->roles);
 
 	/* Get id of table.  Also handles permissions checks. */
 	table_id = RangeVarGetRelidExtended(stmt->table, AccessExclusiveLock,

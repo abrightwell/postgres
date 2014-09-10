@@ -448,9 +448,6 @@ security_barrier_replace_vars_walker(Node *node,
 			/* Update the outer query's variable */
 			var->varattno = var->varoattno = attno;
 
-			/* Re-set varoattno also, as equalVar looks at it too */
-			var->varoattno = attno;
-
 			/* Remember this Var so that we don't process it again */
 			context->vars_processed = lappend(context->vars_processed, var);
 		}
