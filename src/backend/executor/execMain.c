@@ -501,6 +501,10 @@ ExecutorRewind(QueryDesc *queryDesc)
  *
  * Returns true if permissions are adequate.  Otherwise, throws an appropriate
  * error if ereport_on_violation is true, or simply returns false otherwise.
+ *
+ * Note that this does NOT address row-level security policies (aka: RLS).  If
+ * rows will be returned to the user then RLS also need to be consulted.
+ * See rewrite/rowsecurity.c.
  */
 bool
 ExecCheckRTPerms(List *rangeTable, bool ereport_on_violation)

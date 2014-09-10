@@ -1,6 +1,25 @@
 /*
  * rewrite/rowsecurity.c
- *    Routines to support row-security feature
+ *    Routines to support policies for row-level security.
+ *
+ * Policies in PostgreSQL provide a mechanism to limit what records are
+ * returned to a user and what records a user is permitted to add to a table.
+ *
+ * Policies can be defined for specific roles, specific commands, or provided
+ * by an extension.  Row security can also be enabled for a table without any
+ * policies being explicitly defined, in which case a default-deny policy is
+ * applied.
+ *
+ * Any part of the system which is returning records back to the user, or
+ * which is accepting records from the user to add to a table, needs to
+ * consider the policies associated with the table (if any).  For normal
+ * queries, this is handled by calling prepend_row_security_policies() during
+ * rewrite, which looks at each RTE and adds the expressions defined by the
+ * policies to the securityQuals list for the RTE.  For queries which modify
+ * the relation, any WITH CHECK policies are added to the list of
+ * WithCheckOptions for the Query and checked against each row which is being
+ * added to the table.  Other parts of the system (eg: COPY) simply construct
+ * a normal query and use that, if RLS is to be applied.
  *
  * Portions Copyright (c) 1996-2012, PostgreSQL Global Development Group
  * Portions Copyright (c) 1994, Regents of the University of California
