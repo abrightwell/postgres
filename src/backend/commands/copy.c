@@ -787,6 +787,7 @@ DoCopy(const CopyStmt *stmt, const char *queryString, uint64 *processed)
 	Relation	rel;
 	Oid			relid;
 	Node	   *query = NULL;
+	int			rowsec_check;
 
 	/* Disallow COPY to/from file or program except to superusers. */
 	if (!pipe && !superuser())
@@ -844,35 +845,21 @@ DoCopy(const CopyStmt *stmt, const char *queryString, uint64 *processed)
 		/*
 		 * Permission check for row security.
 		 *
-		 * If row_security is set to off and the user is not the owner and
-		 * does not have the bypassrls privilege, then throw a permission
-		 * denied error.  Note that the superuser always has the bypassrls
-		 * privilege.
+		 * This will ereport(ERROR) if the user has requested something
+		 * invalid and will otherwise indicate if we should enable RLS or
+		 * not for this COPY statement.
 		 */
-		if (rel->rd_rel->relhasrowsecurity
-			&& row_security == ROW_SECURITY_OFF
-			&& !pg_class_ownercheck(rte->relid, GetUserId())
-			&& !has_bypassrls_privilege(GetUserId()))
-			ereport(ERROR,
-					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-					 errmsg("insufficient privilege to bypass row security.")));
+		rowsec_check = check_enable_rls(rte->relid, InvalidOid);
 
 		/*
 		 * If the relation has a row security policy and we are to apply it
-		 * (row_security is 'force', or 'on' but the user is not the owner),
-		 * then perform a "query" copy.  This will allow for the policies to
-		 * be applied appropriately to the relation.
+		 * (according to check_enable_rls()), then perform a "query" copy and
+		 * allow the normal query processing to handle the policies.
 		 *
-		 * Permission checks are done above, so it's fine that if anything
-		 * in the below conditional results in 'false' that we just go ahead
-		 * and allow the COPY directly against the table without RLS being
-		 * applied to it.  This would include an owner running with row_security
-		 * set to 'off', for example.
+		 * If RLS is not enabled for this, then just fall through to the
+		 * normal non-filtering relation handling.
 		 */
-		if (rel->rd_rel->relhasrowsecurity
-			&& (row_security == ROW_SECURITY_FORCE
-				|| (row_security == ROW_SECURITY_ON
-					&& !pg_class_ownercheck(rte->relid, GetUserId()))))
+		if (rowsec_check == RLS_ENABLED)
 		{
 			SelectStmt *select;
 			ColumnRef  *cr;
