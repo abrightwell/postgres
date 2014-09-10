@@ -419,6 +419,12 @@ intorel_startup(DestReceiver *self, int operation, TupleDesc typeinfo)
 
 	ExecCheckRTPerms(list_make1(rte), true);
 
+	/* Make sure the constructed table does not have RLS enabled. */
+	if (intoRelationDesc->rd_rel->relhasrowsecurity)
+		ereport(ERROR,
+				(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+				 (errmsg("policies not yet implemented for this command"))));
+
 	/*
 	 * Tentatively mark the target as populated, if it's a matview and we're
 	 * going to fill it; otherwise, no change needed.

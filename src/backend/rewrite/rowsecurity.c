@@ -96,7 +96,7 @@ prepend_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index)
 	bool				defaultDeny = true;
 	bool				hassublinks = false;
 
-	/* This is primairly just to get the security context */
+	/* This is just to get the security context */
 	GetUserIdAndSecContext(&user_id, &sec_context);
 
 	/* Switch to checkAsUser if it's set */
