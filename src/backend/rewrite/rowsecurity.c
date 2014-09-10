@@ -260,8 +260,9 @@ prepend_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index)
 	root->hasRowSecurity = true;
 
 	/*
-	 * If we have sublinks added because of the policy being added to the
-	 * query, then set hasSubLinks
+	 * If we have sublinks added because of the policies being added to the
+	 * query, then set hasSubLinks on the Query to force subLinks to be
+	 * properly expanded.
 	 */
 	if (hassublinks)
 		root->hasSubLinks = hassublinks;

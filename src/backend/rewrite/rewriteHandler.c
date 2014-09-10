@@ -1728,12 +1728,34 @@ fireRIRrules(Query *parsetree, List *activeRIRs, bool forUpdatePushedDown)
 							 errmsg("infinite recursion detected in row-security policy for relation \"%s\"",
 									RelationGetRelationName(rel))));
 
-			activeRIRs = lcons_oid(RelationGetRelid(rel), activeRIRs);
+			/*
+			 * Make sure we check for recursion in either securityQuals or
+			 * WITH CHECK quals.
+			 */
+			if (rte->securityQuals != NIL)
+			{
+				activeRIRs = lcons_oid(RelationGetRelid(rel), activeRIRs);
 
-			expression_tree_walker( (Node*) rte->securityQuals,
-									fireRIRonSubLink, (void*)activeRIRs );
+				expression_tree_walker( (Node*) rte->securityQuals,
+										fireRIRonSubLink, (void*)activeRIRs );
 
-			activeRIRs = list_delete_first(activeRIRs);
+				activeRIRs = list_delete_first(activeRIRs);
+			}
+
+			if (parsetree->withCheckOptions != NIL)
+			{
+				WithCheckOption    *wco;
+				List			   *quals = NIL;
+
+				wco = (WithCheckOption *) makeNode(WithCheckOption);
+				quals = lcons(wco->qual, quals);
+
+				activeRIRs = lcons_oid(RelationGetRelid(rel), activeRIRs);
+
+				expression_tree_walker( (Node*) quals, fireRIRonSubLink,
+									   (void*)activeRIRs);
+			}
+
 		}
 
 		heap_close(rel, NoLock);
