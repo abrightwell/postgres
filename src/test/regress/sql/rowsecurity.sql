@@ -300,9 +300,10 @@ SELECT * FROM rec1;    -- fail, mutual recursion
 --
 -- Mutual recursion via views
 --
-SET SESSION AUTHORIZATION rls_regress_user0;
+SET SESSION AUTHORIZATION rls_regress_user1;
 CREATE VIEW rec1v AS SELECT * FROM rec1;
 CREATE VIEW rec2v AS SELECT * FROM rec2;
+SET SESSION AUTHORIZATION rls_regress_user0;
 ALTER POLICY r1 ON rec1 USING (x = (SELECT a FROM rec2v WHERE b = y));
 ALTER POLICY r2 ON rec2 USING (a = (SELECT x FROM rec1v WHERE y = b));
 
@@ -312,10 +313,11 @@ SELECT * FROM rec1;    -- fail, mutual recursion via views
 --
 -- Mutual recursion via .s.b views
 --
-SET SESSION AUTHORIZATION rls_regress_user0;
+SET SESSION AUTHORIZATION rls_regress_user1;
 DROP VIEW rec1v, rec2v CASCADE;
 CREATE VIEW rec1v WITH (security_barrier) AS SELECT * FROM rec1;
 CREATE VIEW rec2v WITH (security_barrier) AS SELECT * FROM rec2;
+SET SESSION AUTHORIZATION rls_regress_user0;
 CREATE POLICY r1 ON rec1 USING (x = (SELECT a FROM rec2v WHERE b = y));
 CREATE POLICY r2 ON rec2 USING (a = (SELECT x FROM rec1v WHERE y = b));
 
@@ -331,17 +333,21 @@ INSERT INTO s1 (SELECT x, md5(x::text) FROM generate_series(-10,10) x);
 
 CREATE TABLE s2 (x int, y text);
 INSERT INTO s2 (SELECT x, md5(x::text) FROM generate_series(-6,6) x);
-CREATE VIEW v2 AS SELECT * FROM s2 WHERE y like '%af%';
 
-GRANT SELECT ON s1, s2, v2 TO rls_regress_user1;
+GRANT SELECT ON s1, s2 TO rls_regress_user1;
 
 CREATE POLICY p1 ON s1 USING (a in (select x from s2 where y like '%2f%'));
 CREATE POLICY p2 ON s2 USING (x in (select a from s1 where b like '%22%'));
+CREATE POLICY p3 ON s1 FOR INSERT WITH CHECK (a = (SELECT a FROM s1));
 
 SET SESSION AUTHORIZATION rls_regress_user1;
-SELECT * FROM s1 WHERE f_leak(b);	-- fail (infinite recursion)
+CREATE VIEW v2 AS SELECT * FROM s2 WHERE y like '%af%';
+SELECT * FROM s1 WHERE f_leak(b); -- fail (infinite recursion)
+
+INSERT INTO s1 VALUES (1, 'foo'); -- fail (infinite recursion)
 
 SET SESSION AUTHORIZATION rls_regress_user0;
+DROP POLICY p3 on s1;
 ALTER POLICY p2 ON s2 USING (x % 2 = 0);
 
 SET SESSION AUTHORIZATION rls_regress_user1;
@@ -418,33 +424,85 @@ DELETE FROM t1 WHERE f_leak(b) RETURNING oid, *, t1;
 -- ROLE/GROUP
 --
 SET SESSION AUTHORIZATION rls_regress_user0;
+CREATE TABLE z1 (a int, b text);
 
-CREATE TABLE z1 (a int, b text) WITH OIDS;
-GRANT ALL ON z1 TO PUBLIC;
+GRANT SELECT ON z1 TO rls_regress_group1, rls_regress_group2,
+    rls_regress_user1, rls_regress_user2;
 
-COPY z1 FROM STDIN WITH (OIDS);
-101	1	aaa
-102	2	bbb
-103	3	ccc
-104	4	ddd
-\.
+INSERT INTO z1 VALUES
+    (1, 'aaa'),
+    (2, 'bbb'),
+    (3, 'ccc'),
+    (4, 'ddd');
 
-CREATE POLICY p1 ON z1 TO rls_regress_group1
-    USING (a % 2 = 0);
-CREATE POLICY p2 ON z1 TO rls_regress_group2
-    USING (a % 2 = 1);
+CREATE POLICY p1 ON z1 TO rls_regress_group1 USING (a % 2 = 0);
+CREATE POLICY p2 ON z1 TO rls_regress_group2 USING (a % 2 = 1);
 
 SET SESSION AUTHORIZATION rls_regress_user1;
 SELECT * FROM z1 WHERE f_leak(b);
+EXPLAIN (COSTS OFF) SELECT * FROM z1 WHERE f_leak(b);
 
 SET ROLE rls_regress_group1;
 SELECT * FROM z1 WHERE f_leak(b);
+EXPLAIN (COSTS OFF) SELECT * FROM z1 WHERE f_leak(b);
 
 SET SESSION AUTHORIZATION rls_regress_user2;
 SELECT * FROM z1 WHERE f_leak(b);
+EXPLAIN (COSTS OFF) SELECT * FROM z1 WHERE f_leak(b);
 
 SET ROLE rls_regress_group2;
 SELECT * FROM z1 WHERE f_leak(b);
+EXPLAIN (COSTS OFF) SELECT * FROM z1 WHERE f_leak(b);
+
+--
+-- Views should follow policy for view owner.
+--
+-- View and Table owner are the same.
+SET SESSION AUTHORIZATION rls_regress_user0;
+CREATE VIEW rls_view AS SELECT * FROM z1 WHERE f_leak(b);
+GRANT SELECT ON rls_view TO rls_regress_user1;
+
+-- Query as role that is not owner of view or table.  Should return all records.
+SET SESSION AUTHORIZATION rls_regress_user1;
+SELECT * FROM rls_view;
+EXPLAIN (COSTS OFF) SELECT * FROM rls_view;
+
+-- Query as view/table owner.  Should return all records.
+SET SESSION AUTHORIZATION rls_regress_user0;
+SELECT * FROM rls_view;
+EXPLAIN (COSTS OFF) SELECT * FROM rls_view;
+DROP VIEW rls_view;
+
+-- View and Table owners are different.
+SET SESSION AUTHORIZATION rls_regress_user1;
+CREATE VIEW rls_view AS SELECT * FROM z1 WHERE f_leak(b);
+GRANT SELECT ON rls_view TO rls_regress_user0;
+
+-- Query as role that is not owner of view but is owner of table.
+-- Should return records based on view owner policies.
+SET SESSION AUTHORIZATION rls_regress_user0;
+SELECT * FROM rls_view;
+EXPLAIN (COSTS OFF) SELECT * FROM rls_view;
+
+-- Query as role that is not owner of table but is owner of view.
+-- Should return records based on view owner policies.
+SET SESSION AUTHORIZATION rls_regress_user1;
+SELECT * FROM rls_view;
+EXPLAIN (COSTS OFF) SELECT * FROM rls_view;
+
+-- Query as role that is not the owner of the table or view without permissions.
+SET SESSION AUTHORIZATION rls_regress_user2;
+SELECT * FROM rls_view; --fail - permission denied.
+EXPLAIN (COSTS OFF) SELECT * FROM rls_view; --fail - permission denied.
+
+-- Query as role that is not the owner of the table or view with permissions.
+SET SESSION AUTHORIZATION rls_regress_user1;
+GRANT SELECT ON rls_view TO rls_regress_user2;
+SELECT * FROM rls_view;
+EXPLAIN (COSTS OFF) SELECT * FROM rls_view;
+
+SET SESSION AUTHORIZATION rls_regress_user1;
+DROP VIEW rls_view;
 
 --
 -- Command specific
@@ -496,12 +554,19 @@ CREATE POLICY p1 ON y2 FOR ALL USING (a % 2 = 0);  --OK
 --
 -- Expression structure with SBV
 --
+-- Create view as table owner.  RLS should NOT be applied.
 SET SESSION AUTHORIZATION rls_regress_user0;
 CREATE VIEW rls_sbv WITH (security_barrier) AS
     SELECT * FROM y1 WHERE f_leak(b);
-GRANT SELECT ON rls_sbv TO rls_regress_user1;
-SET SESSION AUTHORIZATION rls_regress_user1;
 EXPLAIN (COSTS OFF) SELECT * FROM rls_sbv WHERE (a = 1);
+DROP VIEW rls_sbv;
+
+-- Create view as role that does not own table.  RLS should be applied.
+SET SESSION AUTHORIZATION rls_regress_user1;
+CREATE VIEW rls_sbv WITH (security_barrier) AS
+    SELECT * FROM y1 WHERE f_leak(b);
+EXPLAIN (COSTS OFF) SELECT * FROM rls_sbv WHERE (a = 1);
+DROP VIEW rls_sbv;
 
 --
 -- Expression structure
