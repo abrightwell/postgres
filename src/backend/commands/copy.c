@@ -787,7 +787,6 @@ DoCopy(const CopyStmt *stmt, const char *queryString, uint64 *processed)
 	Relation	rel;
 	Oid			relid;
 	Node	   *query = NULL;
-	int			rowsec_check;
 
 	/* Disallow COPY to/from file or program except to superusers. */
 	if (!pipe && !superuser())
@@ -845,21 +844,18 @@ DoCopy(const CopyStmt *stmt, const char *queryString, uint64 *processed)
 		/*
 		 * Permission check for row security.
 		 *
-		 * This will ereport(ERROR) if the user has requested something
-		 * invalid and will otherwise indicate if we should enable RLS or
-		 * not for this COPY statement.
-		 */
-		rowsec_check = check_enable_rls(rte->relid, InvalidOid);
-
-		/*
+		 * check_enable_rls will ereport(ERROR) if the user has requested
+		 * something invalid and will otherwise indicate if we should enable
+		 * RLS (returnes RLS_ENABLED) or not for this COPY statement.
+		 *
 		 * If the relation has a row security policy and we are to apply it
-		 * (according to check_enable_rls()), then perform a "query" copy and
-		 * allow the normal query processing to handle the policies.
+		 * then perform a "query" copy and allow the normal query processing to
+		 * handle the policies.
 		 *
 		 * If RLS is not enabled for this, then just fall through to the
 		 * normal non-filtering relation handling.
 		 */
-		if (rowsec_check == RLS_ENABLED)
+		if (check_enable_rls(rte->relid, InvalidOid) == RLS_ENABLED)
 		{
 			SelectStmt *select;
 			ColumnRef  *cr;
