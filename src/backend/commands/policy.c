@@ -608,27 +608,6 @@ CreatePolicy(CreatePolicyStmt *stmt)
 	recordDependencyOnExpr(&myself, with_check_qual,
 						   with_check_pstate->p_rtable, DEPENDENCY_NORMAL);
 
-	/* Turn on relhasrowsecurity for the table, if not done. */
-	if (!RelationGetForm(target_table)->relhasrowsecurity)
-	{
-		HeapTuple tuple;
-		Relation class_rel;
-
-		class_rel = heap_open(RelationRelationId, RowExclusiveLock);
-		tuple = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(table_id));
-
-		if (!HeapTupleIsValid(tuple))
-			elog(ERROR, "cache look up failed for relation %u", table_id);
-
-		((Form_pg_class) GETSTRUCT(tuple))->relhasrowsecurity = true;
-
-		simple_heap_update(class_rel, &tuple->t_self, tuple);
-		CatalogUpdateIndexes(class_rel, tuple);
-
-		heap_freetuple(tuple);
-		heap_close(class_rel, RowExclusiveLock);
-	}
-
 	/* Invalidate Relation Cache */
 	CacheInvalidateRelcache(target_table);
 

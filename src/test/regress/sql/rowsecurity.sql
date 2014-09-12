@@ -82,6 +82,8 @@ INSERT INTO document VALUES
     ( 7, 33, 2, 'rls_regress_user2', 'great technology book'),
     ( 8, 44, 1, 'rls_regress_user2', 'great manga');
 
+ALTER TABLE document ENABLE ROW LEVEL SECURITY;
+
 -- user's security level must be higher that or equal to document's
 CREATE POLICY p1 ON document
     USING (dlevel <= (SELECT seclv FROM uaccount WHERE pguser = current_user));
@@ -122,11 +124,12 @@ EXPLAIN (COSTS OFF) SELECT * FROM document NATURAL JOIN category WHERE f_leak(dt
 
 -- interaction of FK/PK constraints
 SET SESSION AUTHORIZATION rls_regress_user0;
-CREATE POLICY p2 ON category FOR ALL
-    TO PUBLIC
+CREATE POLICY p2 ON category
     USING (CASE WHEN current_user = 'rls_regress_user1' THEN cid IN (11, 33)
            WHEN current_user = 'rls_regress_user2' THEN cid IN (22, 44)
            ELSE false END);
+
+ALTER TABLE category ENABLE ROW LEVEL SECURITY;
 
 -- cannot delete PK referenced by invisible FK
 SET SESSION AUTHORIZATION rls_regress_user1;
@@ -222,6 +225,9 @@ COPY t3(a,b,c) FROM stdin WITH (oids);
 CREATE POLICY p1 ON t1 FOR ALL TO PUBLIC USING (a % 2 = 0); -- be even number
 CREATE POLICY p2 ON t2 FOR ALL TO PUBLIC USING (a % 2 = 1); -- be odd number
 
+ALTER TABLE t1 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE t2 ENABLE ROW LEVEL SECURITY;
+
 SET SESSION AUTHORIZATION rls_regress_user1;
 
 SELECT * FROM t1;
@@ -282,7 +288,7 @@ EXPLAIN (COSTS OFF) SELECT * FROM dependent; -- After drop, should be unqualifie
 SET SESSION AUTHORIZATION rls_regress_user0;
 CREATE TABLE rec1 (x integer, y integer);
 CREATE POLICY r1 ON rec1 USING (x = (SELECT r.x FROM rec1 r WHERE y = r.y));
-
+ALTER TABLE rec1 ENABLE ROW LEVEL SECURITY;
 SET SESSION AUTHORIZATION rls_regress_user1;
 SELECT * FROM rec1; -- fail, direct recursion
 
@@ -293,6 +299,7 @@ SET SESSION AUTHORIZATION rls_regress_user0;
 CREATE TABLE rec2 (a integer, b integer);
 ALTER POLICY r1 ON rec1 USING (x = (SELECT a FROM rec2 WHERE b = y));
 CREATE POLICY r2 ON rec2 USING (a = (SELECT x FROM rec1 WHERE y = b));
+ALTER TABLE rec2 ENABLE ROW LEVEL SECURITY;
 
 SET SESSION AUTHORIZATION rls_regress_user1;
 SELECT * FROM rec1;    -- fail, mutual recursion
@@ -339,6 +346,9 @@ GRANT SELECT ON s1, s2 TO rls_regress_user1;
 CREATE POLICY p1 ON s1 USING (a in (select x from s2 where y like '%2f%'));
 CREATE POLICY p2 ON s2 USING (x in (select a from s1 where b like '%22%'));
 CREATE POLICY p3 ON s1 FOR INSERT WITH CHECK (a = (SELECT a FROM s1));
+
+ALTER TABLE s1 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE s2 ENABLE ROW LEVEL SECURITY;
 
 SET SESSION AUTHORIZATION rls_regress_user1;
 CREATE VIEW v2 AS SELECT * FROM s2 WHERE y like '%af%';
@@ -438,6 +448,8 @@ INSERT INTO z1 VALUES
 CREATE POLICY p1 ON z1 TO rls_regress_group1 USING (a % 2 = 0);
 CREATE POLICY p2 ON z1 TO rls_regress_group2 USING (a % 2 = 1);
 
+ALTER TABLE z1 ENABLE ROW LEVEL SECURITY;
+
 SET SESSION AUTHORIZATION rls_regress_user1;
 SELECT * FROM z1 WHERE f_leak(b);
 EXPLAIN (COSTS OFF) SELECT * FROM z1 WHERE f_leak(b);
@@ -528,6 +540,8 @@ CREATE POLICY p2 ON x1 FOR INSERT WITH CHECK (a % 2 = 1);
 CREATE POLICY p3 ON x1 FOR UPDATE USING (a % 2 = 0);
 CREATE POLICY p4 ON x1 FOR DELETE USING (a < 8);
 
+ALTER TABLE x1 ENABLE ROW LEVEL SECURITY;
+
 SET SESSION AUTHORIZATION rls_regress_user1;
 SELECT * FROM x1 WHERE f_leak(b) ORDER BY a ASC;
 UPDATE x1 SET b = b || '_updt' WHERE f_leak(b) RETURNING *;
@@ -550,6 +564,9 @@ CREATE POLICY p1 ON y1 FOR ALL USING (a % 2 = 0);
 CREATE POLICY p2 ON y1 FOR SELECT USING (a > 2);
 CREATE POLICY p1 ON y1 FOR SELECT USING (a % 2 = 1);  --fail
 CREATE POLICY p1 ON y2 FOR ALL USING (a % 2 = 0);  --OK
+
+ALTER TABLE y1 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE y2 ENABLE ROW LEVEL SECURITY;
 
 --
 -- Expression structure with SBV
@@ -592,6 +609,8 @@ GRANT SELECT ON t1 TO rls_regress_user1, rls_regress_user2;
 CREATE POLICY p1 ON t1 TO rls_regress_user1 USING ((a % 2) = 0);
 CREATE POLICY p2 ON t1 TO rls_regress_user2 USING ((a % 4) = 0);
 
+ALTER TABLE t1 ENABLE ROW LEVEL SECURITY;
+
 SET ROLE rls_regress_user1;
 PREPARE role_inval AS SELECT * FROM t1;
 EXPLAIN (COSTS OFF) EXECUTE role_inval;
@@ -606,6 +625,8 @@ RESET SESSION AUTHORIZATION;
 DROP TABLE t1 CASCADE;
 CREATE TABLE t1 (a integer, b text);
 CREATE POLICY p1 ON t1 USING (a % 2 = 0);
+
+ALTER TABLE t1 ENABLE ROW LEVEL SECURITY;
 
 GRANT ALL ON t1 TO rls_regress_user1;
 
@@ -665,6 +686,8 @@ GRANT ALL ON blog, comment TO rls_regress_user1;
 
 CREATE POLICY blog_1 ON blog USING (id % 2 = 0);
 
+ALTER TABLE blog ENABLE ROW LEVEL SECURITY;
+
 INSERT INTO blog VALUES
     (1, 'alice', 'blog #1'),
     (2, 'bob', 'blog #1'),
@@ -688,6 +711,8 @@ SELECT id, author, message FROM comment JOIN blog ON id = blog_id;
 
 SET SESSION AUTHORIZATION rls_regress_user0;
 CREATE POLICY comment_1 ON comment USING (blog_id < 4);
+
+ALTER TABLE comment ENABLE ROW LEVEL SECURITY;
 
 SET SESSION AUTHORIZATION rls_regress_user1;
 -- Check RLS JOIN RLS
@@ -787,6 +812,8 @@ RESET SESSION AUTHORIZATION;
 DROP TABLE copy_t CASCADE;
 CREATE TABLE copy_t (a integer, b text);
 CREATE POLICY p1 ON copy_t USING (a % 2 = 0);
+
+ALTER TABLE copy_t ENABLE ROW LEVEL SECURITY;
 
 GRANT ALL ON copy_t TO rls_regress_user1, rls_regress_exempt_user;
 

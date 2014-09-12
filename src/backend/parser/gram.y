@@ -2321,11 +2321,10 @@ alter_table_cmd:
 					$$ = (Node *)n;
 				}
 			/* ALTER TABLE <name> DISABLE ROW LEVEL SECURITY */
-			| DISABLE_P ROW LEVEL SECURITY opt_drop_behavior
+			| DISABLE_P ROW LEVEL SECURITY
 				{
 					AlterTableCmd *n = makeNode(AlterTableCmd);
 					n->subtype = AT_DisableRowSecurity;
-					n->behavior = $5;
 					$$ = (Node *)n;
 				}
 			| alter_generic_options

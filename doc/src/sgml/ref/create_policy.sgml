@@ -151,7 +151,7 @@ CREATE POLICY <replaceable class="parameter">name</replaceable> ON <replaceable 
       Any <acronym>SQL</acronym> conditional expression (returning
       <type>boolean</type>).  The conditional expression cannot contain
       any aggregate or window functions.  This expression will be added
-      to queries to filter out the records which are visible to the query. 
+      to queries to filter out the records which are visible to the query.
      </para>
     </listitem>
    </varlistentry>
@@ -200,7 +200,7 @@ CREATE POLICY <replaceable class="parameter">name</replaceable> ON <replaceable 
          statement, to check if they are permitted to be added to the table
          (using the WITH CHECK expression, if defined, and the USING expression
          otherwise).  If an INSERT or UPDATE command attempts to add rows to
-         the table which do not pass the <literal>ALL</literal> WITH CHECK 
+         the table which do not pass the <literal>ALL</literal> WITH CHECK
          (or USING, if no WITH CHECK expression is defined) expression, the
          command will error.
        </para>
