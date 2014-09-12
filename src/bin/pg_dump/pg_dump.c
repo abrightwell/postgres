@@ -249,7 +249,6 @@ static void getBlobs(Archive *fout);
 static void dumpBlob(Archive *fout, BlobInfo *binfo);
 static int	dumpBlobs(Archive *fout, void *arg);
 static void dumpRowSecurity(Archive *fout, RowSecurityInfo *rsinfo);
-static void enableRowSecurity(Archive *fout, RowSecurityEnabledInfo *rseinfo);
 static void dumpDatabase(Archive *AH);
 static void dumpEncoding(Archive *AH);
 static void dumpStdStrings(Archive *AH);
@@ -2797,21 +2796,38 @@ getRowSecurity(Archive *fout, TableInfo tblinfo[], int numTables)
 	{
 		TableInfo *tbinfo = &tblinfo[i];
 
-		/* get row-security enabled information. */
+		/* Ignore row-security on tables not to be dumped */
+		if (!tbinfo->dobj.dump)
+			continue;
+
+		if (g_verbose)
+			write_msg(NULL, "reading row-security enabled for table \"%s\"",
+					  tbinfo->dobj.name);
+
+		/*
+		 * Get row-security enabled information for the table.
+		 * We represent RLS enabled on a table by creating RowSecurityInfo
+		 * object with an empty policy.
+		 */
 		if (tbinfo->hasrowsec)
 		{
 			/*
 			 * Note: use tableoid 0 so that this object won't be mistaken for
 			 * something that pg_depend entries apply to.
 			 */
-			RowSecurityEnabledInfo *rseinfo = pg_malloc(sizeof(RowSecurityEnabledInfo));
-			rseinfo->dobj.objType = DO_ENABLE_ROW_SECURITY;
-			rseinfo->dobj.catId.tableoid = 0;
-			rseinfo->dobj.catId.oid = tbinfo->dobj.catId.oid;
-			AssignDumpId(&rseinfo->dobj);
-			rseinfo->dobj.namespace = tbinfo->dobj.namespace;
-			rseinfo->dobj.name = pg_strdup(tbinfo->dobj.name);
-			rseinfo->rolname = pg_strdup(tbinfo->rolname);
+			rsinfo = pg_malloc(sizeof(RowSecurityInfo));
+			rsinfo->dobj.objType = DO_ROW_SECURITY;
+			rsinfo->dobj.catId.tableoid = 0;
+			rsinfo->dobj.catId.oid = tbinfo->dobj.catId.oid;
+			AssignDumpId(&rsinfo->dobj);
+			rsinfo->dobj.namespace = tbinfo->dobj.namespace;
+			rsinfo->dobj.name = pg_strdup(tbinfo->dobj.name);
+			rsinfo->rstable = tbinfo;
+			rsinfo->rsecpolname = NULL;
+			rsinfo->rseccmd = NULL;
+			rsinfo->rsecroles = NULL;
+			rsinfo->rsecqual = NULL;
+			rsinfo->rsecwithcheck = NULL;
 		}
 
 		if (g_verbose)
@@ -2825,6 +2841,7 @@ getRowSecurity(Archive *fout, TableInfo tblinfo[], int numTables)
 
 		resetPQExpBuffer(query);
 
+		/* Get the policies for the table. */
 		appendPQExpBuffer(query,
 						  "SELECT oid, tableoid, s.rsecpolname, s.rseccmd, "
 						  "CASE WHEN s.rsecroles = '{0}' THEN 'PUBLIC' ELSE "
@@ -2911,6 +2928,33 @@ dumpRowSecurity(Archive *fout, RowSecurityInfo *rsinfo)
 	if (dataOnly)
 		return;
 
+	/*
+	 * If all policy data is NULL, then this is an ENABLE row-security object.
+	 * Dump as ALTER TABLE <table> ENABLE ROW LEVEL SECURITY.
+	 */
+	if (rsinfo->rsecpolname == NULL
+		&& rsinfo->rseccmd == NULL
+		&& rsinfo->rsecroles == NULL)
+	{
+		query = createPQExpBuffer();
+
+		appendPQExpBuffer(query, "ALTER TABLE %s ENABLE ROW LEVEL SECURITY;",
+						  fmtId(rsinfo->dobj.name));
+
+		ArchiveEntry(fout, rsinfo->dobj.catId, rsinfo->dobj.dumpId,
+					 rsinfo->dobj.name,
+					 rsinfo->dobj.namespace->dobj.name,
+					 NULL,
+					 tbinfo->rolname, false,
+					 "ROW SECURITY", SECTION_NONE,
+					 query->data, "", NULL,
+					 NULL, 0,
+					 NULL, NULL);
+
+		destroyPQExpBuffer(query);
+		return;
+	}
+
 	if (!rsinfo->rseccmd)
 		cmd = "ALL";
 	else if (strcmp(rsinfo->rseccmd, "r") == 0)
@@ -2930,17 +2974,17 @@ dumpRowSecurity(Archive *fout, RowSecurityInfo *rsinfo)
 	query = createPQExpBuffer();
 	delqry = createPQExpBuffer();
 
-	appendPQExpBuffer(query, "CREATE POLICY %s ON %s FOR %s ",
+	appendPQExpBuffer(query, "CREATE POLICY %s ON %s FOR %s",
 					  rsinfo->rsecpolname, fmtId(tbinfo->dobj.name), cmd);
 
 	if (rsinfo->rsecroles != NULL)
-		appendPQExpBuffer(query, "TO %s ", rsinfo->rsecroles);
+		appendPQExpBuffer(query, " TO %s", rsinfo->rsecroles);
 
 	if (rsinfo->rsecqual != NULL)
-		appendPQExpBuffer(query, "USING %s ", rsinfo->rsecqual);
+		appendPQExpBuffer(query, " USING %s", rsinfo->rsecqual);
 
 	if (rsinfo->rsecwithcheck != NULL)
-		appendPQExpBuffer(query, "WITH CHECK %s", rsinfo->rsecwithcheck);
+		appendPQExpBuffer(query, " WITH CHECK %s", rsinfo->rsecwithcheck);
 
 	appendPQExpBuffer(query, ";\n");
 
@@ -2958,36 +3002,7 @@ dumpRowSecurity(Archive *fout, RowSecurityInfo *rsinfo)
 				 NULL, NULL);
 
 	destroyPQExpBuffer(query);
-}
-
-/*
- * enableRowSecurity
- *    enable row security for a table accordingly.
- */
-void
-enableRowSecurity(Archive *fout, RowSecurityEnabledInfo *rseinfo)
-{
-	PQExpBuffer query;
-
-	if (dataOnly)
-		return;
-
-	query = createPQExpBuffer();
-
-	appendPQExpBuffer(query, "ALTER TABLE %s ENABLE ROW LEVEL SECURITY;",
-					  fmtId(rseinfo->dobj.name));
-
-	ArchiveEntry(fout, rseinfo->dobj.catId, rseinfo->dobj.dumpId,
-				 rseinfo->dobj.name,
-				 rseinfo->dobj.namespace->dobj.name,
-				 NULL,
-				 rseinfo->rolname, false,
-				 "ROW SECURITY", SECTION_NONE,
-				 query->data, "", NULL,
-				 NULL, 0,
-				 NULL, NULL);
-
-	destroyPQExpBuffer(query);
+	destroyPQExpBuffer(delqry);
 }
 
 static void
@@ -8220,9 +8235,6 @@ dumpDumpableObject(Archive *fout, DumpableObject *dobj)
 			break;
 		case DO_ROW_SECURITY:
 			dumpRowSecurity(fout, (RowSecurityInfo *) dobj);
-			break;
-		case DO_ENABLE_ROW_SECURITY:
-			enableRowSecurity(fout, (RowSecurityEnabledInfo *) dobj);
 			break;
 		case DO_PRE_DATA_BOUNDARY:
 		case DO_POST_DATA_BOUNDARY:
@@ -15627,7 +15639,6 @@ addBoundaryDependencies(DumpableObject **dobjs, int numObjs,
 			case DO_EVENT_TRIGGER:
 			case DO_DEFAULT_ACL:
 			case DO_ROW_SECURITY:
-			case DO_ENABLE_ROW_SECURITY:
 				/* Post-data objects: must come after the post-data boundary */
 				addObjectDependency(dobj, postDataBound->dumpId);
 				break;

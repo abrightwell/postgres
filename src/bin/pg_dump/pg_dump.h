@@ -112,7 +112,6 @@ typedef enum
 	DO_POST_DATA_BOUNDARY,
 	DO_EVENT_TRIGGER,
 	DO_REFRESH_MATVIEW,
-	DO_ENABLE_ROW_SECURITY,
 	DO_ROW_SECURITY
 } DumpableObjectType;
 
@@ -499,12 +498,6 @@ typedef struct _rowSecurityInfo
 	char		   *rsecqual;
 	char		   *rsecwithcheck;
 } RowSecurityInfo;
-
-typedef struct _rowSecurityEnableInfo
-{
-	DumpableObject  dobj;
-	char		   *rolname;
-} RowSecurityEnabledInfo;
 
 /* global decls */
 extern bool force_quotes;		/* double-quotes for identifiers flag */
