@@ -2929,12 +2929,11 @@ dumpRowSecurity(Archive *fout, RowSecurityInfo *rsinfo)
 		return;
 
 	/*
-	 * If all policy data is NULL, then this is an ENABLE row-security object.
+	 * If rsecpolname is NULL, then this record is just indicating that ROW
+	 * LEVEL SECURITY is enabled for the table.
 	 * Dump as ALTER TABLE <table> ENABLE ROW LEVEL SECURITY.
 	 */
-	if (rsinfo->rsecpolname == NULL
-		&& rsinfo->rseccmd == NULL
-		&& rsinfo->rsecroles == NULL)
+	if (rsinfo->rsecpolname == NULL)
 	{
 		query = createPQExpBuffer();
 

@@ -846,7 +846,7 @@ DoCopy(const CopyStmt *stmt, const char *queryString, uint64 *processed)
 		 *
 		 * check_enable_rls will ereport(ERROR) if the user has requested
 		 * something invalid and will otherwise indicate if we should enable
-		 * RLS (returnes RLS_ENABLED) or not for this COPY statement.
+		 * RLS (returns RLS_ENABLED) or not for this COPY statement.
 		 *
 		 * If the relation has a row security policy and we are to apply it
 		 * then perform a "query" copy and allow the normal query processing to

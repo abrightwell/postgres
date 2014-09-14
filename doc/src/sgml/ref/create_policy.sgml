@@ -34,7 +34,9 @@ CREATE POLICY <replaceable class="parameter">name</replaceable> ON <replaceable 
 
   <para>
    The <command>CREATE POLICY</command> command defines a new row-security
-   policy for a table.
+   policy for a table.  Note that row-security must also be enabled on the
+   table using <command>ALTER TABLE</command> in order for created policies
+   to be applied.
   </para>
 
   <para>

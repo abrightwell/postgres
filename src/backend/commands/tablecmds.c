@@ -411,7 +411,7 @@ static void ATExecDropOf(Relation rel, LOCKMODE lockmode);
 static void ATExecReplicaIdentity(Relation rel, ReplicaIdentityStmt *stmt, LOCKMODE lockmode);
 static void ATExecGenericOptions(Relation rel, List *options);
 static void ATExecEnableRowSecurity(Relation rel);
-static void ATExecDisableRowSecurity(Relation rel, DropBehavior behavior);
+static void ATExecDisableRowSecurity(Relation rel);
 
 static void copy_relation_data(SMgrRelation rel, SMgrRelation dst,
 				   ForkNumber forkNum, char relpersistence);
@@ -3583,7 +3583,7 @@ ATExecCmd(List **wqueue, AlteredTableInfo *tab, Relation rel,
 			ATExecEnableRowSecurity(rel);
 			break;
 		case AT_DisableRowSecurity:
-			ATExecDisableRowSecurity(rel, cmd->behavior);
+			ATExecDisableRowSecurity(rel);
 			break;
 		case AT_GenericOptions:
 			ATExecGenericOptions(rel, (List *) cmd->def);
@@ -10658,7 +10658,7 @@ ATExecEnableRowSecurity(Relation rel)
 }
 
 static void
-ATExecDisableRowSecurity(Relation rel, DropBehavior behavior)
+ATExecDisableRowSecurity(Relation rel)
 {
 	Relation		pg_class;
 	Oid				relid;

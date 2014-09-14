@@ -488,11 +488,17 @@ typedef struct _blobInfo
 	char	   *blobacl;
 } BlobInfo;
 
+/*
+ * The RowSecurityInfo struct is used to represent row policies on a table and
+ * to indicate if a table has RLS enabled (ENABLE ROW SECURITY).  If
+ * rsecpolname is NULL, then the record indicates ENABLE ROW SECURITY, while if
+ * it's non-NULL then this is a regular policy definition.
+ */
 typedef struct _rowSecurityInfo
 {
 	DumpableObject  dobj;
 	TableInfo	   *rstable;
-	char		   *rsecpolname;
+	char		   *rsecpolname;	/* null indicates RLS is enabled on rel */
 	char		   *rseccmd;
 	char		   *rsecroles;
 	char		   *rsecqual;

@@ -5306,13 +5306,13 @@ COPY postgres_log FROM '/full/path/to/logfile.csv' WITH csv;
       <listitem>
        <para>
         This variable controls if row security policies are to be applied
-        to queries which are run.  The default is 'on'.  When set to 'on',
-        all users, except superusers and the owner of the table, will have
-        the row policies for the table applied to their queries.  The
-        table owner and superuser can request that row policies be applied
-        to their queries by setting this to 'force'.  Lastly, this can also
-        be set to 'off' which will bypass row policies for the table, if
-        possible, and error if not.
+        to queries which are run against tables that have row security enabled.
+        The default is 'on'.  When set to 'on', all users, except superusers
+        and the owner of the table, will have the row policies for the table
+        applied to their queries.  The table owner and superuser can request
+        that row policies be applied to their queries by setting this to
+        'force'.  Lastly, this can also be set to 'off' which will bypass row
+        policies for the table, if possible, and error if not.
        </para>
 
        <para>

@@ -69,7 +69,6 @@
 #include "parser/parse_oper.h"
 #include "parser/parse_type.h"
 #include "rewrite/rewriteSupport.h"
-#include "rewrite/rowsecurity.h"
 #include "storage/lmgr.h"
 #include "storage/sinval.h"
 #include "utils/builtins.h"

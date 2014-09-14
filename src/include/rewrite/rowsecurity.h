@@ -55,7 +55,7 @@ typedef enum RowSecurityConfigType
  * If RLS isn't on the table involved then RLS_NONE is returned to indicate
  * that we don't need to worry about invalidating the query plan for RLS
  * reasons.  If RLS is on the table, but we are bypassing it for now, then
- * we return RLS_ENVIRONMENT to indicate that, if the environment changes,
+ * we return RLS_NONE_ENV to indicate that, if the environment changes,
  * we need to invalidate and replan.  Finally, if RLS should be turned on
  * for the query, then we return RLS_ENABLED, which means we also need to
  * invalidate if the environment changes.
@@ -63,7 +63,7 @@ typedef enum RowSecurityConfigType
 enum CheckEnableRlsResult
 {
 	RLS_NONE,
-	RLS_ENVIRONMENT,
+	RLS_NONE_ENV,
 	RLS_ENABLED
 };
 

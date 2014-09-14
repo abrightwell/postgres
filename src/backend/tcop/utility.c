@@ -2854,6 +2854,14 @@ GetCommandLogLevel(Node *parsetree)
 			lev = LOGSTMT_DDL;
 			break;
 
+		case T_CreatePolicyStmt:
+			lev = LOGSTMT_DDL;
+			break;
+
+		case T_AlterPolicyStmt:
+			lev = LOGSTMT_DDL;
+			break;
+
 		case T_AlterTSDictionaryStmt:
 			lev = LOGSTMT_DDL;
 			break;

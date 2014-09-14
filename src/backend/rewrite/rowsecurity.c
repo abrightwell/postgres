@@ -24,7 +24,7 @@
  * The check to see if RLS should be enabled is provided through
  * check_enable_rls(), which returns an enum (defined in rowsecurity.h) to
  * indicate if RLS should be enabled (RLS_ENABLED), or bypassed (RLS_NONE or
- * RLS_ENVIRONMENT).  RLS_ENVIRONMENT indicates that RLS should be bypassed
+ * RLS_NONE_ENV).  RLS_NONE_ENV indicates that RLS should be bypassed
  * in the current environment, but that may change if the row_security GUC or
  * the current role changes.
  *
@@ -122,11 +122,11 @@ prepend_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index)
 		return false;
 
 	/*
-	 * RLS_ENVIRONMENT means we are not doing any RLS now, but that may change
+	 * RLS_NONE_ENV means we are not doing any RLS now, but that may change
 	 * with changes to the environment, so we mark it as hasRowSecurity to
 	 * force a re-plan when the environment changes.
 	 */
-	if (rls_status == RLS_ENVIRONMENT)
+	if (rls_status == RLS_NONE_ENV)
 	{
 		/*
 		 * Indicate that this query may involve RLS and must therefore
@@ -459,7 +459,7 @@ process_policies(List *policies, int rt_index, Expr **qual_eval,
  * check_enable_rls
  *
  * Determine, based on the relation, row_security setting, and current role,
- * if RLS is applicable to this query.  RLS_ENVIRONMENT indicates that, while
+ * if RLS is applicable to this query.  RLS_NONE_ENV indicates that, while
  * RLS is not to be added for this query, a change in the environment may change
  * that.  RLS_NONE means that RLS is not on the relation at all and therefore
  * we don't need to worry about it.  RLS_ENABLED means RLS should be implemented
@@ -501,13 +501,13 @@ check_enable_rls(Oid relid, Oid checkAsUser)
 	 * If the role is the table owner, then we bypass RLS unless row_security
 	 * is set to 'force'.  Note that superuser is always considered an owner.
 	 *
-	 * Return RLS_ENVIRONMENT to indicate that this decision depends on the
+	 * Return RLS_NONE_ENV to indicate that this decision depends on the
 	 * environment (in this case, what the current values of user_id and
 	 * row_security are).
 	 */
 	if (row_security != ROW_SECURITY_FORCE
 		&& (pg_class_ownercheck(relid, user_id)))
-		return RLS_ENVIRONMENT;
+		return RLS_NONE_ENV;
 
 	/*
 	 * If the row_security GUC is 'off' then check if the user has permission
@@ -522,7 +522,7 @@ check_enable_rls(Oid relid, Oid checkAsUser)
 	{
 		if (has_bypassrls_privilege(user_id))
 			/* OK to bypass */
-			return RLS_ENVIRONMENT;
+			return RLS_NONE_ENV;
 		else
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
