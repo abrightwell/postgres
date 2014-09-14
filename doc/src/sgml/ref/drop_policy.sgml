@@ -29,10 +29,11 @@ DROP POLICY [ IF EXISTS ] <replaceable class="parameter">name</replaceable> ON <
   <title>Description</title>
 
   <para>
-   <command>DROP POLICY</command> removes the specified row-security policy from the table.  Note that if the last policy is removed for a table and the table
-   still has ROW POLICY enabled via <command>ALTER TABLE</command>, then the
-   default-deny policy will be used.  <command>ALTER TABLE</command> can be
-   used to disable row security for a table using
+   <command>DROP POLICY</command> removes the specified row-security policy
+   from the table.  Note that if the last policy is removed for a table and
+   the table still has ROW POLICY enabled via <command>ALTER TABLE</command>,
+   then the default-deny policy will be used.  <command>ALTER TABLE</command>
+   can be used to disable row security for a table using
    <literal>DISABLE ROW SECURITY</literal>, whether policies for the table
    exist or not.
   </para>
