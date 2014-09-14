@@ -513,7 +513,7 @@ static bool data_checksums;
 static int	wal_segment_size;
 static bool integer_datetimes;
 static int	effective_io_concurrency;
-static bool	assert_enabled;
+static bool assert_enabled;
 
 /* should be static, but commands/variable.c needs to get at this */
 char	   *role_string;
@@ -529,6 +529,7 @@ const char *const GucContext_Names[] =
 	 /* PGC_INTERNAL */ "internal",
 	 /* PGC_POSTMASTER */ "postmaster",
 	 /* PGC_SIGHUP */ "sighup",
+	 /* PGC_SU_BACKEND */ "superuser-backend",
 	 /* PGC_BACKEND */ "backend",
 	 /* PGC_SUSET */ "superuser",
 	 /* PGC_USERSET */ "user"
@@ -927,7 +928,7 @@ static struct config_bool ConfigureNamesBool[] =
 		NULL, NULL, NULL
 	},
 	{
-		{"log_connections", PGC_BACKEND, LOGGING_WHAT,
+		{"log_connections", PGC_SU_BACKEND, LOGGING_WHAT,
 			gettext_noop("Logs each successful connection."),
 			NULL
 		},
@@ -936,11 +937,20 @@ static struct config_bool ConfigureNamesBool[] =
 		NULL, NULL, NULL
 	},
 	{
-		{"log_disconnections", PGC_BACKEND, LOGGING_WHAT,
+		{"log_disconnections", PGC_SU_BACKEND, LOGGING_WHAT,
 			gettext_noop("Logs end of a session, including duration."),
 			NULL
 		},
 		&Log_disconnections,
+		false,
+		NULL, NULL, NULL
+	},
+	{
+		{"log_replication_commands", PGC_SUSET, LOGGING_WHAT,
+			gettext_noop("Logs each replication command."),
+			NULL
+		},
+		&log_replication_commands,
 		false,
 		NULL, NULL, NULL
 	},
@@ -4410,10 +4420,10 @@ SelectConfigFiles(const char *userDoption, const char *progname)
 	SetConfigOption("data_directory", DataDir, PGC_POSTMASTER, PGC_S_OVERRIDE);
 
 	/*
-	 * Now read the config file a second time, allowing any settings in
-	 * the PG_AUTOCONF_FILENAME file to take effect.  (This is pretty ugly,
-	 * but since we have to determine the DataDir before we can find the
-	 * autoconf file, the alternatives seem worse.)
+	 * Now read the config file a second time, allowing any settings in the
+	 * PG_AUTOCONF_FILENAME file to take effect.  (This is pretty ugly, but
+	 * since we have to determine the DataDir before we can find the autoconf
+	 * file, the alternatives seem worse.)
 	 */
 	ProcessConfigFile(PGC_POSTMASTER);
 
@@ -5715,16 +5725,27 @@ set_config_option(const char *name, const char *value,
 			 * signals to individual backends only.
 			 */
 			break;
+		case PGC_SU_BACKEND:
+			/* Reject if we're connecting but user is not superuser */
+			if (context == PGC_BACKEND)
+			{
+				ereport(elevel,
+						(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+						 errmsg("permission denied to set parameter \"%s\"",
+								name)));
+				return 0;
+			}
+			/* FALL THRU to process the same as PGC_BACKEND */
 		case PGC_BACKEND:
 			if (context == PGC_SIGHUP)
 			{
 				/*
-				 * If a PGC_BACKEND parameter is changed in the config file,
-				 * we want to accept the new value in the postmaster (whence
-				 * it will propagate to subsequently-started backends), but
-				 * ignore it in existing backends.  This is a tad klugy, but
-				 * necessary because we don't re-read the config file during
-				 * backend start.
+				 * If a PGC_BACKEND or PGC_SU_BACKEND parameter is changed in
+				 * the config file, we want to accept the new value in the
+				 * postmaster (whence it will propagate to
+				 * subsequently-started backends), but ignore it in existing
+				 * backends.  This is a tad klugy, but necessary because we
+				 * don't re-read the config file during backend start.
 				 *
 				 * In EXEC_BACKEND builds, this works differently: we load all
 				 * nondefault settings from the CONFIG_EXEC_PARAMS file during
@@ -5743,7 +5764,9 @@ set_config_option(const char *name, const char *value,
 					return -1;
 #endif
 			}
-			else if (context != PGC_POSTMASTER && context != PGC_BACKEND &&
+			else if (context != PGC_POSTMASTER &&
+					 context != PGC_BACKEND &&
+					 context != PGC_SU_BACKEND &&
 					 source != PGC_S_CLIENT)
 			{
 				ereport(elevel,
@@ -6792,7 +6815,8 @@ AlterSystemSetConfigFile(AlterSystemStmt *altersysstmt)
 		if (record == NULL)
 			ereport(ERROR,
 					(errcode(ERRCODE_UNDEFINED_OBJECT),
-				   errmsg("unrecognized configuration parameter \"%s\"", name)));
+					 errmsg("unrecognized configuration parameter \"%s\"",
+							name)));
 
 		/*
 		 * Don't allow the parameters which can't be set in configuration
@@ -6801,16 +6825,17 @@ AlterSystemSetConfigFile(AlterSystemStmt *altersysstmt)
 		if ((record->context == PGC_INTERNAL) ||
 			(record->flags & GUC_DISALLOW_IN_FILE) ||
 			(record->flags & GUC_DISALLOW_IN_AUTO_FILE))
-			 ereport(ERROR,
-					 (errcode(ERRCODE_CANT_CHANGE_RUNTIME_PARAM),
-					  errmsg("parameter \"%s\" cannot be changed",
-							 name)));
+			ereport(ERROR,
+					(errcode(ERRCODE_CANT_CHANGE_RUNTIME_PARAM),
+					 errmsg("parameter \"%s\" cannot be changed",
+							name)));
 
 		if (!validate_conf_option(record, name, value, PGC_S_FILE,
 								  ERROR, true, NULL,
 								  &newextra))
 			ereport(ERROR,
-			(errmsg("invalid value for parameter \"%s\": \"%s\"", name, value)));
+					(errmsg("invalid value for parameter \"%s\": \"%s\"",
+							name, value)));
 	}
 
 
@@ -6838,7 +6863,7 @@ AlterSystemSetConfigFile(AlterSystemStmt *altersysstmt)
 	if (Tmpfd < 0)
 		ereport(ERROR,
 				(errcode_for_file_access(),
-				 errmsg("failed to open auto conf temp file \"%s\": %m ",
+				 errmsg("failed to open auto conf temp file \"%s\": %m",
 						AutoConfTmpFileName)));
 
 	PG_TRY();
@@ -6856,8 +6881,8 @@ AlterSystemSetConfigFile(AlterSystemStmt *altersysstmt)
 				infile = AllocateFile(AutoConfFileName, "r");
 				if (infile == NULL)
 					ereport(ERROR,
-							(errmsg("failed to open auto conf file \"%s\": %m ",
-									AutoConfFileName)));
+						  (errmsg("failed to open auto conf file \"%s\": %m",
+								  AutoConfFileName)));
 
 				/* parse it */
 				ParseConfigFp(infile, AutoConfFileName, 0, LOG, &head, &tail);
@@ -8409,8 +8434,8 @@ read_nondefault_variables(void)
 	GucContext	varscontext;
 
 	/*
-	 * Assert that PGC_BACKEND case in set_config_option() will do the right
-	 * thing.
+	 * Assert that PGC_BACKEND/PGC_SU_BACKEND case in set_config_option() will
+	 * do the right thing.
 	 */
 	Assert(IsInitProcessingMode());
 
