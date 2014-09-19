@@ -120,6 +120,7 @@ typedef struct Query
 	bool		hasRecursive;	/* WITH RECURSIVE was specified */
 	bool		hasModifyingCTE;	/* has INSERT/UPDATE/DELETE in WITH */
 	bool		hasForUpdate;	/* FOR [KEY] UPDATE/SHARE was specified */
+	bool		hasRowSecurity;	/* Row-security policy is applied */
 
 	List	   *cteList;		/* WITH list (of CommonTableExpr's) */
 
@@ -1210,6 +1211,7 @@ typedef enum ObjectType
 	OBJECT_OPCLASS,
 	OBJECT_OPERATOR,
 	OBJECT_OPFAMILY,
+	OBJECT_POLICY,
 	OBJECT_ROLE,
 	OBJECT_RULE,
 	OBJECT_SCHEMA,
@@ -1317,6 +1319,8 @@ typedef enum AlterTableType
 	AT_AddOf,					/* OF <type_name> */
 	AT_DropOf,					/* NOT OF */
 	AT_ReplicaIdentity,			/* REPLICA IDENTITY */
+	AT_EnableRowSecurity,		/* ENABLE ROW SECURITY */
+	AT_DisableRowSecurity,		/* DISABLE ROW SECURITY */
 	AT_GenericOptions			/* OPTIONS (...) */
 } AlterTableType;
 
@@ -1815,6 +1819,58 @@ typedef struct DropUserMappingStmt
 	char	   *servername;		/* server name */
 	bool		missing_ok;		/* ignore missing mappings */
 } DropUserMappingStmt;
+
+/* ----------------------
+ *		Import Foreign Schema Statement
+ * ----------------------
+ */
+
+typedef enum ImportForeignSchemaType
+{
+	FDW_IMPORT_SCHEMA_ALL,		/* all relations wanted */
+	FDW_IMPORT_SCHEMA_LIMIT_TO, /* include only listed tables in import */
+	FDW_IMPORT_SCHEMA_EXCEPT	/* exclude listed tables from import */
+} ImportForeignSchemaType;
+
+typedef struct ImportForeignSchemaStmt
+{
+	NodeTag		type;
+	char	   *server_name;	/* FDW server name */
+	char	   *remote_schema;	/* remote schema name to query */
+	char	   *local_schema;	/* local schema to create objects in */
+	ImportForeignSchemaType list_type;	/* type of table list */
+	List	   *table_list;		/* List of RangeVar */
+	List	   *options;		/* list of options to pass to FDW */
+} ImportForeignSchemaStmt;
+
+/*----------------------
+ *		Create POLICY Statement
+ *----------------------
+ */
+typedef struct CreatePolicyStmt
+{
+	NodeTag		type;
+	char	   *policy_name;	/* Policy's name */
+	RangeVar   *table;			/* the table name the policy applies to */
+	char	   *cmd;			/* the command name the policy applies to */
+	List	   *roles;			/* the roles associated with the policy */
+	Node	   *qual;			/* the policy's condition */
+	Node	   *with_check;		/* the policy's WITH CHECK condition. */
+} CreatePolicyStmt;
+
+/*----------------------
+ *		Alter POLICY Statement
+ *----------------------
+ */
+typedef struct AlterPolicyStmt
+{
+	NodeTag		type;
+	char	   *policy_name;	/* Policy's name */
+	RangeVar   *table;			/* the table name the policy applies to */
+	List	   *roles;			/* the roles associated with the policy */
+	Node	   *qual;			/* the policy's condition */
+	Node	   *with_check;		/* the policy's WITH CHECK condition. */
+} AlterPolicyStmt;
 
 /* ----------------------
  *		Create TRIGGER Statement
