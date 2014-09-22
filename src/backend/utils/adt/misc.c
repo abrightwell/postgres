@@ -22,9 +22,11 @@
 
 #include "access/sysattr.h"
 #include "catalog/catalog.h"
+#include "catalog/pg_permission.h"
 #include "catalog/pg_tablespace.h"
 #include "catalog/pg_type.h"
 #include "commands/dbcommands.h"
+#include "commands/permission.h"
 #include "funcapi.h"
 #include "miscadmin.h"
 #include "parser/keywords.h"
@@ -112,7 +114,23 @@ pg_signal_backend(int pid, int sig)
 		return SIGNAL_BACKEND_ERROR;
 	}
 
-	if (!(superuser() || proc->roleId == GetUserId()))
+	/*
+	 * If the current user is neither superuser, the owner of the process nor
+	 * does it have the PROCSIGNAL permission, then permission is denied.
+	 */
+	if (!(superuser()
+		 || proc->roleId == GetUserId()
+		 || HasPermission(GetUserId(), PERM_PROCSIGNAL)))
+		return SIGNAL_BACKEND_NOPERMISSION;
+
+	/*
+	 * If the current user has PROCSIGNAL permission, is not superuser and the
+	 * process is owned by superuser, then it cannot be signaled and permission
+	 * is denied.
+	 */
+	if (HasPermission(GetUserId(), PERM_PROCSIGNAL)
+		&& !superuser()
+		&& superuser_arg(proc->roleId))
 		return SIGNAL_BACKEND_NOPERMISSION;
 
 	/*

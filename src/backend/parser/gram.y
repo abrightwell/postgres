@@ -247,10 +247,10 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 		DropAssertStmt DropTrigStmt DropRuleStmt DropCastStmt DropRoleStmt
 		DropPolicyStmt DropUserStmt DropdbStmt DropTableSpaceStmt DropFdwStmt
 		DropForeignServerStmt DropUserMappingStmt ExplainStmt FetchStmt
-		GrantStmt GrantRoleStmt ImportForeignSchemaStmt IndexStmt InsertStmt
+		GrantStmt GrantRoleStmt GrantUserStmt ImportForeignSchemaStmt IndexStmt InsertStmt
 		ListenStmt LoadStmt LockStmt NotifyStmt ExplainableStmt PreparableStmt
 		CreateFunctionStmt AlterFunctionStmt ReindexStmt RemoveAggrStmt
-		RemoveFuncStmt RemoveOperStmt RenameStmt RevokeStmt RevokeRoleStmt
+		RemoveFuncStmt RemoveOperStmt RenameStmt RevokeStmt RevokeRoleStmt RevokeUserStmt
 		RuleActionStmt RuleActionStmtOrEmpty RuleStmt
 		SecLabelStmt SelectStmt TransactionStmt TruncateStmt
 		UnlistenStmt UpdateStmt VacuumStmt
@@ -547,7 +547,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 	AGGREGATE ALL ALSO ALTER ALWAYS ANALYSE ANALYZE AND ANY ARRAY AS ASC
 	ASSERTION ASSIGNMENT ASYMMETRIC AT ATTRIBUTE AUTHORIZATION
 
-	BACKWARD BEFORE BEGIN_P BETWEEN BIGINT BINARY BIT
+	BACKUP BACKWARD BEFORE BEGIN_P BETWEEN BIGINT BINARY BIT
 	BOOLEAN_P BOTH BY
 
 	CACHE CALLED CASCADE CASCADED CASE CAST CATALOG_P CHAIN CHAR_P
@@ -585,7 +585,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 
 	LABEL LANGUAGE LARGE_P LAST_P LATERAL_P
 	LEADING LEAKPROOF LEAST LEFT LEVEL LIKE LIMIT LISTEN LOAD LOCAL
-	LOCALTIME LOCALTIMESTAMP LOCATION LOCK_P LOGGED
+	LOCALTIME LOCALTIMESTAMP LOCATION LOCK_P LOG_P LOGGED
 
 	MAPPING MATCH MATERIALIZED MAXVALUE MINUTE_P MINVALUE MODE MONTH_P MOVE
 
@@ -598,13 +598,13 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 
 	PARSER PARTIAL PARTITION PASSING PASSWORD PLACING PLANS POLICY POSITION
 	PRECEDING PRECISION PRESERVE PREPARE PREPARED PRIMARY
-	PRIOR PRIVILEGES PROCEDURAL PROCEDURE PROGRAM
+	PRIOR PRIVILEGES PROCEDURAL PROCEDURE PROCSIGNAL PROGRAM
 
 	QUOTE
 
 	RANGE READ REAL REASSIGN RECHECK RECURSIVE REF REFERENCES REFRESH REINDEX
 	RELATIVE_P RELEASE RENAME REPEATABLE REPLACE REPLICA
-	RESET RESTART RESTRICT RETURNING RETURNS REVOKE RIGHT ROLE ROLLBACK
+	RESET RESTART RESTRICT RETURNING RETURNS REVOKE RIGHT ROLE ROLLBACK ROTATE
 	ROW ROWS RULE
 
 	SAVEPOINT SCHEMA SCROLL SEARCH SECOND_P SECURITY SELECT SEQUENCE SEQUENCES
@@ -823,6 +823,7 @@ stmt :
 			| FetchStmt
 			| GrantStmt
 			| GrantRoleStmt
+			| GrantUserStmt
 			| ImportForeignSchemaStmt
 			| IndexStmt
 			| InsertStmt
@@ -840,6 +841,7 @@ stmt :
 			| RenameStmt
 			| RevokeStmt
 			| RevokeRoleStmt
+			| RevokeUserStmt
 			| RuleStmt
 			| SecLabelStmt
 			| SelectStmt
@@ -6297,14 +6299,6 @@ GrantRoleStmt:
 					n->grantor = $6;
 					$$ = (Node*)n;
 				}
-			| GRANT permission_list TO role_list
-				{
-					GrantPermissionStmt *n = makeNode(GrantPermissionStmt);
-					n->is_grant = true;
-					n->permissions = $2;
-					n->roles = $4;
-					$$ = (Node*)n;
-				}
 		;
 
 RevokeRoleStmt:
@@ -6328,14 +6322,6 @@ RevokeRoleStmt:
 					n->behavior = $9;
 					$$ = (Node*)n;
 				}
-			| REVOKE permission_list FROM role_list
-				{
-					GrantPermissionStmt *n = makeNode(GrantPermissionStmt);
-					n->is_grant = false;
-					n->permissions = $2;
-					n->roles = $4;
-					$$ = (Node*)n;
-				}
 		;
 
 opt_grant_admin_option: WITH ADMIN OPTION				{ $$ = TRUE; }
@@ -6346,12 +6332,37 @@ opt_granted_by: GRANTED BY RoleId						{ $$ = $3; }
 			| /*EMPTY*/									{ $$ = NULL; }
 		;
 
+GrantUserStmt:
+			GRANT USER permission_list TO role_list
+			{
+				GrantPermissionStmt *n = makeNode(GrantPermissionStmt);
+				n->is_grant = true;
+				n->permissions = $3;
+				n->roles = $5;
+				$$ = (Node*)n;
+			}
+		;
+
+RevokeUserStmt:
+			REVOKE USER permission_list TO role_list
+			{
+				GrantPermissionStmt *n = makeNode(GrantPermissionStmt);
+				n->is_grant = false;
+				n->permissions = $3;
+				n->roles = $5;
+				$$ = (Node*)n;
+			}
+		;
+
 permission_list: permission						{ $$ = list_make1_int($1); }
 			| permission_list ',' permission	{ $$ = lappend_int($1, $3); }
 		;
 
 permission: CREATE DATABASE						{ $$ = PERM_CREATE_DATABASE; }
 			| CREATE ROLE						{ $$ = PERM_CREATE_ROLE; }
+			| PROCSIGNAL						{ $$ = PERM_PROCSIGNAL; }
+			| BACKUP							{ $$ = PERM_BACKUP; }
+			| LOG_P ROTATE						{ $$ = PERM_LOG_ROTATE; }
 			| /*EMPTY*/							{ $$ = PERM_INVALID; }
 		;
 
@@ -13065,6 +13076,7 @@ unreserved_keyword:
 			| ASSIGNMENT
 			| AT
 			| ATTRIBUTE
+			| BACKUP
 			| BACKWARD
 			| BEFORE
 			| BEGIN_P
@@ -13173,6 +13185,7 @@ unreserved_keyword:
 			| LOCAL
 			| LOCATION
 			| LOCK_P
+			| LOG_P
 			| LOGGED
 			| MAPPING
 			| MATCH
@@ -13217,6 +13230,7 @@ unreserved_keyword:
 			| PRIVILEGES
 			| PROCEDURAL
 			| PROCEDURE
+			| PROCSIGNAL
 			| PROGRAM
 			| QUOTE
 			| RANGE
@@ -13240,6 +13254,7 @@ unreserved_keyword:
 			| REVOKE
 			| ROLE
 			| ROLLBACK
+			| ROTATE
 			| ROWS
 			| RULE
 			| SAVEPOINT

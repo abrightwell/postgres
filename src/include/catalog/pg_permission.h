@@ -44,7 +44,10 @@ typedef enum Permission
 {
 	PERM_INVALID = -1,			/* Invalid Permission */
 	PERM_CREATE_DATABASE = 0,	/* CREATE DATABASE */
-	PERM_CREATE_ROLE			/* CREATE ROLE */
+	PERM_CREATE_ROLE,			/* CREATE ROLE */
+	PERM_PROCSIGNAL,			/* PROCSIGNAL */
+	PERM_BACKUP,				/* BACKUP */
+	PERM_LOG_ROTATE				/* LOG ROTATE */
 } Permission;
 
 #endif   /* PG_PERMISSION_H */
