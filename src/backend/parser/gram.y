@@ -247,10 +247,10 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 		DropAssertStmt DropTrigStmt DropRuleStmt DropCastStmt DropRoleStmt
 		DropPolicyStmt DropUserStmt DropdbStmt DropTableSpaceStmt DropFdwStmt
 		DropForeignServerStmt DropUserMappingStmt ExplainStmt FetchStmt
-		GrantStmt GrantRoleStmt GrantUserStmt ImportForeignSchemaStmt IndexStmt InsertStmt
+		GrantStmt GrantRoleStmt ImportForeignSchemaStmt IndexStmt InsertStmt
 		ListenStmt LoadStmt LockStmt NotifyStmt ExplainableStmt PreparableStmt
 		CreateFunctionStmt AlterFunctionStmt ReindexStmt RemoveAggrStmt
-		RemoveFuncStmt RemoveOperStmt RenameStmt RevokeStmt RevokeRoleStmt RevokeUserStmt
+		RemoveFuncStmt RemoveOperStmt RenameStmt RevokeStmt RevokeRoleStmt
 		RuleActionStmt RuleActionStmtOrEmpty RuleStmt
 		SecLabelStmt SelectStmt TransactionStmt TruncateStmt
 		UnlistenStmt UpdateStmt VacuumStmt
@@ -823,7 +823,6 @@ stmt :
 			| FetchStmt
 			| GrantStmt
 			| GrantRoleStmt
-			| GrantUserStmt
 			| ImportForeignSchemaStmt
 			| IndexStmt
 			| InsertStmt
@@ -841,7 +840,6 @@ stmt :
 			| RenameStmt
 			| RevokeStmt
 			| RevokeRoleStmt
-			| RevokeUserStmt
 			| RuleStmt
 			| SecLabelStmt
 			| SelectStmt
@@ -6299,6 +6297,14 @@ GrantRoleStmt:
 					n->grantor = $6;
 					$$ = (Node*)n;
 				}
+			| GRANT permission_list TO role_list
+			{
+				GrantPermissionStmt *n = makeNode(GrantPermissionStmt);
+				n->is_grant = true;
+				n->permissions = $2;
+				n->roles = $4;
+				$$ = (Node*)n;
+			}
 		;
 
 RevokeRoleStmt:
@@ -6322,6 +6328,14 @@ RevokeRoleStmt:
 					n->behavior = $9;
 					$$ = (Node*)n;
 				}
+			| REVOKE permission_list TO role_list
+			{
+				GrantPermissionStmt *n = makeNode(GrantPermissionStmt);
+				n->is_grant = false;
+				n->permissions = $2;
+				n->roles = $4;
+				$$ = (Node*)n;
+			}
 		;
 
 opt_grant_admin_option: WITH ADMIN OPTION				{ $$ = TRUE; }
@@ -6332,37 +6346,15 @@ opt_granted_by: GRANTED BY RoleId						{ $$ = $3; }
 			| /*EMPTY*/									{ $$ = NULL; }
 		;
 
-GrantUserStmt:
-			GRANT USER permission_list TO role_list
-			{
-				GrantPermissionStmt *n = makeNode(GrantPermissionStmt);
-				n->is_grant = true;
-				n->permissions = $3;
-				n->roles = $5;
-				$$ = (Node*)n;
-			}
-		;
-
-RevokeUserStmt:
-			REVOKE USER permission_list TO role_list
-			{
-				GrantPermissionStmt *n = makeNode(GrantPermissionStmt);
-				n->is_grant = false;
-				n->permissions = $3;
-				n->roles = $5;
-				$$ = (Node*)n;
-			}
-		;
-
 permission_list: permission						{ $$ = list_make1_int($1); }
 			| permission_list ',' permission	{ $$ = lappend_int($1, $3); }
 		;
 
 permission: CREATE DATABASE						{ $$ = PERM_CREATE_DATABASE; }
 			| CREATE ROLE						{ $$ = PERM_CREATE_ROLE; }
-			| PROCSIGNAL						{ $$ = PERM_PROCSIGNAL; }
-			| BACKUP							{ $$ = PERM_BACKUP; }
-			| LOG_P ROTATE						{ $$ = PERM_LOG_ROTATE; }
+			| USER PROCSIGNAL					{ $$ = PERM_PROCSIGNAL; }
+			| USER BACKUP						{ $$ = PERM_BACKUP; }
+			| USER LOG_P ROTATE					{ $$ = PERM_LOG_ROTATE; }
 			| /*EMPTY*/							{ $$ = PERM_INVALID; }
 		;
 
