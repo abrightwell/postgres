@@ -305,6 +305,12 @@ DECLARE_UNIQUE_INDEX(pg_permission_oid_index, 6001, on pg_permission using btree
 DECLARE_UNIQUE_INDEX(pg_permission_roleid_index, 6002, on pg_permission using btree(permroleid oid_ops, permpermission int4_ops));
 #define PermissionRoleIdPermIndexId				6002
 
+DECLARE_UNIQUE_INDEX(pg_rowsecurity_oid_index, 3257, on pg_rowsecurity using btree(oid oid_ops));
+#define RowSecurityOidIndexId				3257
+
+DECLARE_UNIQUE_INDEX(pg_rowsecurity_polname_relid_index, 3258, on pg_rowsecurity using btree(rsecrelid oid_ops, rsecpolname name_ops));
+#define RowSecurityRelidPolnameIndexId				3258
+
 /* last step of initialization script: build the indexes declared above */
 BUILD_INDICES
 

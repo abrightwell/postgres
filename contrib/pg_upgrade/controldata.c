@@ -54,6 +54,7 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 	bool		got_ident = false;
 	bool		got_index = false;
 	bool		got_toast = false;
+	bool		got_large_object = false;
 	bool		got_date_is_int = false;
 	bool		got_float8_pass_by_value = false;
 	bool		got_data_checksum_version = false;
@@ -125,13 +126,6 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 	cluster->controldata.lc_collate = NULL;
 	cluster->controldata.lc_ctype = NULL;
 
-	/* Only in <= 8.3 */
-	if (GET_MAJOR_VERSION(cluster->major_version) <= 803)
-	{
-		cluster->controldata.float8_pass_by_value = false;
-		got_float8_pass_by_value = true;
-	}
-
 	/* Only in <= 9.2 */
 	if (GET_MAJOR_VERSION(cluster->major_version) <= 902)
 	{
@@ -144,23 +138,6 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 	{
 		pg_log(PG_VERBOSE, "%s", bufin);
 
-#ifdef WIN32
-
-		/*
-		 * Due to an installer bug, LANG=C doesn't work for PG 8.3.3, but does
-		 * work 8.2.6 and 8.3.7, so check for non-ASCII output and suggest a
-		 * minor upgrade.
-		 */
-		if (GET_MAJOR_VERSION(cluster->major_version) <= 803)
-		{
-			for (p = bufin; *p; p++)
-				if (!isascii((unsigned char) *p))
-					pg_fatal("The 8.3 cluster's pg_controldata is incapable of outputting ASCII, even\n"
-							 "with LANG=C.  You must upgrade this cluster to a newer version of PostgreSQL\n"
-							 "8.3 to fix this bug.  PostgreSQL 8.3.7 and later are known to work properly.\n");
-		}
-#endif
-
 		if ((p = strstr(bufin, "pg_control version number:")) != NULL)
 		{
 			p = strchr(p, ':');
@@ -168,7 +145,7 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 			if (p == NULL || strlen(p) <= 1)
 				pg_fatal("%d: pg_resetxlog problem\n", __LINE__);
 
-			p++;				/* removing ':' char */
+			p++;				/* remove ':' char */
 			cluster->controldata.ctrl_ver = str2uint(p);
 		}
 		else if ((p = strstr(bufin, "Catalog version number:")) != NULL)
@@ -178,7 +155,7 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 			if (p == NULL || strlen(p) <= 1)
 				pg_fatal("%d: controldata retrieval problem\n", __LINE__);
 
-			p++;				/* removing ':' char */
+			p++;				/* remove ':' char */
 			cluster->controldata.cat_ver = str2uint(p);
 		}
 		else if ((p = strstr(bufin, "First log segment after reset:")) != NULL)
@@ -205,7 +182,7 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 			if (p == NULL || strlen(p) <= 1)
 				pg_fatal("%d: controldata retrieval problem\n", __LINE__);
 
-			p++;				/* removing ':' char */
+			p++;				/* remove ':' char */
 			logid = str2uint(p);
 			got_log_id = true;
 		}
@@ -216,7 +193,7 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 			if (p == NULL || strlen(p) <= 1)
 				pg_fatal("%d: controldata retrieval problem\n", __LINE__);
 
-			p++;				/* removing ':' char */
+			p++;				/* remove ':' char */
 			segno = str2uint(p);
 			got_log_seg = true;
 		}
@@ -227,22 +204,26 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 			if (p == NULL || strlen(p) <= 1)
 				pg_fatal("%d: controldata retrieval problem\n", __LINE__);
 
-			p++;				/* removing ':' char */
+			p++;				/* remove ':' char */
 			cluster->controldata.chkpnt_tli = str2uint(p);
 			got_tli = true;
 		}
 		else if ((p = strstr(bufin, "Latest checkpoint's NextXID:")) != NULL)
 		{
-			char	   *op = strchr(p, '/');
+			p = strchr(p, ':');
 
-			if (op == NULL)
-				op = strchr(p, ':');
-
-			if (op == NULL || strlen(op) <= 1)
+			if (p == NULL || strlen(p) <= 1)
 				pg_fatal("%d: controldata retrieval problem\n", __LINE__);
 
-			op++;				/* removing ':' char */
-			cluster->controldata.chkpnt_nxtxid = str2uint(op);
+			p++;				/* remove ':' char */
+			cluster->controldata.chkpnt_nxtepoch = str2uint(p);
+
+			p = strchr(p, '/');
+			if (p == NULL || strlen(p) <= 1)
+				pg_fatal("%d: controldata retrieval problem\n", __LINE__);
+
+			p++;				/* remove '/' char */
+			cluster->controldata.chkpnt_nxtxid = str2uint(p);
 			got_xid = true;
 		}
 		else if ((p = strstr(bufin, "Latest checkpoint's NextOID:")) != NULL)
@@ -252,7 +233,7 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 			if (p == NULL || strlen(p) <= 1)
 				pg_fatal("%d: controldata retrieval problem\n", __LINE__);
 
-			p++;				/* removing ':' char */
+			p++;				/* remove ':' char */
 			cluster->controldata.chkpnt_nxtoid = str2uint(p);
 			got_oid = true;
 		}
@@ -263,7 +244,7 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 			if (p == NULL || strlen(p) <= 1)
 				pg_fatal("%d: controldata retrieval problem\n", __LINE__);
 
-			p++;				/* removing ':' char */
+			p++;				/* remove ':' char */
 			cluster->controldata.chkpnt_nxtmulti = str2uint(p);
 			got_multi = true;
 		}
@@ -274,7 +255,7 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 			if (p == NULL || strlen(p) <= 1)
 				pg_fatal("%d: controldata retrieval problem\n", __LINE__);
 
-			p++;				/* removing ':' char */
+			p++;				/* remove ':' char */
 			cluster->controldata.chkpnt_oldstMulti = str2uint(p);
 			got_oldestmulti = true;
 		}
@@ -285,7 +266,7 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 			if (p == NULL || strlen(p) <= 1)
 				pg_fatal("%d: controldata retrieval problem\n", __LINE__);
 
-			p++;				/* removing ':' char */
+			p++;				/* remove ':' char */
 			cluster->controldata.chkpnt_nxtmxoff = str2uint(p);
 			got_mxoff = true;
 		}
@@ -296,7 +277,7 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 			if (p == NULL || strlen(p) <= 1)
 				pg_fatal("%d: controldata retrieval problem\n", __LINE__);
 
-			p++;				/* removing ':' char */
+			p++;				/* remove ':' char */
 			cluster->controldata.align = str2uint(p);
 			got_align = true;
 		}
@@ -307,7 +288,7 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 			if (p == NULL || strlen(p) <= 1)
 				pg_fatal("%d: controldata retrieval problem\n", __LINE__);
 
-			p++;				/* removing ':' char */
+			p++;				/* remove ':' char */
 			cluster->controldata.blocksz = str2uint(p);
 			got_blocksz = true;
 		}
@@ -318,7 +299,7 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 			if (p == NULL || strlen(p) <= 1)
 				pg_fatal("%d: controldata retrieval problem\n", __LINE__);
 
-			p++;				/* removing ':' char */
+			p++;				/* remove ':' char */
 			cluster->controldata.largesz = str2uint(p);
 			got_largesz = true;
 		}
@@ -329,7 +310,7 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 			if (p == NULL || strlen(p) <= 1)
 				pg_fatal("%d: controldata retrieval problem\n", __LINE__);
 
-			p++;				/* removing ':' char */
+			p++;				/* remove ':' char */
 			cluster->controldata.walsz = str2uint(p);
 			got_walsz = true;
 		}
@@ -340,7 +321,7 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 			if (p == NULL || strlen(p) <= 1)
 				pg_fatal("%d: controldata retrieval problem\n", __LINE__);
 
-			p++;				/* removing ':' char */
+			p++;				/* remove ':' char */
 			cluster->controldata.walseg = str2uint(p);
 			got_walseg = true;
 		}
@@ -351,7 +332,7 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 			if (p == NULL || strlen(p) <= 1)
 				pg_fatal("%d: controldata retrieval problem\n", __LINE__);
 
-			p++;				/* removing ':' char */
+			p++;				/* remove ':' char */
 			cluster->controldata.ident = str2uint(p);
 			got_ident = true;
 		}
@@ -362,7 +343,7 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 			if (p == NULL || strlen(p) <= 1)
 				pg_fatal("%d: controldata retrieval problem\n", __LINE__);
 
-			p++;				/* removing ':' char */
+			p++;				/* remove ':' char */
 			cluster->controldata.index = str2uint(p);
 			got_index = true;
 		}
@@ -373,9 +354,20 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 			if (p == NULL || strlen(p) <= 1)
 				pg_fatal("%d: controldata retrieval problem\n", __LINE__);
 
-			p++;				/* removing ':' char */
+			p++;				/* remove ':' char */
 			cluster->controldata.toast = str2uint(p);
 			got_toast = true;
+		}
+		else if ((p = strstr(bufin, "Size of a large-object chunk:")) != NULL)
+		{
+			p = strchr(p, ':');
+
+			if (p == NULL || strlen(p) <= 1)
+				pg_fatal("%d: controldata retrieval problem\n", __LINE__);
+
+			p++;				/* remove ':' char */
+			cluster->controldata.large_object = str2uint(p);
+			got_large_object = true;
 		}
 		else if ((p = strstr(bufin, "Date/time type storage:")) != NULL)
 		{
@@ -384,7 +376,7 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 			if (p == NULL || strlen(p) <= 1)
 				pg_fatal("%d: controldata retrieval problem\n", __LINE__);
 
-			p++;				/* removing ':' char */
+			p++;				/* remove ':' char */
 			cluster->controldata.date_is_int = strstr(p, "64-bit integers") != NULL;
 			got_date_is_int = true;
 		}
@@ -395,7 +387,7 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 			if (p == NULL || strlen(p) <= 1)
 				pg_fatal("%d: controldata retrieval problem\n", __LINE__);
 
-			p++;				/* removing ':' char */
+			p++;				/* remove ':' char */
 			/* used later for contrib check */
 			cluster->controldata.float8_pass_by_value = strstr(p, "by value") != NULL;
 			got_float8_pass_by_value = true;
@@ -407,7 +399,7 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 			if (p == NULL || strlen(p) <= 1)
 				pg_fatal("%d: controldata retrieval problem\n", __LINE__);
 
-			p++;				/* removing ':' char */
+			p++;				/* remove ':' char */
 			/* used later for contrib check */
 			cluster->controldata.data_checksum_version = str2uint(p);
 			got_data_checksum_version = true;
@@ -420,7 +412,7 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 			if (p == NULL || strlen(p) <= 1)
 				pg_fatal("%d: controldata retrieval problem\n", __LINE__);
 
-			p++;				/* removing ':' char */
+			p++;				/* remove ':' char */
 			/* skip leading spaces and remove trailing newline */
 			p += strspn(p, " ");
 			if (strlen(p) > 0 && *(p + strlen(p) - 1) == '\n')
@@ -435,7 +427,7 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 			if (p == NULL || strlen(p) <= 1)
 				pg_fatal("%d: controldata retrieval problem\n", __LINE__);
 
-			p++;				/* removing ':' char */
+			p++;				/* remove ':' char */
 			/* skip leading spaces and remove trailing newline */
 			p += strspn(p, " ");
 			if (strlen(p) > 0 && *(p + strlen(p) - 1) == '\n')
@@ -495,6 +487,8 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 		!got_tli ||
 		!got_align || !got_blocksz || !got_largesz || !got_walsz ||
 		!got_walseg || !got_ident || !got_index || !got_toast ||
+		(!got_large_object &&
+		 cluster->controldata.ctrl_ver >= LARGE_OBJECT_SIZE_PG_CONTROL_VER) ||
 		!got_date_is_int || !got_float8_pass_by_value || !got_data_checksum_version)
 	{
 		pg_log(PG_REPORT,
@@ -547,10 +541,13 @@ get_control_data(ClusterInfo *cluster, bool live_check)
 		if (!got_toast)
 			pg_log(PG_REPORT, "  maximum TOAST chunk size\n");
 
+		if (!got_large_object &&
+			cluster->controldata.ctrl_ver >= LARGE_OBJECT_SIZE_PG_CONTROL_VER)
+			pg_log(PG_REPORT, "  large-object chunk size\n");
+
 		if (!got_date_is_int)
 			pg_log(PG_REPORT, "  dates/times are integers?\n");
 
-		/* value added in Postgres 8.4 */
 		if (!got_float8_pass_by_value)
 			pg_log(PG_REPORT, "  float8 argument passing method\n");
 
@@ -597,18 +594,13 @@ check_control_data(ControlData *oldctrl,
 	if (oldctrl->toast == 0 || oldctrl->toast != newctrl->toast)
 		pg_fatal("old and new pg_controldata maximum TOAST chunk sizes are invalid or do not match\n");
 
-	if (oldctrl->date_is_int != newctrl->date_is_int)
-	{
-		pg_log(PG_WARNING,
-			   "\nOld and new pg_controldata date/time storage types do not match.\n");
+	/* large_object added in 9.5, so it might not exist in the old cluster */
+	if (oldctrl->large_object != 0 &&
+		oldctrl->large_object != newctrl->large_object)
+		pg_fatal("old and new pg_controldata large-object chunk sizes are invalid or do not match\n");
 
-		/*
-		 * This is a common 8.3 -> 8.4 upgrade problem, so we are more verbose
-		 */
-		pg_fatal("You will need to rebuild the new server with configure option\n"
-				 "--disable-integer-datetimes or get server binaries built with those\n"
-				 "options.\n");
-	}
+	if (oldctrl->date_is_int != newctrl->date_is_int)
+		pg_fatal("old and new pg_controldata date/time storage types do not match\n");
 
 	/*
 	 * We might eventually allow upgrades from checksum to no-checksum

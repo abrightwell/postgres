@@ -1306,6 +1306,8 @@ To initiate streaming replication, the frontend sends the
 of <literal>true</> tells the backend to go into walsender mode, wherein a
 small set of replication commands can be issued instead of SQL statements. Only
 the simple query protocol can be used in walsender mode.
+Replication commands are logged in the server log when
+<xref linkend="guc-log-replication-commands"> is enabled.
 Passing <literal>database</> as the value instructs walsender to connect to
 the database specified in the <literal>dbname</> parameter, which will allow
 the connection to be used for logical replication from that database.
@@ -4734,7 +4736,10 @@ StartupMessage (F)
                 set at backend start time might be listed.  Such settings
                 will be applied during backend start (after parsing the
                 command-line options if any).  The values will act as
-                session defaults.
+                session defaults.  Spaces in option values need to be escaped
+                with a backslash (<literal>\</>). A literal backslash can be
+                passed by escaping it with another backslash
+                (i.e <literal>\\</>).
 </para>
 </listitem>
 </varlistentry>

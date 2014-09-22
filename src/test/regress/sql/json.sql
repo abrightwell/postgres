@@ -98,7 +98,31 @@ FROM generate_series(1,3) AS x;
 SELECT row_to_json(q,true)
 FROM rows q;
 
+SELECT row_to_json(q,pretty := true)
+FROM rows q;
+
 SELECT row_to_json(row((select array_agg(x) as d from generate_series(5,10) x)),false);
+
+WITH x AS (SELECT a,b,c FROM (VALUES(10,20,30),
+                             (10,NULL, NULL),
+                             (NULL, NULL, NULL)) g(a,b,c))
+ SELECT row_to_json(x, false, false) FROM x;
+
+WITH x AS (SELECT a,b,c FROM (VALUES(10,20,30),
+                             (10,NULL, NULL),
+                             (NULL, NULL, NULL)) g(a,b,c))
+ SELECT row_to_json(x, false, true) FROM x;
+
+WITH x AS (SELECT a,b,c FROM (VALUES(10,20,30),
+                             (10,NULL, NULL),
+                             (NULL, NULL, NULL)) g(a,b,c))
+ SELECT row_to_json(x, ignore_nulls := true) FROM x;
+
+WITH x AS (SELECT a,b,c FROM (VALUES(10,20,30),
+                             (10,NULL, NULL),
+                             (NULL, NULL, NULL)) g(a,b,c))
+ SELECT row_to_json(x, ignore_nulls := true, pretty := true) FROM x;
+
 
 -- to_json, timestamps
 
@@ -238,6 +262,31 @@ select (test_json->>3) is null as expect_true
 from test_json
 where json_type = 'array';
 
+-- corner cases
+
+select '{"a": [{"b": "c"}, {"b": "cc"}]}'::json -> null::text;
+select '{"a": [{"b": "c"}, {"b": "cc"}]}'::json -> null::int;
+select '{"a": [{"b": "c"}, {"b": "cc"}]}'::json -> 1;
+select '{"a": [{"b": "c"}, {"b": "cc"}]}'::json -> 'z';
+select '{"a": [{"b": "c"}, {"b": "cc"}]}'::json -> '';
+select '[{"b": "c"}, {"b": "cc"}]'::json -> 1;
+select '[{"b": "c"}, {"b": "cc"}]'::json -> 3;
+select '[{"b": "c"}, {"b": "cc"}]'::json -> 'z';
+select '{"a": "c", "b": null}'::json -> 'b';
+select '"foo"'::json -> 1;
+select '"foo"'::json -> 'z';
+
+select '{"a": [{"b": "c"}, {"b": "cc"}]}'::json ->> null::text;
+select '{"a": [{"b": "c"}, {"b": "cc"}]}'::json ->> null::int;
+select '{"a": [{"b": "c"}, {"b": "cc"}]}'::json ->> 1;
+select '{"a": [{"b": "c"}, {"b": "cc"}]}'::json ->> 'z';
+select '{"a": [{"b": "c"}, {"b": "cc"}]}'::json ->> '';
+select '[{"b": "c"}, {"b": "cc"}]'::json ->> 1;
+select '[{"b": "c"}, {"b": "cc"}]'::json ->> 3;
+select '[{"b": "c"}, {"b": "cc"}]'::json ->> 'z';
+select '{"a": "c", "b": null}'::json ->> 'b';
+select '"foo"'::json ->> 1;
+select '"foo"'::json ->> 'z';
 
 -- array length
 
@@ -281,20 +330,54 @@ select '{"f2":{"f3":1},"f4":{"f5":99,"f6":"stringy"}}'::json#>array['f4','f6'];
 select '{"f2":{"f3":1},"f4":{"f5":99,"f6":"stringy"}}'::json#>array['f2'];
 select '{"f2":["f3",1],"f4":{"f5":99,"f6":"stringy"}}'::json#>array['f2','0'];
 select '{"f2":["f3",1],"f4":{"f5":99,"f6":"stringy"}}'::json#>array['f2','1'];
+
 select '{"f2":{"f3":1},"f4":{"f5":99,"f6":"stringy"}}'::json#>>array['f4','f6'];
 select '{"f2":{"f3":1},"f4":{"f5":99,"f6":"stringy"}}'::json#>>array['f2'];
 select '{"f2":["f3",1],"f4":{"f5":99,"f6":"stringy"}}'::json#>>array['f2','0'];
 select '{"f2":["f3",1],"f4":{"f5":99,"f6":"stringy"}}'::json#>>array['f2','1'];
 
--- same using array literals
-select '{"f2":{"f3":1},"f4":{"f5":99,"f6":"stringy"}}'::json#>'{f4,f6}';
-select '{"f2":{"f3":1},"f4":{"f5":99,"f6":"stringy"}}'::json#>'{f2}';
-select '{"f2":["f3",1],"f4":{"f5":99,"f6":"stringy"}}'::json#>'{f2,0}';
-select '{"f2":["f3",1],"f4":{"f5":99,"f6":"stringy"}}'::json#>'{f2,1}';
-select '{"f2":{"f3":1},"f4":{"f5":99,"f6":"stringy"}}'::json#>>'{f4,f6}';
-select '{"f2":{"f3":1},"f4":{"f5":99,"f6":"stringy"}}'::json#>>'{f2}';
-select '{"f2":["f3",1],"f4":{"f5":99,"f6":"stringy"}}'::json#>>'{f2,0}';
-select '{"f2":["f3",1],"f4":{"f5":99,"f6":"stringy"}}'::json#>>'{f2,1}';
+-- corner cases for same
+select '{"a": {"b":{"c": "foo"}}}'::json #> '{}';
+select '[1,2,3]'::json #> '{}';
+select '"foo"'::json #> '{}';
+select '42'::json #> '{}';
+select 'null'::json #> '{}';
+select '{"a": {"b":{"c": "foo"}}}'::json #> array['a'];
+select '{"a": {"b":{"c": "foo"}}}'::json #> array['a', null];
+select '{"a": {"b":{"c": "foo"}}}'::json #> array['a', ''];
+select '{"a": {"b":{"c": "foo"}}}'::json #> array['a','b'];
+select '{"a": {"b":{"c": "foo"}}}'::json #> array['a','b','c'];
+select '{"a": {"b":{"c": "foo"}}}'::json #> array['a','b','c','d'];
+select '{"a": {"b":{"c": "foo"}}}'::json #> array['a','z','c'];
+select '{"a": [{"b": "c"}, {"b": "cc"}]}'::json #> array['a','1','b'];
+select '{"a": [{"b": "c"}, {"b": "cc"}]}'::json #> array['a','z','b'];
+select '[{"b": "c"}, {"b": "cc"}]'::json #> array['1','b'];
+select '[{"b": "c"}, {"b": "cc"}]'::json #> array['z','b'];
+select '[{"b": "c"}, {"b": null}]'::json #> array['1','b'];
+select '"foo"'::json #> array['z'];
+select '42'::json #> array['f2'];
+select '42'::json #> array['0'];
+
+select '{"a": {"b":{"c": "foo"}}}'::json #>> '{}';
+select '[1,2,3]'::json #>> '{}';
+select '"foo"'::json #>> '{}';
+select '42'::json #>> '{}';
+select 'null'::json #>> '{}';
+select '{"a": {"b":{"c": "foo"}}}'::json #>> array['a'];
+select '{"a": {"b":{"c": "foo"}}}'::json #>> array['a', null];
+select '{"a": {"b":{"c": "foo"}}}'::json #>> array['a', ''];
+select '{"a": {"b":{"c": "foo"}}}'::json #>> array['a','b'];
+select '{"a": {"b":{"c": "foo"}}}'::json #>> array['a','b','c'];
+select '{"a": {"b":{"c": "foo"}}}'::json #>> array['a','b','c','d'];
+select '{"a": {"b":{"c": "foo"}}}'::json #>> array['a','z','c'];
+select '{"a": [{"b": "c"}, {"b": "cc"}]}'::json #>> array['a','1','b'];
+select '{"a": [{"b": "c"}, {"b": "cc"}]}'::json #>> array['a','z','b'];
+select '[{"b": "c"}, {"b": "cc"}]'::json #>> array['1','b'];
+select '[{"b": "c"}, {"b": "cc"}]'::json #>> array['z','b'];
+select '[{"b": "c"}, {"b": null}]'::json #>> array['1','b'];
+select '"foo"'::json #>> array['z'];
+select '42'::json #>> array['f2'];
+select '42'::json #>> array['0'];
 
 -- array_elements
 
