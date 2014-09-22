@@ -116,17 +116,17 @@ pg_signal_backend(int pid, int sig)
 
 	/*
 	 * If the current user is neither superuser, the owner of the process nor
-	 * does it have the PROCSIGNAL permission, then permission is denied.
+	 * have the PROCSIGNAL permission, then permission is denied.
 	 */
 	if (!(superuser()
-		 || proc->roleId == GetUserId()
-		 || HasPermission(GetUserId(), PERM_PROCSIGNAL)))
+		|| proc->roleId == GetUserId()
+		|| HasPermission(GetUserId(), PERM_PROCSIGNAL)))
 		return SIGNAL_BACKEND_NOPERMISSION;
 
 	/*
 	 * If the current user has PROCSIGNAL permission, is not superuser and the
-	 * process is owned by superuser, then it cannot be signaled and permission
-	 * is denied.
+	 * process is owned by superuser, then the process cannot be signaled and
+	 * permission is denied.  Only superuser can signal superuser owned processes.
 	 */
 	if (HasPermission(GetUserId(), PERM_PROCSIGNAL)
 		&& !superuser()
@@ -219,10 +219,10 @@ pg_reload_conf(PG_FUNCTION_ARGS)
 Datum
 pg_rotate_logfile(PG_FUNCTION_ARGS)
 {
-	if (!superuser())
+	if (!(superuser() || HasPermission(GetUserId(), PERM_LOG_ROTATE)))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 (errmsg("must be superuser to rotate log files"))));
+				 errmsg("must be superuser or have LOG ROTATE permission to rotate log files")));
 
 	if (!Logging_collector)
 	{

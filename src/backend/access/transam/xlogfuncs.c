@@ -21,7 +21,9 @@
 #include "access/xlog_fn.h"
 #include "access/xlog_internal.h"
 #include "access/xlogutils.h"
+#include "commands/permission.h"
 #include "catalog/catalog.h"
+#include "catalog/pg_permission.h"
 #include "catalog/pg_type.h"
 #include "funcapi.h"
 #include "miscadmin.h"
@@ -54,10 +56,12 @@ pg_start_backup(PG_FUNCTION_ARGS)
 
 	backupidstr = text_to_cstring(backupid);
 
-	if (!superuser() && !has_rolreplication(GetUserId()))
+	if (!superuser() && !has_rolreplication(GetUserId())
+		&& !HasPermission(GetUserId(), PERM_BACKUP))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-		   errmsg("must be superuser or replication role to run a backup")));
+				 errmsg("must be superuser, replication role or have BACKUP"
+						" permission to run a backup")));
 
 	startpoint = do_pg_start_backup(backupidstr, fast, NULL, NULL);
 
@@ -82,10 +86,12 @@ pg_stop_backup(PG_FUNCTION_ARGS)
 {
 	XLogRecPtr	stoppoint;
 
-	if (!superuser() && !has_rolreplication(GetUserId()))
+	if (!superuser() && !has_rolreplication(GetUserId())
+		&& !HasPermission(GetUserId(), PERM_BACKUP))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-		 (errmsg("must be superuser or replication role to run a backup"))));
+				 errmsg("must be superuser, replication role or have BACKUP"
+						" permission to stop a backup")));
 
 	stoppoint = do_pg_stop_backup(NULL, true, NULL);
 
@@ -100,10 +106,11 @@ pg_switch_xlog(PG_FUNCTION_ARGS)
 {
 	XLogRecPtr	switchpoint;
 
-	if (!superuser())
+	if (!(superuser() || HasPermission(GetUserId(), PERM_BACKUP)))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-			 (errmsg("must be superuser to switch transaction log files"))));
+				 errmsg("must be superuser or have BACKUP permission"
+						" to switch transaction log files")));
 
 	if (RecoveryInProgress())
 		ereport(ERROR,
@@ -129,10 +136,11 @@ pg_create_restore_point(PG_FUNCTION_ARGS)
 	char	   *restore_name_str;
 	XLogRecPtr	restorepoint;
 
-	if (!superuser())
+	if (!(superuser() || HasPermission(GetUserId(), PERM_BACKUP)))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 (errmsg("must be superuser to create a restore point"))));
+				 (errmsg("must be superuser or have BACKUP permission"
+						 "to create a restore point"))));
 
 	if (RecoveryInProgress())
 		ereport(ERROR,
@@ -338,10 +346,10 @@ pg_xlogfile_name(PG_FUNCTION_ARGS)
 Datum
 pg_xlog_replay_pause(PG_FUNCTION_ARGS)
 {
-	if (!superuser())
+	if (!(superuser() || HasPermission(GetUserId(), PERM_BACKUP)))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 (errmsg("must be superuser to control recovery"))));
+				 errmsg("must be superuser or have BACKUP permission to control recovery")));
 
 	if (!RecoveryInProgress())
 		ereport(ERROR,
@@ -360,10 +368,10 @@ pg_xlog_replay_pause(PG_FUNCTION_ARGS)
 Datum
 pg_xlog_replay_resume(PG_FUNCTION_ARGS)
 {
-	if (!superuser())
+	if (!(superuser() || HasPermission(GetUserId(), PERM_BACKUP)))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 (errmsg("must be superuser to control recovery"))));
+				 errmsg("must be superuser or have BACKUP permission to control recovery")));
 
 	if (!RecoveryInProgress())
 		ereport(ERROR,
