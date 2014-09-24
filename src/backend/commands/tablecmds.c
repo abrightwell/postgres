@@ -10561,7 +10561,7 @@ ATExecEnableRowSecurity(Relation rel)
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "cache lookup failed for relation %u", relid);
 
-	((Form_pg_class) GETSTRUCT(tuple))->relhasrowsecurity = true;
+	((Form_pg_class) GETSTRUCT(tuple))->relrowsecurity = true;
 	simple_heap_update(pg_class, &tuple->t_self, tuple);
 
 	/* keep catalog indexes current */
@@ -10588,7 +10588,7 @@ ATExecDisableRowSecurity(Relation rel)
 	if (!HeapTupleIsValid(tuple))
 		elog(ERROR, "cache lookup failed for relation %u", relid);
 
-	((Form_pg_class) GETSTRUCT(tuple))->relhasrowsecurity = false;
+	((Form_pg_class) GETSTRUCT(tuple))->relrowsecurity = false;
 	simple_heap_update(pg_class, &tuple->t_self, tuple);
 
 	/* keep catalog indexes current */
