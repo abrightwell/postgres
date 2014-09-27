@@ -2806,7 +2806,7 @@ GetCommandLogLevel(Node *parsetree)
 			break;
 
 		case T_AlterSystemStmt:
-			lev = LOGSTMT_ALL;
+			lev = LOGSTMT_DDL;
 			break;
 
 		case T_VariableSetStmt:
