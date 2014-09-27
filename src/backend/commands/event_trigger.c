@@ -73,6 +73,7 @@ static event_trigger_support_data event_trigger_support[] = {
 	{"COLLATION", true},
 	{"CONVERSION", true},
 	{"DATABASE", false},
+	{"DIRECTORY", true},
 	{"DOMAIN", true},
 	{"EXTENSION", true},
 	{"EVENT TRIGGER", false},
@@ -924,6 +925,7 @@ EventTriggerSupportsObjectType(ObjectType obtype)
 		case OBJECT_CONSTRAINT:
 		case OBJECT_COLLATION:
 		case OBJECT_CONVERSION:
+		case OBJECT_DIRECTORY:
 		case OBJECT_DOMAIN:
 		case OBJECT_EXTENSION:
 		case OBJECT_FDW:
@@ -998,6 +1000,7 @@ EventTriggerSupportsObjectClass(ObjectClass objclass)
 		case OCLASS_DEFACL:
 		case OCLASS_EXTENSION:
 		case OCLASS_ROWSECURITY:
+		case OCLASS_DIRECTORY:
 			return true;
 
 		case MAX_OCLASS:

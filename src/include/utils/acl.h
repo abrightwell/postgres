@@ -156,6 +156,7 @@ typedef ArrayType Acl;
 #define ACL_ALL_RIGHTS_NAMESPACE	(ACL_USAGE|ACL_CREATE)
 #define ACL_ALL_RIGHTS_TABLESPACE	(ACL_CREATE)
 #define ACL_ALL_RIGHTS_TYPE			(ACL_USAGE)
+#define ACL_ALL_RIGHTS_DIRECTORY	(ACL_SELECT|ACL_UPDATE)
 
 /* operation codes for pg_*_aclmask */
 typedef enum
@@ -197,6 +198,7 @@ typedef enum AclObjectKind
 	ACL_KIND_FOREIGN_SERVER,	/* pg_foreign_server */
 	ACL_KIND_EVENT_TRIGGER,		/* pg_event_trigger */
 	ACL_KIND_EXTENSION,			/* pg_extension */
+	ACL_KIND_DIRECTORY,			/* pg_directory */
 	MAX_ACL_KIND				/* MUST BE LAST */
 } AclObjectKind;
 
@@ -315,6 +317,7 @@ extern bool pg_language_ownercheck(Oid lan_oid, Oid roleid);
 extern bool pg_largeobject_ownercheck(Oid lobj_oid, Oid roleid);
 extern bool pg_namespace_ownercheck(Oid nsp_oid, Oid roleid);
 extern bool pg_tablespace_ownercheck(Oid spc_oid, Oid roleid);
+extern bool pg_directory_ownercheck(Oid dir_oid, Oid roleid);
 extern bool pg_opclass_ownercheck(Oid opc_oid, Oid roleid);
 extern bool pg_opfamily_ownercheck(Oid opf_oid, Oid roleid);
 extern bool pg_database_ownercheck(Oid db_oid, Oid roleid);

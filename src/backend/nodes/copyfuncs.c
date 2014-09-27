@@ -2702,6 +2702,20 @@ _copyGrantRoleStmt(const GrantRoleStmt *from)
 	return newnode;
 }
 
+static GrantDirectoryStmt *
+_copyGrantDirectoryStmt(const GrantDirectoryStmt *from)
+{
+	GrantDirectoryStmt *newnode = makeNode(GrantDirectoryStmt);
+
+	COPY_NODE_FIELD(directories);
+	COPY_NODE_FIELD(permissions);
+	COPY_NODE_FIELD(grantees);
+	COPY_SCALAR_FIELD(is_grant);
+	COPY_STRING_FIELD(grantor);
+
+	return newnode;
+}
+
 static GrantPermissionStmt *
 _copyGrantPermissionStmt(const GrantPermissionStmt *from)
 {
@@ -3891,6 +3905,29 @@ _copyAlterPolicyStmt(const AlterPolicyStmt *from)
 	return newnode;
 }
 
+static CreateDirectoryStmt *
+_copyCreateDirectoryStmt(const CreateDirectoryStmt *from)
+{
+	CreateDirectoryStmt *newnode = makeNode(CreateDirectoryStmt);
+
+	COPY_STRING_FIELD(alias);
+	COPY_STRING_FIELD(owner);
+	COPY_STRING_FIELD(path);
+
+	return newnode;
+}
+
+static AlterDirectoryStmt *
+_copyAlterDirectoryStmt(const AlterDirectoryStmt *from)
+{
+	AlterDirectoryStmt *newnode = makeNode(AlterDirectoryStmt);
+
+	COPY_STRING_FIELD(alias);
+	COPY_STRING_FIELD(path);
+
+	return newnode;
+}
+
 /* ****************************************************************
  *					pg_list.h copy functions
  * ****************************************************************
@@ -4330,6 +4367,9 @@ copyObject(const void *from)
 		case T_GrantStmt:
 			retval = _copyGrantStmt(from);
 			break;
+		case T_GrantDirectoryStmt:
+			retval = _copyGrantDirectoryStmt(from);
+			break;
 		case T_GrantRoleStmt:
 			retval = _copyGrantRoleStmt(from);
 			break;
@@ -4611,6 +4651,12 @@ copyObject(const void *from)
 			break;
 		case T_AlterPolicyStmt:
 			retval = _copyAlterPolicyStmt(from);
+			break;
+		case T_CreateDirectoryStmt:
+			retval = _copyCreateDirectoryStmt(from);
+			break;
+		case T_AlterDirectoryStmt:
+			retval = _copyAlterDirectoryStmt(from);
 			break;
 		case T_A_Expr:
 			retval = _copyAExpr(from);

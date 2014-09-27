@@ -33,6 +33,7 @@
 #include "catalog/pg_database.h"
 #include "catalog/pg_default_acl.h"
 #include "catalog/pg_depend.h"
+#include "catalog/pg_directory.h"
 #include "catalog/pg_event_trigger.h"
 #include "catalog/pg_extension.h"
 #include "catalog/pg_foreign_data_wrapper.h"
@@ -56,6 +57,7 @@
 #include "catalog/pg_user_mapping.h"
 #include "commands/comment.h"
 #include "commands/defrem.h"
+#include "commands/directory.h"
 #include "commands/event_trigger.h"
 #include "commands/extension.h"
 #include "commands/policy.h"
@@ -1255,6 +1257,10 @@ doDeletion(const ObjectAddress *object, int flags)
 			RemovePolicyById(object->objectId);
 			break;
 
+		case OCLASS_DIRECTORY:
+			RemoveDirectoryById(object->objectId);
+			break;
+
 		default:
 			elog(ERROR, "unrecognized object class: %u",
 				 object->classId);
@@ -2325,6 +2331,9 @@ getObjectClass(const ObjectAddress *object)
 
 		case RowSecurityRelationId:
 			return OCLASS_ROWSECURITY;
+
+		case DirectoryRelationId:
+			return OCLASS_DIRECTORY;
 	}
 
 	/* shouldn't get here */

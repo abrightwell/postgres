@@ -19,7 +19,9 @@
 #include "catalog/dependency.h"
 #include "catalog/indexing.h"
 #include "catalog/pg_authid.h"
+#include "catalog/pg_directory.h"
 #include "commands/permission.h"
+#include "miscadmin.h"
 #include "nodes/pg_list.h"
 #include "parser/parse_node.h"
 #include "utils/acl.h"
@@ -221,6 +223,7 @@ RemovePermissionFromRole(const char *role_name, Oid role_id, List *permissions)
 	{
 		int permission = lfirst_int(item);
 
+		// TODO - is it possible to use syscache instead?
 		/* Determine if permission is already set. */
 		ScanKeyInit(&skeys[0],
 					Anum_pg_permission_permroleid,
@@ -251,4 +254,3 @@ RemovePermissionFromRole(const char *role_name, Oid role_id, List *permissions)
 	/* Clean up. */
 	heap_close(pg_permission_rel, RowExclusiveLock);
 }
-

@@ -26,6 +26,7 @@
 #include "catalog/pg_authid.h"
 #include "catalog/pg_cast.h"
 #include "catalog/pg_default_acl.h"
+#include "catalog/pg_directory.h"
 #include "catalog/pg_event_trigger.h"
 #include "catalog/pg_collation.h"
 #include "catalog/pg_constraint.h"
@@ -54,6 +55,7 @@
 #include "catalog/pg_user_mapping.h"
 #include "commands/dbcommands.h"
 #include "commands/defrem.h"
+#include "commands/directory.h"
 #include "commands/event_trigger.h"
 #include "commands/extension.h"
 #include "commands/policy.h"
@@ -358,6 +360,18 @@ static const ObjectPropertyType ObjectProperty[] =
 		false
 	},
 	{
+		DirectoryRelationId,
+		DirectoryOidIndexId,
+		-1,
+		-1,
+		Anum_pg_directory_diralias,
+		InvalidAttrNumber,
+		InvalidAttrNumber,
+		InvalidAttrNumber,
+		-1,
+		false
+	},
+	{
 		EventTriggerRelationId,
 		EventTriggerOidIndexId,
 		EVENTTRIGGEROID,
@@ -536,6 +550,7 @@ get_object_address(ObjectType objtype, List *objname, List *objargs,
 													   &relation, missing_ok);
 				break;
 			case OBJECT_DATABASE:
+			case OBJECT_DIRECTORY:
 			case OBJECT_EXTENSION:
 			case OBJECT_TABLESPACE:
 			case OBJECT_ROLE:
@@ -746,6 +761,9 @@ get_object_address_unqualified(ObjectType objtype,
 			case OBJECT_DATABASE:
 				msg = gettext_noop("database name cannot be qualified");
 				break;
+			case OBJECT_DIRECTORY:
+				msg = gettext_noop("directory alias cannot be qualified");
+				break;
 			case OBJECT_EXTENSION:
 				msg = gettext_noop("extension name cannot be qualified");
 				break;
@@ -788,6 +806,11 @@ get_object_address_unqualified(ObjectType objtype,
 		case OBJECT_DATABASE:
 			address.classId = DatabaseRelationId;
 			address.objectId = get_database_oid(name, missing_ok);
+			address.objectSubId = 0;
+			break;
+		case OBJECT_DIRECTORY:
+			address.classId = DirectoryRelationId;
+			address.objectId = get_directory_oid(name, missing_ok);
 			address.objectSubId = 0;
 			break;
 		case OBJECT_EXTENSION:
@@ -1283,6 +1306,11 @@ check_object_ownership(Oid roleid, ObjectType objtype, ObjectAddress address,
 		case OBJECT_TABLESPACE:
 			if (!pg_tablespace_ownercheck(address.objectId, roleid))
 				aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_TABLESPACE,
+							   NameListToString(objname));
+			break;
+		case OBJECT_DIRECTORY:
+			if (!pg_directory_ownercheck(address.objectId, roleid))
+				aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_DIRECTORY,
 							   NameListToString(objname));
 			break;
 		case OBJECT_TSDICTIONARY:
@@ -2221,6 +2249,18 @@ getObjectDescription(const ObjectAddress *object)
 
 				systable_endscan(sscan);
 				heap_close(rsec_rel, AccessShareLock);
+				break;
+			}
+
+		case OCLASS_DIRECTORY:
+			{
+				char	   *directory;
+
+				directory = get_directory_alias(object->objectId);
+				if (!directory)
+					elog(ERROR, "cache lookup failed for directory %u",
+						 object->objectId);
+				appendStringInfo(&buffer, _("directory %s"), directory);
 				break;
 			}
 

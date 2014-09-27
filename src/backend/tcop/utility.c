@@ -33,6 +33,7 @@
 #include "commands/createas.h"
 #include "commands/dbcommands.h"
 #include "commands/defrem.h"
+#include "commands/directory.h"
 #include "commands/discard.h"
 #include "commands/event_trigger.h"
 #include "commands/explain.h"
@@ -186,6 +187,7 @@ check_xact_readonly(Node *parsetree)
 		case T_DropRoleStmt:
 		case T_GrantStmt:
 		case T_GrantRoleStmt:
+		case T_GrantDirectoryStmt:
 		case T_GrantPermissionStmt:
 		case T_AlterDefaultPrivilegesStmt:
 		case T_TruncateStmt:
@@ -557,6 +559,10 @@ standard_ProcessUtility(Node *parsetree,
 		case T_GrantRoleStmt:
 			/* no event triggers for global objects */
 			GrantRole((GrantRoleStmt *) parsetree);
+			break;
+
+		case T_GrantDirectoryStmt:
+			GrantDirectory((GrantDirectoryStmt *) parsetree);
 			break;
 
 		case T_GrantPermissionStmt:
@@ -1335,6 +1341,14 @@ ProcessUtilitySlow(Node *parsetree,
 				AlterPolicy((AlterPolicyStmt *) parsetree);
 				break;
 
+			case T_CreateDirectoryStmt:	/* CREATE DIRECTORY */
+				CreateDirectory((CreateDirectoryStmt *) parsetree);
+				break;
+
+			case T_AlterDirectoryStmt:	/* ALTER DIRECTORY */
+				AlterDirectory((AlterDirectoryStmt *) parsetree);
+				break;
+
 			default:
 				elog(ERROR, "unrecognized node type: %d",
 					 (int) nodeTag(parsetree));
@@ -1965,6 +1979,9 @@ CreateCommandTag(Node *parsetree)
 				case OBJECT_POLICY:
 					tag = "DROP POLICY";
 					break;
+				case OBJECT_DIRECTORY:
+					tag = "DROP DIRECTORY";
+					break;
 				default:
 					tag = "???";
 			}
@@ -2019,6 +2036,14 @@ CreateCommandTag(Node *parsetree)
 				GrantStmt  *stmt = (GrantStmt *) parsetree;
 
 				tag = (stmt->is_grant) ? "GRANT" : "REVOKE";
+			}
+			break;
+
+		case T_GrantDirectoryStmt:
+			{
+				GrantDirectoryStmt *stmt = (GrantDirectoryStmt *) parsetree;
+
+				tag = (stmt->is_grant ? "GRANT ON DIRECTORY" : "REVOKE ON DIRECTORY");
 			}
 			break;
 
@@ -2322,6 +2347,14 @@ CreateCommandTag(Node *parsetree)
 
 		case T_AlterPolicyStmt:
 			tag = "ALTER POLICY";
+			break;
+
+		case T_CreateDirectoryStmt:
+			tag = "CREATE DIRECTORY";
+			break;
+
+		case T_AlterDirectoryStmt:
+			tag = "ALTER DIRECTORY";
 			break;
 
 		case T_PrepareStmt:
@@ -2873,6 +2906,14 @@ GetCommandLogLevel(Node *parsetree)
 			break;
 
 		case T_AlterPolicyStmt:
+			lev = LOGSTMT_DDL;
+			break;
+
+		case T_CreateDirectoryStmt:
+			lev = LOGSTMT_DDL;
+			break;
+
+		case T_AlterDirectoryStmt:
 			lev = LOGSTMT_DDL;
 			break;
 

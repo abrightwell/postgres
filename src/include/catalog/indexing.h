@@ -305,6 +305,12 @@ DECLARE_UNIQUE_INDEX(pg_permission_oid_index, 6001, on pg_permission using btree
 DECLARE_UNIQUE_INDEX(pg_permission_roleid_index, 6002, on pg_permission using btree(permroleid oid_ops, permpermission int4_ops));
 #define PermissionRoleIdPermIndexId				6002
 
+DECLARE_UNIQUE_INDEX(pg_directory_oid_index, 6101, on pg_directory using btree(oid oid_ops));
+#define DirectoryOidIndexId					6101
+
+DECLARE_UNIQUE_INDEX(pg_directory_alias_index, 6102, on pg_directory using btree(diralias name_ops, dirpath text_ops));
+#define DirectoryAliasPathIndexId				6102
+
 DECLARE_UNIQUE_INDEX(pg_rowsecurity_oid_index, 3257, on pg_rowsecurity using btree(oid oid_ops));
 #define RowSecurityOidIndexId				3257
 

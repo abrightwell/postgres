@@ -1211,6 +1211,7 @@ typedef enum ObjectType
 	OBJECT_COLLATION,
 	OBJECT_CONVERSION,
 	OBJECT_DATABASE,
+	OBJECT_DIRECTORY,
 	OBJECT_DOMAIN,
 	OBJECT_EVENT_TRIGGER,
 	OBJECT_EXTENSION,
@@ -1411,6 +1412,7 @@ typedef enum GrantObjectType
 	ACL_OBJECT_LARGEOBJECT,		/* largeobject */
 	ACL_OBJECT_NAMESPACE,		/* namespace */
 	ACL_OBJECT_TABLESPACE,		/* tablespace */
+	ACL_OBJECT_DIRECTORY,		/* directories */
 	ACL_OBJECT_TYPE				/* type */
 } GrantObjectType;
 
@@ -1492,6 +1494,20 @@ typedef struct GrantPermissionStmt
 	List	   *roles;			/* list of roles to granted/revoked permission */
 	bool		is_grant;		/* true = GRANT, false = REVOKE */
 } GrantPermissionStmt;
+
+/* ----------------------
+ *		Grant/Revoke Directory Permission Statement
+ * ----------------------
+ */
+typedef struct GrantDirectoryStmt
+{
+	NodeTag		type;
+	List	   *directories;			/* the directory alias/name */
+	List	   *permissions;	/* list of permission to be granted/revoked */
+	List	   *grantees;		/* list of roles to be granted/revoked permission */
+	bool		is_grant;		/* true = GRANT, false = REVOKE */
+	char	   *grantor;		/* set grantor to other than current role */
+} GrantDirectoryStmt;
 
 /* ----------------------
  *	Alter Default Privileges Statement
@@ -1899,6 +1915,29 @@ typedef struct AlterPolicyStmt
 	Node	   *qual;			/* the policy's condition */
 	Node	   *with_check;		/* the policy's WITH CHECK condition. */
 } AlterPolicyStmt;
+
+/* ----------------------
+ *		Create DIRECTORY Statement
+ * ----------------------
+ */
+typedef struct CreateDirectoryStmt
+{
+	NodeTag		type;
+	char	   *alias;
+	char	   *owner;
+	char	   *path;
+} CreateDirectoryStmt;
+
+/* ----------------------
+ *		Alter DIRECTORY Statement
+ * ----------------------
+ */
+typedef struct AlterDirectoryStmt
+{
+	NodeTag		type;
+	char	   *alias;
+	char	   *path;
+} AlterDirectoryStmt;
 
 /* ----------------------
  *		Create TRIGGER Statement

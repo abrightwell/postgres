@@ -1046,6 +1046,18 @@ _equalGrantRoleStmt(const GrantRoleStmt *a, const GrantRoleStmt *b)
 }
 
 static bool
+_equalGrantDirectoryStmt(const GrantDirectoryStmt *a, const GrantDirectoryStmt *b)
+{
+	COMPARE_NODE_FIELD(directories);
+	COMPARE_NODE_FIELD(permissions);
+	COMPARE_NODE_FIELD(grantees);
+	COMPARE_SCALAR_FIELD(is_grant);
+	COMPARE_STRING_FIELD(grantor);
+
+	return true;
+}
+
+static bool
 _equalGrantPermissionStmt(const GrantPermissionStmt *a, const GrantPermissionStmt *b)
 {
 	COMPARE_NODE_FIELD(roles);
@@ -2787,6 +2799,9 @@ equal(const void *a, const void *b)
 			break;
 		case T_GrantStmt:
 			retval = _equalGrantStmt(a, b);
+			break;
+		case T_GrantDirectoryStmt:
+			retval = _equalGrantDirectoryStmt(a, b);
 			break;
 		case T_GrantRoleStmt:
 			retval = _equalGrantRoleStmt(a, b);

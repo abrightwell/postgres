@@ -259,7 +259,8 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 		DeallocateStmt PrepareStmt ExecuteStmt
 		DropOwnedStmt ReassignOwnedStmt
 		AlterTSConfigurationStmt AlterTSDictionaryStmt
-		CreateMatViewStmt RefreshMatViewStmt
+		CreateMatViewStmt RefreshMatViewStmt GrantDirStmt RevokeDirStmt
+		CreateDirectoryStmt AlterDirectoryStmt
 
 %type <node>	select_no_parens select_with_parens select_clause
 				simple_select values_clause
@@ -323,6 +324,9 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 %type <str>		row_security_cmd RowSecurityDefaultForCmd
 %type <node>	RowSecurityOptionalWithCheck RowSecurityOptionalExpr
 %type <list>	RowSecurityDefaultToRole RowSecurityOptionalToRole
+
+%type <str>		dir_perm_opts OptDirectoryOwner
+%type <list>	dir_perm_list
 
 %type <str>		iso_level opt_encoding
 %type <node>	grantee
@@ -561,7 +565,8 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 
 	DATA_P DATABASE DAY_P DEALLOCATE DEC DECIMAL_P DECLARE DEFAULT DEFAULTS
 	DEFERRABLE DEFERRED DEFINER DELETE_P DELIMITER DELIMITERS DESC
-	DICTIONARY DISABLE_P DISCARD DISTINCT DO DOCUMENT_P DOMAIN_P DOUBLE_P DROP
+	DICTIONARY DIRECTORY DISABLE_P DISCARD DISTINCT DO DOCUMENT_P DOMAIN_P
+	DOUBLE_P DROP
 
 	EACH ELSE ENABLE_P ENCODING ENCRYPTED END_P ENUM_P ESCAPE EVENT EXCEPT
 	EXCLUDE EXCLUDING EXCLUSIVE EXECUTE EXISTS EXPLAIN
@@ -736,6 +741,7 @@ stmt :
 			| AlterDatabaseStmt
 			| AlterDatabaseSetStmt
 			| AlterDefaultPrivilegesStmt
+			| AlterDirectoryStmt
 			| AlterDomainStmt
 			| AlterEnumStmt
 			| AlterExtensionStmt
@@ -771,6 +777,7 @@ stmt :
 			| CreateAssertStmt
 			| CreateCastStmt
 			| CreateConversionStmt
+			| CreateDirectoryStmt
 			| CreateDomainStmt
 			| CreateExtensionStmt
 			| CreateFdwStmt
@@ -822,6 +829,7 @@ stmt :
 			| ExplainStmt
 			| FetchStmt
 			| GrantStmt
+			| GrantDirStmt
 			| GrantRoleStmt
 			| ImportForeignSchemaStmt
 			| IndexStmt
@@ -839,6 +847,7 @@ stmt :
 			| RemoveOperStmt
 			| RenameStmt
 			| RevokeStmt
+			| RevokeDirStmt
 			| RevokeRoleStmt
 			| RuleStmt
 			| SecLabelStmt
@@ -4624,6 +4633,39 @@ row_security_cmd:
 
 /*****************************************************************************
  *
+ *		QUERIES:
+ *				CREATE DIRECTORY <alias> AS <path>
+ *				ALTER DIRECTORY <alias> AS <path>
+ *
+ *****************************************************************************/
+
+CreateDirectoryStmt:
+			CREATE DIRECTORY name OptDirectoryOwner AS Sconst
+				{
+					CreateDirectoryStmt *n = makeNode(CreateDirectoryStmt);
+					n->alias = $3;
+					n->owner = $4;
+					n->path = $6;
+					$$ = (Node *) n;
+				}
+		;
+
+AlterDirectoryStmt:
+			ALTER DIRECTORY name AS Sconst
+				{
+					AlterDirectoryStmt *n = makeNode(AlterDirectoryStmt);
+					n->alias = $3;
+					n->path = $5;
+					$$ = (Node *) n;
+				}
+		;
+
+OptDirectoryOwner: OWNER name			{ $$ = $2; }
+			| /*EMPTY */				{ $$ = NULL; }
+		;
+
+/*****************************************************************************
+ *
  *		QUERIES :
  *				CREATE TRIGGER ...
  *				DROP TRIGGER ...
@@ -5499,6 +5541,7 @@ drop_type:	TABLE									{ $$ = OBJECT_TABLE; }
 			| CONVERSION_P							{ $$ = OBJECT_CONVERSION; }
 			| SCHEMA								{ $$ = OBJECT_SCHEMA; }
 			| EXTENSION								{ $$ = OBJECT_EXTENSION; }
+			| DIRECTORY								{ $$ = OBJECT_DIRECTORY; }
 			| TEXT_P SEARCH PARSER					{ $$ = OBJECT_TSPARSER; }
 			| TEXT_P SEARCH DICTIONARY				{ $$ = OBJECT_TSDICTIONARY; }
 			| TEXT_P SEARCH TEMPLATE				{ $$ = OBJECT_TSTEMPLATE; }
@@ -6346,6 +6389,7 @@ opt_granted_by: GRANTED BY RoleId						{ $$ = $3; }
 			| /*EMPTY*/									{ $$ = NULL; }
 		;
 
+
 permission_list: permission						{ $$ = list_make1_int($1); }
 			| permission_list ',' permission	{ $$ = lappend_int($1, $3); }
 		;
@@ -6356,6 +6400,60 @@ permission: CREATE DATABASE						{ $$ = PERM_CREATE_DATABASE; }
 			| USER BACKUP						{ $$ = PERM_BACKUP; }
 			| USER LOG_P ROTATE					{ $$ = PERM_LOG_ROTATE; }
 			| /*EMPTY*/							{ $$ = PERM_INVALID; }
+		;
+
+/*****************************************************************************
+ *
+ *		QUERIES:
+ *				GRANT ON DIRECTORY <alias> <permissions> TO <roles>
+ *				REVOKE ON DIRECTORY <alias> <permsissions> FROM <roles>
+ *
+ *****************************************************************************/
+GrantDirStmt:
+			GRANT ON DIRECTORY name_list dir_perm_list TO role_list
+				opt_granted_by
+				{
+					GrantDirectoryStmt *n = makeNode(GrantDirectoryStmt);
+					n->is_grant = true;
+					n->directories = $4;
+					n->permissions = $5;
+					n->grantees = $7;
+					n->grantor = $8;
+					$$ = (Node*)n;
+				}
+		;
+
+RevokeDirStmt:
+			REVOKE ON DIRECTORY name_list dir_perm_list FROM role_list
+				{
+					GrantDirectoryStmt *n = makeNode(GrantDirectoryStmt);
+					n->is_grant = false;
+					n->directories = $4;
+					n->permissions = $5;
+					n->grantees = $7;
+					$$ = (Node*)n;
+				}
+		;
+
+dir_perm_list: dir_perm_opts					{ $$ = list_make1($1); }
+			| dir_perm_list ',' dir_perm_opts	{ $$ = lappend($1, $3); }
+		;
+
+dir_perm_opts:
+			READ
+				{
+					AccessPriv *n = makeNode(AccessPriv);
+					n->priv_name = pstrdup("select");
+					n->cols = NIL;
+					$$ = (Node*)n;
+				}
+			| WRITE
+				{
+					AccessPriv *n = makeNode(AccessPriv);
+					n->priv_name = pstrdup("update");
+					n->cols = NIL;
+					$$ = (Node*)n;
+				}
 		;
 
 /*****************************************************************************
@@ -13112,6 +13210,7 @@ unreserved_keyword:
 			| DELIMITER
 			| DELIMITERS
 			| DICTIONARY
+			| DIRECTORY
 			| DISABLE_P
 			| DISCARD
 			| DOCUMENT_P

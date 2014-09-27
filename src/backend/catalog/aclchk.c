@@ -30,6 +30,7 @@
 #include "catalog/pg_collation.h"
 #include "catalog/pg_conversion.h"
 #include "catalog/pg_database.h"
+#include "catalog/pg_directory.h"
 #include "catalog/pg_default_acl.h"
 #include "catalog/pg_event_trigger.h"
 #include "catalog/pg_extension.h"
@@ -49,6 +50,7 @@
 #include "catalog/pg_ts_config.h"
 #include "catalog/pg_ts_dict.h"
 #include "commands/dbcommands.h"
+#include "commands/directory.h"
 #include "commands/permission.h"
 #include "commands/proclang.h"
 #include "commands/tablespace.h"
@@ -4741,6 +4743,28 @@ pg_tablespace_ownercheck(Oid spc_oid, Oid roleid)
 	ReleaseSysCache(spctuple);
 
 	return has_privs_of_role(roleid, spcowner);
+}
+
+/*
+ * Ownership check for a directory (specified by OID).
+ */
+bool
+pg_directory_ownercheck(Oid dir_id, Oid roleid)
+{
+	Oid			dir_owner;
+
+	/* Superusers bypass all permission checking. */
+	if (superuser_arg(roleid))
+		return true;
+
+	/*
+	 * Might want to consider syscache for this look up.  However, syscache for
+	 * directories has not been implemented yet.  This probably needs to be
+	 * revisited once that is complete.
+	 */
+	dir_owner = get_directory_owner(dir_id);
+
+	return has_privs_of_role(roleid, dir_owner);
 }
 
 /*
