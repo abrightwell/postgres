@@ -7417,6 +7417,15 @@ RenameStmt: ALTER AGGREGATE func_name aggr_args RENAME TO name
 					n->missing_ok = false;
 					$$ = (Node *)n;
 				}
+			| ALTER DIRECTORY name RENAME TO name
+				{
+					RenameStmt *n = makeNode(RenameStmt);
+					n->renameType = OBJECT_DIRECTORY;
+					n->object = list_make1(makeString($3));
+					n->newname = $6;
+					n->missing_ok = false;
+					$$ = (Node *)n;
+				}
 			| ALTER DOMAIN_P any_name RENAME TO name
 				{
 					RenameStmt *n = makeNode(RenameStmt);
@@ -8114,6 +8123,14 @@ AlterOwnerStmt: ALTER AGGREGATE func_name aggr_args OWNER TO RoleId
 				{
 					AlterOwnerStmt *n = makeNode(AlterOwnerStmt);
 					n->objectType = OBJECT_DATABASE;
+					n->object = list_make1(makeString($3));
+					n->newowner = $6;
+					$$ = (Node *)n;
+				}
+			| ALTER DIRECTORY name OWNER TO RoleId
+				{
+					AlterOwnerStmt *n = makeNode(AlterOwnerStmt);
+					n->objectType = OBJECT_DIRECTORY;
 					n->object = list_make1(makeString($3));
 					n->newowner = $6;
 					$$ = (Node *)n;

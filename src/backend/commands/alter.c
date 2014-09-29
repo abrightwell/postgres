@@ -349,6 +349,7 @@ ExecRenameStmt(RenameStmt *stmt)
 		case OBJECT_AGGREGATE:
 		case OBJECT_COLLATION:
 		case OBJECT_CONVERSION:
+		case OBJECT_DIRECTORY:
 		case OBJECT_EVENT_TRIGGER:
 		case OBJECT_FDW:
 		case OBJECT_FOREIGN_SERVER:
@@ -709,6 +710,7 @@ ExecAlterOwnerStmt(AlterOwnerStmt *stmt)
 		case OBJECT_AGGREGATE:
 		case OBJECT_COLLATION:
 		case OBJECT_CONVERSION:
+		case OBJECT_DIRECTORY:
 		case OBJECT_FUNCTION:
 		case OBJECT_LANGUAGE:
 		case OBJECT_LARGEOBJECT:
@@ -749,7 +751,6 @@ ExecAlterOwnerStmt(AlterOwnerStmt *stmt)
 				return address.objectId;
 			}
 			break;
-
 		default:
 			elog(ERROR, "unrecognized AlterOwnerStmt type: %d",
 				 (int) stmt->objectType);

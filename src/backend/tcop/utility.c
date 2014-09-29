@@ -1616,6 +1616,9 @@ AlterObjectTypeCommandTag(ObjectType objtype)
 		case OBJECT_DATABASE:
 			tag = "ALTER DATABASE";
 			break;
+		case OBJECT_DIRECTORY:
+			tag = "ALTER DIRECTORY";
+			break;
 		case OBJECT_DOMAIN:
 			tag = "ALTER DOMAIN";
 			break;

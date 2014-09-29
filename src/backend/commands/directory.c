@@ -97,7 +97,7 @@ CreateDirectory(CreateDirectoryStmt *stmt)
 	else
 		owner_id = GetUserId();
 
-	/* disallow quotes, else CREATE DATABASE would be at risk */
+	/* Disallow quotes */
 	if (strchr(path, '\''))
 		ereport(ERROR,
 				(errcode(ERRCODE_INVALID_NAME),

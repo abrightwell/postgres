@@ -366,7 +366,7 @@ static const ObjectPropertyType ObjectProperty[] =
 		-1,
 		Anum_pg_directory_diralias,
 		InvalidAttrNumber,
-		InvalidAttrNumber,
+		Anum_pg_directory_dirowner,
 		InvalidAttrNumber,
 		-1,
 		false
