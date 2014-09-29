@@ -362,7 +362,7 @@ static const ObjectPropertyType ObjectProperty[] =
 	{
 		DirectoryRelationId,
 		DirectoryOidIndexId,
-		-1,
+		DIRECTORYOID,
 		-1,
 		Anum_pg_directory_diralias,
 		InvalidAttrNumber,

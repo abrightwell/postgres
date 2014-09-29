@@ -25,6 +25,7 @@ extern void GrantDirectory(GrantDirectoryStmt *stmt);
 extern char *get_directory_alias(Oid dir_id);
 extern Oid get_directory_oid(const char *alias, bool missing_ok);
 extern Oid get_directory_owner(Oid dir_id);
+extern Oid get_directory_oid_by_path(const char *path);
 
 // extern Oid rename_directory(RenameStmt *stmt);
 

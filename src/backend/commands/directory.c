@@ -16,6 +16,7 @@
 #include "access/sysattr.h"
 #include "catalog/dependency.h"
 #include "catalog/indexing.h"
+#include "catalog/objectaccess.h"
 #include "catalog/pg_authid.h"
 #include "catalog/pg_directory.h"
 #include "commands/directory.h"
@@ -25,6 +26,7 @@
 #include "utils/builtins.h"
 #include "utils/fmgroids.h"
 #include "utils/rel.h"
+#include "utils/syscache.h"
 
 static AclMode string_to_permission(const char *permission);
 static Acl *merge_acl_with_grant(Acl *old_acl, List *grantees, bool is_grant,
@@ -189,6 +191,9 @@ CreateDirectory(CreateDirectoryStmt *stmt)
 
 	/* Record Dependency on owner*/
 	recordDependencyOnOwner(DirectoryRelationId, dir_id, owner_id);
+
+	/* Post creation hook for new directory */
+	InvokeObjectPostCreateHook(DirectoryRelationId, dir_id, 0);
 
 	/* Clean up */
 	heap_close(pg_directory_rel, RowExclusiveLock);
@@ -425,38 +430,45 @@ merge_acl_with_grant(Acl *old_acl, List *grantees, bool is_grant, AclMode permis
 char *
 get_directory_alias(Oid dir_id)
 {
-	char		   *alias;
+	char		   *alias = NULL;
+	HeapTuple		tuple;
+
+	tuple = SearchSysCache1(DIRECTORYOID, ObjectIdGetDatum(dir_id));
+	if (HeapTupleIsValid(tuple))
+	{
+		alias = pstrdup(NameStr(((Form_pg_directory) GETSTRUCT(tuple))->diralias));
+		ReleaseSysCache(tuple);
+	}
+
+	return alias;
+}
+
+Oid
+get_directory_oid_by_path(const char *path)
+{
+	Oid				dir_id = InvalidOid;
 	Relation		pg_directory_rel;
 	HeapScanDesc	scandesc;
 	HeapTuple		tuple;
 	ScanKeyData		skey[1];
 
-	/*
-	 * Search pg_directory.  We use a heapscan here even though there is an index
-	 * on oid.  We do this on the theory that pg_directory will usually have a
-	 * relatively small number of entries and therefore it is safe to assume
-	 * an index scan would be wasted effort.  Though it might be better to use
-	 * syscache, once it is implemented?
-	 */
 	pg_directory_rel = heap_open(DirectoryRelationId, AccessShareLock);
 
 	ScanKeyInit(&skey[0],
-				ObjectIdAttributeNumber,
-				BTEqualStrategyNumber, F_OIDEQ,
-				ObjectIdGetDatum(dir_id));
+				Anum_pg_directory_dirpath,
+				BTEqualStrategyNumber, F_TEXTEQ,
+				CStringGetTextDatum(path));
 
 	scandesc = heap_beginscan_catalog(pg_directory_rel, 1, skey);
 	tuple = heap_getnext(scandesc, ForwardScanDirection);
 
 	if (HeapTupleIsValid(tuple))
-		alias = pstrdup(NameStr(((Form_pg_directory) GETSTRUCT(tuple))->diralias));
-	else
-		alias = NULL;
+		dir_id = HeapTupleGetOid(tuple);
 
 	heap_endscan(scandesc);
 	heap_close(pg_directory_rel, AccessShareLock);
 
-	return alias;
+	return dir_id;
 }
 
 Oid
@@ -503,35 +515,15 @@ get_directory_oid(const char *alias, bool missing_ok)
 Oid
 get_directory_owner(Oid dir_id)
 {
-	Oid				owner;
-	Relation		pg_directory_rel;
-	HeapScanDesc	scandesc;
+	Oid				owner = InvalidOid;
 	HeapTuple		tuple;
-	ScanKeyData		skey[1];
 
-	/*
-	 * Search pg_directory.  We use a heapscan here even though there is an index
-	 * on oid.  We do this on the theory that pg_directory will usually have a
-	 * relatively small number of entries and therefore it is safe to assume
-	 * an index scan would be wasted effort.
-	 */
-	pg_directory_rel = heap_open(DirectoryRelationId, AccessShareLock);
-
-	ScanKeyInit(&skey[0],
-				ObjectIdAttributeNumber,
-				BTEqualStrategyNumber, F_OIDEQ,
-				ObjectIdGetDatum(dir_id));
-
-	scandesc = heap_beginscan_catalog(pg_directory_rel, 1, skey);
-	tuple = heap_getnext(scandesc, ForwardScanDirection);
-
+	tuple = SearchSysCache1(DIRECTORYOID, ObjectIdGetDatum(dir_id));
 	if (HeapTupleIsValid(tuple))
+	{
 		owner = ((Form_pg_directory) GETSTRUCT(tuple))->dirowner;
-	else
-		owner = InvalidOid;
-
-	heap_endscan(scandesc);
-	heap_close(pg_directory_rel, AccessShareLock);
+		ReleaseSysCache(tuple);
+	}
 
 	return owner;
 }

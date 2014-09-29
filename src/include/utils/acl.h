@@ -283,6 +283,8 @@ extern AclMode pg_foreign_server_aclmask(Oid srv_oid, Oid roleid,
 						  AclMode mask, AclMaskHow how);
 extern AclMode pg_type_aclmask(Oid type_oid, Oid roleid,
 				AclMode mask, AclMaskHow how);
+extern AclMode pg_directory_aclmask(Oid dir_oid, Oid roleid, AclMode mask,
+				AclMaskHow how);
 
 extern AclResult pg_attribute_aclcheck(Oid table_oid, AttrNumber attnum,
 					  Oid roleid, AclMode mode);
@@ -299,6 +301,7 @@ extern AclResult pg_tablespace_aclcheck(Oid spc_oid, Oid roleid, AclMode mode);
 extern AclResult pg_foreign_data_wrapper_aclcheck(Oid fdw_oid, Oid roleid, AclMode mode);
 extern AclResult pg_foreign_server_aclcheck(Oid srv_oid, Oid roleid, AclMode mode);
 extern AclResult pg_type_aclcheck(Oid type_oid, Oid roleid, AclMode mode);
+extern AclResult pg_directory_aclcheck(Oid diroid, Oid roleid, AclMode mode);
 
 extern void aclcheck_error(AclResult aclerr, AclObjectKind objectkind,
 			   const char *objectname);

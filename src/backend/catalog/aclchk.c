@@ -3311,6 +3311,8 @@ static const char *const no_priv_msg[MAX_ACL_KIND] =
 	gettext_noop("permission denied for event trigger %s"),
 	/* ACL_KIND_EXTENSION */
 	gettext_noop("permission denied for extension %s"),
+	/* ACL_KIND_DIRECTORY */
+	gettext_noop("permission denied for directory %s"),
 };
 
 static const char *const not_owner_msg[MAX_ACL_KIND] =
@@ -3357,6 +3359,8 @@ static const char *const not_owner_msg[MAX_ACL_KIND] =
 	gettext_noop("must be owner of event trigger %s"),
 	/* ACL_KIND_EXTENSION */
 	gettext_noop("must be owner of extension %s"),
+	/* ACL_KIND_DIRECTORY */
+	gettext_noop("must be owner of directory %s"),
 };
 
 
@@ -4198,6 +4202,61 @@ pg_foreign_server_aclmask(Oid srv_oid, Oid roleid,
 }
 
 /*
+ * Exported routine for examining a user's permissions for a directory.
+ */
+AclMode
+pg_directory_aclmask(Oid dir_oid, Oid roleid, AclMode mask, AclMaskHow how)
+{
+	AclMode		result;
+	HeapTuple	tuple;
+	Datum		aclDatum;
+	bool		isNull;
+	Acl		   *acl;
+	Oid			ownerId;
+
+	Form_pg_directory directoryForm;
+
+	/* Bypass permission checks for superusers */
+	if (superuser_arg(roleid))
+		return mask;
+
+	/* Must get the directory's tuple from pg_directory */
+	tuple = SearchSysCache1(DIRECTORYOID, ObjectIdGetDatum(dir_oid));
+	if (!HeapTupleIsValid(tuple))
+			ereport(ERROR,
+					(errcode(ERRCODE_UNDEFINED_OBJECT),
+					 errmsg("directory with OID %u does not exist", dir_oid)));
+
+	directoryForm = (Form_pg_directory) GETSTRUCT(tuple);
+
+	ownerId = directoryForm->dirowner;
+
+	aclDatum = SysCacheGetAttr(DIRECTORYOID, tuple,
+							   Anum_pg_directory_diracl, &isNull);
+	if (isNull)
+	{
+		/* No ACL, so build default ACL */
+		acl = acldefault(ACL_OBJECT_DIRECTORY, ownerId);
+		aclDatum = (Datum) 0;
+	}
+	else
+	{
+		/* detoast rel's ACL if necessary */
+		acl = DatumGetAclP(aclDatum);
+	}
+
+	result = aclmask(acl, roleid, ownerId, mask, how);
+
+	/* if we have a detoasted copy, free it */
+	if (acl && (Pointer) acl != DatumGetPointer(aclDatum))
+		pfree(acl);
+
+	ReleaseSysCache(tuple);
+
+	return result;
+}
+
+/*
  * Exported routine for examining a user's privileges for a type.
  */
 AclMode
@@ -4511,6 +4570,18 @@ AclResult
 pg_type_aclcheck(Oid type_oid, Oid roleid, AclMode mode)
 {
 	if (pg_type_aclmask(type_oid, roleid, mode, ACLMASK_ANY) != 0)
+		return ACLCHECK_OK;
+	else
+		return ACLCHECK_NO_PRIV;
+}
+
+/*
+ * Exported routine for checking a user's access permissions to a directory
+ */
+AclResult
+pg_directory_aclcheck(Oid dir_oid, Oid roleid, AclMode mode)
+{
+	if (pg_directory_aclmask(dir_oid, roleid, mode, ACLMASK_ANY) != 0)
 		return ACLCHECK_OK;
 	else
 		return ACLCHECK_NO_PRIV;
