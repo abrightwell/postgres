@@ -4820,22 +4820,27 @@ pg_tablespace_ownercheck(Oid spc_oid, Oid roleid)
  * Ownership check for a directory (specified by OID).
  */
 bool
-pg_directory_ownercheck(Oid dir_id, Oid roleid)
+pg_directory_ownercheck(Oid dir_oid, Oid roleid)
 {
-	Oid			dir_owner;
+	HeapTuple	dirtuple;
+	Oid			dirowner;
 
 	/* Superusers bypass all permission checking. */
 	if (superuser_arg(roleid))
 		return true;
 
-	/*
-	 * Might want to consider syscache for this look up.  However, syscache for
-	 * directories has not been implemented yet.  This probably needs to be
-	 * revisited once that is complete.
-	 */
-	dir_owner = get_directory_owner(dir_id);
+	/* Search syscache for pg_directory */
+	dirtuple = SearchSysCache1(DIRECTORYOID, ObjectIdGetDatum(dir_oid));
+	if (!HeapTupleIsValid(dirtuple))
+		ereport(ERROR,
+				(errcode(ERRCODE_UNDEFINED_OBJECT),
+				 errmsg("directory with OID %u does not exist", dir_oid)));
 
-	return has_privs_of_role(roleid, dir_owner);
+	dirowner = ((Form_pg_directory) GETSTRUCT(dirtuple))->dirowner;
+
+	ReleaseSysCache(dirtuple);
+
+	return has_privs_of_role(roleid, dirowner);
 }
 
 /*
