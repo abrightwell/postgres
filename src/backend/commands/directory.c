@@ -205,9 +205,79 @@ CreateDirectory(CreateDirectoryStmt *stmt)
 void
 AlterDirectory(AlterDirectoryStmt *stmt)
 {
-	ereport(ERROR,
-		(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-		 errmsg("ALTER DIRECTORY not yet implemented")));
+	Relation		pg_directory_rel;
+	ScanKeyData		skey[1];
+	HeapScanDesc	scandesc;
+	HeapTuple		tuple;
+	Datum			values[Natts_pg_directory];
+	bool			nulls[Natts_pg_directory];
+	bool			replaces[Natts_pg_directory];
+	HeapTuple		new_tuple;
+	char		   *path;
+
+	/* Unix-ify the new path, and strip any trailing slashes */
+	path = pstrdup(stmt->path);
+	canonicalize_path(path);
+
+	/* Disallow quotes */
+	if (strchr(path, '\''))
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_NAME),
+				 errmsg("directory path cannot contain single quotes")));
+
+	/* Open pg_directory catalog */
+	pg_directory_rel = heap_open(DirectoryRelationId, RowExclusiveLock);
+
+	/* Search for directory by alias */
+	ScanKeyInit(&skey[0],
+				Anum_pg_directory_diralias,
+				BTEqualStrategyNumber, F_NAMEEQ,
+				CStringGetDatum(stmt->alias));
+
+	/*
+	 * We use a heapscan here even though there is an index on alias and path.
+	 * We do this on the theory that pg_directory will usually have a
+	 * relatively small number of entries and therefore it is safe to assume
+	 * an index scan would be wasted effort.
+	 */
+	scandesc = heap_beginscan_catalog(pg_directory_rel, 1, skey);
+
+	tuple = heap_getnext(scandesc, ForwardScanDirection);
+
+	/* If directory does not exist then raise an error */
+	if (!HeapTupleIsValid(tuple))
+		ereport(ERROR,
+				(errcode(ERRCODE_UNDEFINED_OBJECT),
+				 errmsg("directory \"%s\" does not exist", stmt->alias)));
+
+	/* Permission check - must be owner of the directory or superuser */
+	if (!pg_directory_ownercheck(HeapTupleGetOid(tuple), GetUserId()))
+		aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_DIRECTORY,
+					   stmt->alias);
+
+	/* Build new tuple and update pg_directory */
+	memset(nulls,    0, sizeof(nulls));
+	memset(replaces, 0, sizeof(replaces));
+	memset(values,   0, sizeof(values));
+
+	values[Anum_pg_directory_dirpath - 1] = CStringGetTextDatum(path);
+	replaces[Anum_pg_directory_dirpath - 1] = true;
+
+	new_tuple = heap_modify_tuple(tuple, RelationGetDescr(pg_directory_rel),
+								  values, nulls, replaces);
+
+	simple_heap_update(pg_directory_rel, &new_tuple->t_self, new_tuple);
+
+	/* Update Indexes */
+	CatalogUpdateIndexes(pg_directory_rel, new_tuple);
+
+	/* Post alter hook for directory */
+	InvokeObjectPostAlterHook(DirectoryRelationId, HeapTupleGetOid(tuple), 0);
+
+	/* Clean Up */
+	heap_freetuple(new_tuple);
+	heap_endscan(scandesc);
+	heap_close(pg_directory_rel, RowExclusiveLock);
 }
 
 /*
