@@ -43,8 +43,6 @@ void
 RemoveDirectoryById(Oid dir_id)
 {
 	Relation		pg_directory_rel;
-	SysScanDesc		sscan;
-	ScanKeyData		skey[1];
 	HeapTuple		tuple;
 
 	pg_directory_rel = heap_open(DirectoryRelationId, RowExclusiveLock);
@@ -52,15 +50,7 @@ RemoveDirectoryById(Oid dir_id)
 	/*
 	 * Find the directory to delete.
 	 */
-	ScanKeyInit(&skey[0],
-				ObjectIdAttributeNumber,
-				BTEqualStrategyNumber, F_OIDEQ,
-				ObjectIdGetDatum(dir_id));
-
-	sscan = systable_beginscan(pg_directory_rel, DirectoryOidIndexId, true,
-							   NULL, 1, skey);
-
-	tuple = systable_getnext(sscan);
+	tuple = SearchSysCache1(DIRECTORYOID, ObjectIdGetDatum(dir_id));
 
 	/* If the directory exists, then remove it, otherwise raise an error. */
 	if (!HeapTupleIsValid(tuple))
@@ -68,7 +58,7 @@ RemoveDirectoryById(Oid dir_id)
 
 	simple_heap_delete(pg_directory_rel, &tuple->t_self);
 
-	systable_endscan(sscan);
+	ReleaseSysCache(tuple);
 	heap_close(pg_directory_rel, RowExclusiveLock);
 }
 
@@ -114,9 +104,10 @@ CreateDirectory(CreateDirectoryStmt *stmt)
 				 errmsg("directory path cannot contain single quotes")));
 
 	/*
-	 * Allowing relative paths seems riskyso
+	 * Allowing relative paths seems risky and really a bad idea.  Therefore,
+	 * if a relative path is provided then an error is raised.
 	 *
-	 * this also helps us ensure that location is not empty or whitespace
+	 * This also helps us ensure that directory path is not empty or whitespace.
 	 */
 	if (!is_absolute_path(path))
 		ereport(ERROR,
@@ -127,7 +118,7 @@ CreateDirectory(CreateDirectoryStmt *stmt)
 	pg_directory_rel = heap_open(DirectoryRelationId, RowExclusiveLock);
 
 	/*
-	 * Make sure duplicate does not exist.  Need to check both the alias and
+	 * Make sure duplicate do not exist.  Need to check both the alias and
 	 * the path.  If either exists, then raise an error.
 	 */
 
@@ -296,11 +287,6 @@ GrantDirectory(GrantDirectoryStmt *stmt)
 
 		alias = strVal(lfirst(item));
 
-		/*
-		 * We would probably be better served by using syscache here, but
-		 * currently, that part has not been implemented for directories.
-		 * When that is complete then perhaps it would be better to use it?
-		 */
 		ScanKeyInit(&skey[0],
 					Anum_pg_directory_diralias,
 					BTEqualStrategyNumber, F_NAMEEQ,
@@ -380,19 +366,18 @@ GrantDirectory(GrantDirectoryStmt *stmt)
 	heap_close(pg_directory_rel, RowExclusiveLock);
 }
 
+/*
+ * Merge an existing ACL with the permissions specified by GRANT/REVOKE.
+ */
 static Acl *
-merge_acl_with_grant(Acl *old_acl, List *grantees, bool is_grant, AclMode permissions,
-					 Oid grantor, Oid owner)
+merge_acl_with_grant(Acl *old_acl, List *grantees, bool is_grant,
+					 AclMode permissions, Oid grantor, Oid owner)
 {
 	unsigned	modechg;
 	Acl		   *acl;
 	ListCell   *item;
 
 	modechg = is_grant ? ACL_MODECHG_ADD : ACL_MODECHG_DEL;
-
-#ifdef ACLDEBUG
-	dumpacl(old_acl);
-#endif
 
 	acl = old_acl;
 
@@ -401,20 +386,24 @@ merge_acl_with_grant(Acl *old_acl, List *grantees, bool is_grant, AclMode permis
 		AclItem		aclitem;
 		Acl		   *new_acl;
 
-		/* TODO - need to handle PUBLIC case */
+		/*
+		 * TODO - need to handle PUBLIC case if grant options are allowed.
+		 * Grant options cannot be granted to PUBLIC only to individual roles.
+		 */
 		aclitem.ai_grantee = lfirst_oid(item);
 		aclitem.ai_grantor = grantor;
+
 		/* Set the permissions only, no grant options are allowed. */
 		ACLITEM_SET_PRIVS_GOPTIONS(aclitem, permissions, ACL_NO_RIGHTS);
 
+		/*
+		 * Need to consider the DropBehavior - is it necessary to allow it to be
+		 * passed in, if not, then what would be the appropriate default?
+		 */
 		new_acl = aclupdate(acl, &aclitem, modechg, owner, DROP_CASCADE);
 
 		pfree(acl);
 		acl = new_acl;
-
-#ifdef ACLDEBUG
-		dumpacl(new_acl);
-#endif
 	}
 
 	return acl;
@@ -443,6 +432,13 @@ get_directory_alias(Oid dir_id)
 	return alias;
 }
 
+/*
+ * get_directory_oid_by_path
+ *   given a directory path, look up the OID.  If the directory does not exist
+ *   this InvalidOid is returned.
+ *
+ * path - the path of the directory
+ */
 Oid
 get_directory_oid_by_path(const char *path)
 {
@@ -452,6 +448,12 @@ get_directory_oid_by_path(const char *path)
 	HeapTuple		tuple;
 	ScanKeyData		skey[1];
 
+	/*
+	 * Search pg_directory.  We use a heapscan here even though there is an index
+	 * on alias.  We do this on the theory that pg_directory will usually have a
+	 * relatively small number of entries and therefore it is safe to assume
+	 * an index scan would be wasted effort.
+	 */
 	pg_directory_rel = heap_open(DirectoryRelationId, AccessShareLock);
 
 	ScanKeyInit(&skey[0],
@@ -471,6 +473,16 @@ get_directory_oid_by_path(const char *path)
 	return dir_id;
 }
 
+/*
+ * get_directory_oid
+ *   given a directory alias, look up the OID.  If a directory does not exist for
+ *   the alias then if missing_ok is true InvalidOid is returned otherwise an
+ *   error is raised.
+ *
+ * alias - the alias of the directory
+ * missing_ok - false if an error should be raised if the directory does not
+ *              exist.
+ */
 Oid
 get_directory_oid(const char *alias, bool missing_ok)
 {
@@ -512,6 +524,13 @@ get_directory_oid(const char *alias, bool missing_ok)
 	return dir_id;
 }
 
+/*
+ * get_directory_owner
+ *   given a directory OID, look up the owner. If the directory does not exist
+ *   then InvalidOid is returned.
+ *
+ * dir_id - the oid of the directory entry.
+ */
 Oid
 get_directory_owner(Oid dir_id)
 {
@@ -528,6 +547,13 @@ get_directory_owner(Oid dir_id)
 	return owner;
 }
 
+/*
+ * string_to_permission
+ *   given a string representation of a permission, return its corresponding
+ *   AclMode.  If an invalid value is provided then an error is raised.
+ *
+ * permission - the string representation of the permission.
+ */
 static AclMode
 string_to_permission(const char *permission)
 {
