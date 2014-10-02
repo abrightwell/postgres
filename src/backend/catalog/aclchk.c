@@ -5177,6 +5177,28 @@ has_createrole_privilege(Oid roleid)
 	return result;
 }
 
+/*
+ * Check whether specified role has REPLICATION priviledge (or is a superuser)
+ */
+bool
+has_replication_privilege(Oid roleid)
+{
+	bool		result = false;
+	HeapTuple	utup;
+
+	/* Superusers bypass all permission checking. */
+	if (superuser_arg(roleid))
+		return true;
+
+	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
+	if (HeapTupleIsValid(utup))
+	{
+		result = ((Form_pg_authid) GETSTRUCT(utup))->rolreplication;
+		ReleaseSysCache(utup);
+	}
+	return result;
+}
+
 bool
 has_bypassrls_privilege(Oid roleid)
 {

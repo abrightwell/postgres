@@ -20,6 +20,7 @@
 #include "replication/slot.h"
 #include "replication/logical.h"
 #include "replication/logicalfuncs.h"
+#include "utils/acl.h"
 #include "utils/builtins.h"
 #include "utils/pg_lsn.h"
 
@@ -42,10 +43,10 @@ pg_create_physical_replication_slot(PG_FUNCTION_ARGS)
 	if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
 		elog(ERROR, "return type must be a row type");
 
-	if (!has_rolreplication(GetUserId()))
+	if (!has_replication_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser replication role to use replication slots")));
+				 errmsg("must be superuser or replication role to use replication slots")));
 
 	CheckSlotRequirements();
 
@@ -88,10 +89,10 @@ pg_create_logical_replication_slot(PG_FUNCTION_ARGS)
 	if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
 		elog(ERROR, "return type must be a row type");
 
-	if (!has_rolreplication(GetUserId()))
+	if (!has_replication_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser replication role to use replication slots")));
+				 errmsg("must be superuser or replication role to use replication slots")));
 
 	CheckLogicalDecodingRequirements();
 
@@ -140,10 +141,10 @@ pg_drop_replication_slot(PG_FUNCTION_ARGS)
 {
 	Name		name = PG_GETARG_NAME(0);
 
-	if (!has_rolreplication(GetUserId()))
+	if (!has_replication_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser replication role to use replication slots")));
+				 errmsg("must be superuser or replication role to use replication slots")));
 
 	CheckSlotRequirements();
 

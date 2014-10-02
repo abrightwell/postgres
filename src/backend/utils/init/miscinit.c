@@ -317,25 +317,6 @@ SetUserIdAndContext(Oid userid, bool sec_def_context)
 		SecurityRestrictionContext &= ~SECURITY_LOCAL_USERID_CHANGE;
 }
 
-
-/*
- * Check whether specified role has explicit REPLICATION privilege
- */
-bool
-has_rolreplication(Oid roleid)
-{
-	bool		result = false;
-	HeapTuple	utup;
-
-	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
-	if (HeapTupleIsValid(utup))
-	{
-		result = ((Form_pg_authid) GETSTRUCT(utup))->rolreplication;
-		ReleaseSysCache(utup);
-	}
-	return result;
-}
-
 /*
  * Initialize user identity during normal backend startup
  */

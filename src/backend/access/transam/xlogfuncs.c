@@ -29,6 +29,7 @@
 #include "miscadmin.h"
 #include "replication/walreceiver.h"
 #include "storage/smgr.h"
+#include "utils/acl.h"
 #include "utils/builtins.h"
 #include "utils/numeric.h"
 #include "utils/guc.h"
@@ -56,7 +57,7 @@ pg_start_backup(PG_FUNCTION_ARGS)
 
 	backupidstr = text_to_cstring(backupid);
 
-	if (!superuser() && !has_rolreplication(GetUserId())
+	if (!has_replication_privilege(GetUserId())
 		&& !HasPermission(GetUserId(), PERM_BACKUP))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
@@ -86,7 +87,7 @@ pg_stop_backup(PG_FUNCTION_ARGS)
 {
 	XLogRecPtr	stoppoint;
 
-	if (!superuser() && !has_rolreplication(GetUserId())
+	if (!has_replication_privilege(GetUserId())
 		&& !HasPermission(GetUserId(), PERM_BACKUP))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
