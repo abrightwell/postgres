@@ -2802,7 +2802,8 @@ getRowSecurity(Archive *fout, TableInfo tblinfo[], int numTables)
 			continue;
 
 		if (g_verbose)
-			write_msg(NULL, "reading row-security enabled for table \"%s\"",
+			write_msg(NULL, "reading row-security enabled for table \"%s\".\"%s\"\n",
+					  tbinfo->dobj.namespace->dobj.name,
 					  tbinfo->dobj.name);
 
 		/*
@@ -2832,7 +2833,8 @@ getRowSecurity(Archive *fout, TableInfo tblinfo[], int numTables)
 		}
 
 		if (g_verbose)
-			write_msg(NULL, "reading row-security policies for table \"%s\"\n",
+			write_msg(NULL, "reading row-security policies for table \"%s\".\"%s\"\n",
+					  tbinfo->dobj.namespace->dobj.name,
 					  tbinfo->dobj.name);
 
 		/*
