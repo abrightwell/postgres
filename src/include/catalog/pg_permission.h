@@ -47,7 +47,9 @@ typedef enum Permission
 	PERM_CREATE_ROLE,			/* CREATE ROLE */
 	PERM_PROCSIGNAL,			/* PROCSIGNAL */
 	PERM_BACKUP,				/* BACKUP */
-	PERM_LOG_ROTATE				/* LOG ROTATE */
+	PERM_LOG_ROTATE,			/* LOG ROTATE */
+	PERM_ADMIN,					/* ADMIN */
+	PERM_MONITOR				/* MONITOR */
 } Permission;
 
 #endif   /* PG_PERMISSION_H */

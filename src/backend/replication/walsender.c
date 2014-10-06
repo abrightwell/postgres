@@ -72,6 +72,7 @@
 #include "storage/proc.h"
 #include "storage/procarray.h"
 #include "tcop/tcopprot.h"
+#include "utils/acl.h"
 #include "utils/builtins.h"
 #include "utils/guc.h"
 #include "utils/memutils.h"
@@ -2832,11 +2833,13 @@ pg_stat_get_wal_senders(PG_FUNCTION_ARGS)
 		memset(nulls, 0, sizeof(nulls));
 		values[0] = Int32GetDatum(walsnd->pid);
 
-		if (!superuser())
+		if (!(has_admin_privilege(GetUserId())
+			|| has_monitor_privilege(GetUserId())))
 		{
 			/*
-			 * Only superusers can see details. Other users only get the pid
-			 * value to know it's a walsender, but no details.
+			 * Only users with ADMIN, MONITOR or superuser privileges can see
+			 * details. Other users only get the pid value to know it's a
+			 * walsender, but no details.
 			 */
 			MemSet(&nulls[1], true, PG_STAT_GET_WAL_SENDERS_COLS - 1);
 		}

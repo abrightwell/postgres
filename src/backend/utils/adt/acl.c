@@ -117,6 +117,7 @@ static AclMode convert_role_priv_string(text *priv_type_text);
 static AclResult pg_role_aclcheck(Oid role_oid, Oid roleid, AclMode mode);
 
 static void RoleMembershipCacheCallback(Datum arg, int cacheid, uint32 hashvalue);
+static bool has_inherit_privilege(Oid roleid);
 
 
 /*
@@ -4640,7 +4641,7 @@ RoleMembershipCacheCallback(Datum arg, int cacheid, uint32 hashvalue)
 
 /* Check if specified role has rolinherit set */
 static bool
-has_rolinherit(Oid roleid)
+has_inherit_privilege(Oid roleid)
 {
 	bool		result = false;
 	HeapTuple	utup;
@@ -4701,7 +4702,7 @@ roles_has_privs_of(Oid roleid)
 		int			i;
 
 		/* Ignore non-inheriting roles */
-		if (!has_rolinherit(memberid))
+		if (!has_inherit_privilege(memberid))
 			continue;
 
 		/* Find roles that memberid is directly a member of */

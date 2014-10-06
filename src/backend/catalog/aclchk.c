@@ -147,6 +147,7 @@ static AclMode restrict_and_check_grant(bool is_grant, AclMode avail_goptions,
 						 AttrNumber att_number, const char *colname);
 static AclMode pg_aclmask(AclObjectKind objkind, Oid table_oid, AttrNumber attnum,
 		   Oid roleid, AclMode mask, AclMaskHow how);
+static bool has_catupdate_privilege(Oid roleid);
 
 
 #ifdef ACLDEBUG
@@ -3433,7 +3434,7 @@ aclcheck_error_type(AclResult aclerr, Oid typeOid)
 
 /* Check if given user has rolcatupdate privilege according to pg_authid */
 static bool
-has_rolcatupdate(Oid roleid)
+has_catupdate_privilege(Oid roleid)
 {
 	bool		rolcatupdate;
 	HeapTuple	tuple;
@@ -3638,7 +3639,7 @@ pg_class_aclmask(Oid table_oid, Oid roleid,
 	if ((mask & (ACL_INSERT | ACL_UPDATE | ACL_DELETE | ACL_TRUNCATE | ACL_USAGE)) &&
 		IsSystemClass(table_oid, classForm) &&
 		classForm->relkind != RELKIND_VIEW &&
-		!has_rolcatupdate(roleid) &&
+		!has_catupdate_privilege(roleid) &&
 		!allowSystemTableMods)
 	{
 #ifdef ACLDEBUG
@@ -5167,12 +5168,18 @@ bool
 has_createrole_privilege(Oid roleid)
 {
 	bool		result = false;
+	HeapTuple	utup;
 
 	/* Superusers bypass all permission checking. */
 	if (superuser_arg(roleid))
 		return true;
 
-	result = HasPermission(roleid, PERM_CREATE_ROLE);
+	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
+	if (HeapTupleIsValid(utup))
+	{
+		result = ((Form_pg_authid) GETSTRUCT(utup))->rolcreaterole;
+		ReleaseSysCache(utup);
+	}
 
 	return result;
 }
@@ -5215,6 +5222,48 @@ has_bypassrls_privilege(Oid roleid)
 		result = ((Form_pg_authid) GETSTRUCT(utup))->rolbypassrls;
 		ReleaseSysCache(utup);
 	}
+	return result;
+}
+
+bool
+has_admin_privilege(Oid roleid)
+{
+	bool		result = false;
+
+	/* Superusers bypass all permission checking. */
+	if (superuser_arg(roleid))
+		return true;
+
+	result = HasPermission(roleid, PERM_ADMIN);
+
+	return result;
+}
+
+bool
+has_monitor_privilege(Oid roleid)
+{
+	bool		result = false;
+
+	/* Superusers bypass all permission checking. */
+	if (superuser_arg(roleid))
+		return true;
+
+	result = HasPermission(roleid, PERM_MONITOR);
+
+	return result;
+}
+
+bool
+has_procsignal_privilege(Oid roleid)
+{
+	bool		result = false;
+
+	/* Superusers bypass all permission checking. */
+	if (superuser_arg(roleid))
+		return true;
+
+	result = HasPermission(roleid, PERM_PROCSIGNAL);
+
 	return result;
 }
 

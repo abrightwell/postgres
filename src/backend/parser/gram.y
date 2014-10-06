@@ -592,7 +592,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 	LEADING LEAKPROOF LEAST LEFT LEVEL LIKE LIMIT LISTEN LOAD LOCAL
 	LOCALTIME LOCALTIMESTAMP LOCATION LOCK_P LOG_P LOGGED
 
-	MAPPING MATCH MATERIALIZED MAXVALUE MINUTE_P MINVALUE MODE MONTH_P MOVE
+	MAPPING MATCH MATERIALIZED MAXVALUE MINUTE_P MINVALUE MODE MONITOR MONTH_P MOVE
 
 	NAME_P NAMES NATIONAL NATURAL NCHAR NEXT NO NONE
 	NOT NOTHING NOTIFY NOTNULL NOWAIT NULL_P NULLIF
@@ -6371,7 +6371,7 @@ RevokeRoleStmt:
 					n->behavior = $9;
 					$$ = (Node*)n;
 				}
-			| REVOKE permission_list TO role_list
+			| REVOKE permission_list FROM role_list
 			{
 				GrantPermissionStmt *n = makeNode(GrantPermissionStmt);
 				n->is_grant = false;
@@ -6394,11 +6394,11 @@ permission_list: permission						{ $$ = list_make1_int($1); }
 			| permission_list ',' permission	{ $$ = lappend_int($1, $3); }
 		;
 
-permission: CREATE DATABASE						{ $$ = PERM_CREATE_DATABASE; }
-			| CREATE ROLE						{ $$ = PERM_CREATE_ROLE; }
-			| USER PROCSIGNAL					{ $$ = PERM_PROCSIGNAL; }
+permission: USER PROCSIGNAL						{ $$ = PERM_PROCSIGNAL; }
 			| USER BACKUP						{ $$ = PERM_BACKUP; }
 			| USER LOG_P ROTATE					{ $$ = PERM_LOG_ROTATE; }
+			| USER ADMIN						{ $$ = PERM_ADMIN; }
+			| USER MONITOR						{ $$ = PERM_MONITOR; }
 			| /*EMPTY*/							{ $$ = PERM_INVALID; }
 		;
 
@@ -13302,6 +13302,7 @@ unreserved_keyword:
 			| MINUTE_P
 			| MINVALUE
 			| MODE
+			| MONITOR
 			| MONTH_P
 			| MOVE
 			| NAME_P

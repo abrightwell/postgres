@@ -38,6 +38,7 @@
 #include "storage/procarray.h"
 #include "utils/lsyscache.h"
 #include "tcop/tcopprot.h"
+#include "utils/acl.h"
 #include "utils/builtins.h"
 #include "utils/timestamp.h"
 
@@ -116,19 +117,20 @@ pg_signal_backend(int pid, int sig)
 
 	/*
 	 * If the current user is neither superuser, the owner of the process nor
-	 * have the PROCSIGNAL permission, then permission is denied.
+	 * have the ADMIN or PROCSIGNAL permission, then permission is denied.
 	 */
-	if (!(superuser()
-		|| proc->roleId == GetUserId()
-		|| HasPermission(GetUserId(), PERM_PROCSIGNAL)))
+	if (!(has_admin_privilege(GetUserId())
+		 || has_procsignal_privilege(GetUserId())
+		 || proc->roleId == GetUserId()))
 		return SIGNAL_BACKEND_NOPERMISSION;
 
 	/*
-	 * If the current user has PROCSIGNAL permission, is not superuser and the
-	 * process is owned by superuser, then the process cannot be signaled and
-	 * permission is denied.  Only superuser can signal superuser owned processes.
+	 * If the current user has ADMIN or PROCSIGNAL permission, is not superuser
+	 * and the process is owned by superuser, then the process cannot be
+	 * signaled and permission is denied.  Only superuser can signal superuser
+	 * owned processes.
 	 */
-	if (HasPermission(GetUserId(), PERM_PROCSIGNAL)
+	if ((has_admin_privilege(GetUserId()) || has_procsignal_privilege(GetUserId()))
 		&& !superuser()
 		&& superuser_arg(proc->roleId))
 		return SIGNAL_BACKEND_NOPERMISSION;

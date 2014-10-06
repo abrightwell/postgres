@@ -55,15 +55,6 @@ static void DelRoleMems(const char *rolename, Oid roleid,
 			List *memberNames, List *memberIds,
 			bool admin_opt);
 
-
-/* Check if current user has createrole privileges */
-static bool
-have_createrole_privilege(void)
-{
-	return has_createrole_privilege(GetUserId());
-}
-
-
 /*
  * CREATE ROLE
  */
@@ -304,7 +295,7 @@ CreateRole(CreateRoleStmt *stmt)
 	}
 	else
 	{
-		if (!have_createrole_privilege())
+		if (!has_createrole_privilege(GetUserId()))
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 					 errmsg("permission denied to create role")));
@@ -682,7 +673,7 @@ AlterRole(AlterRoleStmt *stmt)
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 					 errmsg("must be superuser to change bypassrls attribute")));
 	}
-	else if (!have_createrole_privilege())
+	else if (!has_createrole_privilege(GetUserId()))
 	{
 		if (!(inherit < 0 &&
 			  createrole < 0 &&
@@ -898,7 +889,7 @@ AlterRoleSet(AlterRoleSetStmt *stmt)
 		}
 		else
 		{
-			if (!have_createrole_privilege() &&
+			if (!has_createrole_privilege(GetUserId()) &&
 				HeapTupleGetOid(roletuple) != GetUserId())
 				ereport(ERROR,
 						(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
@@ -951,7 +942,7 @@ DropRole(DropRoleStmt *stmt)
 				pg_auth_members_rel;
 	ListCell   *item;
 
-	if (!have_createrole_privilege())
+	if (!has_createrole_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("permission denied to drop role")));
@@ -1182,7 +1173,7 @@ RenameRole(const char *oldname, const char *newname)
 	}
 	else
 	{
-		if (!have_createrole_privilege())
+		if (!has_createrole_privilege(GetUserId()))
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 					 errmsg("permission denied to rename role")));
@@ -1409,7 +1400,7 @@ AddRoleMems(const char *rolename, Oid roleid,
 	}
 	else
 	{
-		if (!have_createrole_privilege() &&
+		if (!has_createrole_privilege(GetUserId()) &&
 			!is_admin_of_role(grantorId, roleid))
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
@@ -1555,7 +1546,7 @@ DelRoleMems(const char *rolename, Oid roleid,
 	}
 	else
 	{
-		if (!have_createrole_privilege() &&
+		if (!has_createrole_privilege(GetUserId()) &&
 			!is_admin_of_role(GetUserId(), roleid))
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),

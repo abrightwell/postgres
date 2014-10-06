@@ -1793,13 +1793,18 @@ static bool
 have_createdb_privilege(void)
 {
 	bool		result = false;
+	HeapTuple	utup;
 
 	/* Superusers can always do everything */
 	if (superuser())
 		return true;
 
-	result = HasPermission(GetUserId(), PERM_CREATE_DATABASE);
-
+	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(GetUserId()));
+	if (HeapTupleIsValid(utup))
+	{
+		result = ((Form_pg_authid) GETSTRUCT(utup))->rolcreatedb;
+		ReleaseSysCache(utup);
+	}
 	return result;
 }
 

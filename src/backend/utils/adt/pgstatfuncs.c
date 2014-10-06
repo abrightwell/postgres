@@ -20,6 +20,7 @@
 #include "libpq/ip.h"
 #include "miscadmin.h"
 #include "pgstat.h"
+#include "utils/acl.h"
 #include "utils/builtins.h"
 #include "utils/inet.h"
 #include "utils/timestamp.h"
@@ -674,8 +675,13 @@ pg_stat_get_activity(PG_FUNCTION_ARGS)
 		else
 			nulls[15] = true;
 
-		/* Values only available to same user or superuser */
-		if (superuser() || beentry->st_userid == GetUserId())
+		/*
+		 * Values only available to same user, superuser or user with MONITOR or
+		 * ADMIN privilege.
+		 */
+		if (has_monitor_privilege(GetUserId())
+			|| has_admin_privilege(GetUserId())
+			|| beentry->st_userid == GetUserId())
 		{
 			SockAddr	zero_clientaddr;
 
@@ -877,7 +883,8 @@ pg_stat_get_backend_activity(PG_FUNCTION_ARGS)
 
 	if ((beentry = pgstat_fetch_stat_beentry(beid)) == NULL)
 		activity = "<backend information not available>";
-	else if (!superuser() && beentry->st_userid != GetUserId())
+	else if (!(has_monitor_privilege(GetUserId()) || has_admin_privilege(GetUserId()))
+			 && beentry->st_userid != GetUserId())
 		activity = "<insufficient privilege>";
 	else if (*(beentry->st_activity) == '\0')
 		activity = "<command string not enabled>";
@@ -898,7 +905,8 @@ pg_stat_get_backend_waiting(PG_FUNCTION_ARGS)
 	if ((beentry = pgstat_fetch_stat_beentry(beid)) == NULL)
 		PG_RETURN_NULL();
 
-	if (!superuser() && beentry->st_userid != GetUserId())
+	if (!(has_monitor_privilege(GetUserId()) || has_admin_privilege(GetUserId()))
+		&& beentry->st_userid != GetUserId())
 		PG_RETURN_NULL();
 
 	result = beentry->st_waiting;
@@ -917,7 +925,8 @@ pg_stat_get_backend_activity_start(PG_FUNCTION_ARGS)
 	if ((beentry = pgstat_fetch_stat_beentry(beid)) == NULL)
 		PG_RETURN_NULL();
 
-	if (!superuser() && beentry->st_userid != GetUserId())
+	if (!(has_monitor_privilege(GetUserId()) || has_admin_privilege(GetUserId()))
+		&& beentry->st_userid != GetUserId())
 		PG_RETURN_NULL();
 
 	result = beentry->st_activity_start_timestamp;
@@ -943,7 +952,8 @@ pg_stat_get_backend_xact_start(PG_FUNCTION_ARGS)
 	if ((beentry = pgstat_fetch_stat_beentry(beid)) == NULL)
 		PG_RETURN_NULL();
 
-	if (!superuser() && beentry->st_userid != GetUserId())
+	if (!(has_monitor_privilege(GetUserId()) || has_admin_privilege(GetUserId()))
+		&& beentry->st_userid != GetUserId())
 		PG_RETURN_NULL();
 
 	result = beentry->st_xact_start_timestamp;
@@ -965,7 +975,8 @@ pg_stat_get_backend_start(PG_FUNCTION_ARGS)
 	if ((beentry = pgstat_fetch_stat_beentry(beid)) == NULL)
 		PG_RETURN_NULL();
 
-	if (!superuser() && beentry->st_userid != GetUserId())
+	if (!(has_monitor_privilege(GetUserId()) || has_admin_privilege(GetUserId()))
+		&& beentry->st_userid != GetUserId())
 		PG_RETURN_NULL();
 
 	result = beentry->st_proc_start_timestamp;
@@ -989,7 +1000,8 @@ pg_stat_get_backend_client_addr(PG_FUNCTION_ARGS)
 	if ((beentry = pgstat_fetch_stat_beentry(beid)) == NULL)
 		PG_RETURN_NULL();
 
-	if (!superuser() && beentry->st_userid != GetUserId())
+	if (!(has_monitor_privilege(GetUserId()) || has_admin_privilege(GetUserId()))
+		&& beentry->st_userid != GetUserId())
 		PG_RETURN_NULL();
 
 	/* A zeroed client addr means we don't know */
@@ -1036,7 +1048,12 @@ pg_stat_get_backend_client_port(PG_FUNCTION_ARGS)
 	if ((beentry = pgstat_fetch_stat_beentry(beid)) == NULL)
 		PG_RETURN_NULL();
 
-	if (!superuser() && beentry->st_userid != GetUserId())
+	/*
+	 * User must have ADMIN or MONITOR priviledge, be superuser or be the same
+	 * backend user.
+	 */
+	if (!(has_monitor_privilege(GetUserId()) || has_admin_privilege(GetUserId()))
+		&& beentry->st_userid != GetUserId())
 		PG_RETURN_NULL();
 
 	/* A zeroed client addr means we don't know */
