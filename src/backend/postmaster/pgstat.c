@@ -58,6 +58,7 @@
 #include "storage/procsignal.h"
 #include "storage/sinvaladt.h"
 #include "utils/ascii.h"
+#include "utils/acl.h"
 #include "utils/guc.h"
 #include "utils/memutils.h"
 #include "utils/ps_status.h"
@@ -1227,10 +1228,10 @@ pgstat_reset_counters(void)
 	if (pgStatSock == PGINVALID_SOCKET)
 		return;
 
-	if (!superuser())
+	if (!has_admin_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser to reset statistics counters")));
+				 errmsg("must be superuser or have ADMIN to reset statistics counters")));
 
 	pgstat_setheader(&msg.m_hdr, PGSTAT_MTYPE_RESETCOUNTER);
 	msg.m_databaseid = MyDatabaseId;
@@ -1251,10 +1252,10 @@ pgstat_reset_shared_counters(const char *target)
 	if (pgStatSock == PGINVALID_SOCKET)
 		return;
 
-	if (!superuser())
+	if (!has_admin_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser to reset statistics counters")));
+				 errmsg("must be superuser or have ADMIN to reset statistics counters")));
 
 	if (strcmp(target, "archiver") == 0)
 		msg.m_resettarget = RESET_ARCHIVER;
@@ -1284,7 +1285,7 @@ pgstat_reset_single_counter(Oid objoid, PgStat_Single_Reset_Type type)
 	if (pgStatSock == PGINVALID_SOCKET)
 		return;
 
-	if (!superuser())
+	if (!has_admin_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("must be superuser to reset statistics counters")));

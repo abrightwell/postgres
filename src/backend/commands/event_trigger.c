@@ -145,12 +145,12 @@ CreateEventTrigger(CreateEventTrigStmt *stmt)
 	 * this, but there are obvious privilege escalation risks which would have
 	 * to somehow be plugged first.
 	 */
-	if (!superuser())
+	if (!has_admin_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("permission denied to create event trigger \"%s\"",
 						stmt->trigname),
-				 errhint("Must be superuser to create an event trigger.")));
+				 errhint("Must be superuser or have ADMIN to create an event trigger.")));
 
 	/* Validate event name. */
 	if (strcmp(stmt->eventname, "ddl_command_start") != 0 &&
@@ -535,13 +535,13 @@ AlterEventTriggerOwner_internal(Relation rel, HeapTuple tup, Oid newOwnerId)
 		aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_EVENT_TRIGGER,
 					   NameStr(form->evtname));
 
-	/* New owner must be a superuser */
-	if (!superuser_arg(newOwnerId))
+	/* New owner must be a superuser or have ADMIN */
+	if (!has_admin_privilege(newOwnerId))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-		  errmsg("permission denied to change owner of event trigger \"%s\"",
-				 NameStr(form->evtname)),
-			 errhint("The owner of an event trigger must be a superuser.")));
+				 errmsg("permission denied to change owner of event trigger \"%s\"",
+						 NameStr(form->evtname)),
+				 errhint("The owner of an event trigger must be a superuser or have ADMIN.")));
 
 	form->evtowner = newOwnerId;
 	simple_heap_update(rel, &tup->t_self, tup);

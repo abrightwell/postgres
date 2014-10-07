@@ -288,6 +288,7 @@ CreateRole(CreateRoleStmt *stmt)
 	}
 	else if (bypassrls)
 	{
+		/* TODO - Should BYPASSRLS be assignable by ADMIN as well? */
 		if (!superuser())
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
@@ -668,6 +669,7 @@ AlterRole(AlterRoleStmt *stmt)
 	}
 	else if (((Form_pg_authid) GETSTRUCT(tuple))->rolbypassrls || bypassrls >= 0)
 	{
+		/* TODO - Should ADMIN be allowed to alter BYPASSRLS? */
 		if (!superuser())
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),

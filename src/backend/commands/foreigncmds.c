@@ -228,21 +228,21 @@ AlterForeignDataWrapperOwner_internal(Relation rel, HeapTuple tup, Oid newOwnerI
 
 	form = (Form_pg_foreign_data_wrapper) GETSTRUCT(tup);
 
-	/* Must be a superuser to change a FDW owner */
-	if (!superuser())
+	/* Must be a superuser or have ADMIN to change a FDW owner */
+	if (!has_admin_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("permission denied to change owner of foreign-data wrapper \"%s\"",
 						NameStr(form->fdwname)),
-				 errhint("Must be superuser to change owner of a foreign-data wrapper.")));
+				 errhint("Must be superuser or have ADMIN to change owner of a foreign-data wrapper.")));
 
-	/* New owner must also be a superuser */
-	if (!superuser_arg(newOwnerId))
+	/* New owner must also be a superuser or have ADMIN */
+	if (!has_admin_privilege(newOwnerId))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("permission denied to change owner of foreign-data wrapper \"%s\"",
 						NameStr(form->fdwname)),
-		errhint("The owner of a foreign-data wrapper must be a superuser.")));
+				 errhint("The owner of a foreign-data wrapper must be a superuser or have ADMIN.")));
 
 	if (form->fdwowner != newOwnerId)
 	{
@@ -535,12 +535,12 @@ CreateForeignDataWrapper(CreateFdwStmt *stmt)
 	rel = heap_open(ForeignDataWrapperRelationId, RowExclusiveLock);
 
 	/* Must be super user */
-	if (!superuser())
+	if (!has_admin_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 			errmsg("permission denied to create foreign-data wrapper \"%s\"",
 				   stmt->fdwname),
-			errhint("Must be superuser to create a foreign-data wrapper.")));
+			errhint("Must be superuser or have ADMIN to create a foreign-data wrapper.")));
 
 	/* For now the owner cannot be specified on create. Use effective user ID. */
 	ownerId = GetUserId();
@@ -649,12 +649,12 @@ AlterForeignDataWrapper(AlterFdwStmt *stmt)
 	rel = heap_open(ForeignDataWrapperRelationId, RowExclusiveLock);
 
 	/* Must be super user */
-	if (!superuser())
+	if (!has_admin_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 			 errmsg("permission denied to alter foreign-data wrapper \"%s\"",
 					stmt->fdwname),
-			 errhint("Must be superuser to alter a foreign-data wrapper.")));
+			 errhint("Must be superuser or have ADMIN to alter a foreign-data wrapper.")));
 
 	tp = SearchSysCacheCopy1(FOREIGNDATAWRAPPERNAME,
 							 CStringGetDatum(stmt->fdwname));
