@@ -5206,6 +5206,9 @@ has_replication_privilege(Oid roleid)
 	return result;
 }
 
+/*
+ * Check whether specified role has BYPASSRLS priviledge (or is a superuser)
+ */
 bool
 has_bypassrls_privilege(Oid roleid)
 {
@@ -5225,6 +5228,9 @@ has_bypassrls_privilege(Oid roleid)
 	return result;
 }
 
+/*
+ * Check whether specified role has ADMIN priviledge (or is a superuser)
+ */
 bool
 has_admin_privilege(Oid roleid)
 {
@@ -5239,6 +5245,43 @@ has_admin_privilege(Oid roleid)
 	return result;
 }
 
+/*
+ * Check whether specified role has BACKUP priviledge (or is a superuser)
+ */
+bool
+has_backup_privilege(Oid roleid)
+{
+	bool		result = false;
+
+	/* Superusers bypass all permission checking. */
+	if (superuser_arg(roleid))
+		return true;
+
+	result = HasPermission(roleid, PERM_BACKUP);
+
+	return result;
+}
+
+/*
+ * Check whether specified role has LOG ROTATE priviledge (or is a superuser)
+ */
+bool
+has_log_rotate_privilege(Oid roleid)
+{
+	bool		result = false;
+
+	/* Superusers bypass all permission checking. */
+	if (superuser_arg(roleid))
+		return true;
+
+	result = HasPermission(roleid, PERM_LOG_ROTATE);
+
+	return result;
+}
+
+/*
+ * Check whether specified role has MONITOR priviledge (or is a superuser)
+ */
 bool
 has_monitor_privilege(Oid roleid)
 {
@@ -5253,6 +5296,9 @@ has_monitor_privilege(Oid roleid)
 	return result;
 }
 
+/*
+ * Check whether specified role has PROCSIGNAL priviledge (or is a superuser)
+ */
 bool
 has_procsignal_privilege(Oid roleid)
 {

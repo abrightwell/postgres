@@ -325,7 +325,8 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 %type <node>	RowSecurityOptionalWithCheck RowSecurityOptionalExpr
 %type <list>	RowSecurityDefaultToRole RowSecurityOptionalToRole
 
-%type <str>		dir_perm_opts OptDirectoryOwner
+%type <node>	dir_perm_opts
+%type <str>		OptDirectoryOwner
 %type <list>	dir_perm_list
 
 %type <str>		iso_level opt_encoding

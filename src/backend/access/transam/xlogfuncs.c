@@ -58,7 +58,7 @@ pg_start_backup(PG_FUNCTION_ARGS)
 	backupidstr = text_to_cstring(backupid);
 
 	if (!has_replication_privilege(GetUserId())
-		&& !HasPermission(GetUserId(), PERM_BACKUP))
+		&& !has_backup_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("must be superuser, replication role or have BACKUP"
@@ -88,7 +88,7 @@ pg_stop_backup(PG_FUNCTION_ARGS)
 	XLogRecPtr	stoppoint;
 
 	if (!has_replication_privilege(GetUserId())
-		&& !HasPermission(GetUserId(), PERM_BACKUP))
+		&& !has_backup_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("must be superuser, replication role or have BACKUP"
@@ -107,7 +107,7 @@ pg_switch_xlog(PG_FUNCTION_ARGS)
 {
 	XLogRecPtr	switchpoint;
 
-	if (!(superuser() || HasPermission(GetUserId(), PERM_BACKUP)))
+	if (!(has_backup_privilege(GetUserId())))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("must be superuser or have BACKUP permission"
@@ -137,7 +137,7 @@ pg_create_restore_point(PG_FUNCTION_ARGS)
 	char	   *restore_name_str;
 	XLogRecPtr	restorepoint;
 
-	if (!(superuser() || HasPermission(GetUserId(), PERM_BACKUP)))
+	if (!(has_backup_privilege(GetUserId())))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 (errmsg("must be superuser or have BACKUP permission"
@@ -347,7 +347,7 @@ pg_xlogfile_name(PG_FUNCTION_ARGS)
 Datum
 pg_xlog_replay_pause(PG_FUNCTION_ARGS)
 {
-	if (!(superuser() || HasPermission(GetUserId(), PERM_BACKUP)))
+	if (!(has_backup_privilege(GetUserId())))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("must be superuser or have BACKUP permission to control recovery")));
@@ -369,7 +369,7 @@ pg_xlog_replay_pause(PG_FUNCTION_ARGS)
 Datum
 pg_xlog_replay_resume(PG_FUNCTION_ARGS)
 {
-	if (!(superuser() || HasPermission(GetUserId(), PERM_BACKUP)))
+	if (!(has_backup_privilege(GetUserId())))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("must be superuser or have BACKUP permission to control recovery")));
