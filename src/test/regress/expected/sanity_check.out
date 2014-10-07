@@ -102,6 +102,7 @@ pg_db_role_setting|t
 pg_default_acl|t
 pg_depend|t
 pg_description|t
+pg_directory|t
 pg_enum|t
 pg_event_trigger|t
 pg_extension|t
@@ -117,6 +118,7 @@ pg_namespace|t
 pg_opclass|t
 pg_operator|t
 pg_opfamily|t
+pg_permission|t
 pg_pltemplate|t
 pg_proc|t
 pg_range|t
