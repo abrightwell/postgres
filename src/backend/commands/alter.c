@@ -193,13 +193,13 @@ AlterObjectRename_internal(Relation rel, Oid objectId, const char *new_name)
 		namespaceId = InvalidOid;
 
 	/* Permission checks ... superusers can always do it */
-	if (!has_admin_privilege(GetUserId()))
+	if (!superuser())
 	{
 		/* Fail if object does not have an explicit owner */
 		if (Anum_owner <= 0)
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-					 (errmsg("must be superuser or have ADMIN to rename %s",
+					 (errmsg("must be superuser to rename %s",
 							 getObjectDescriptionOids(classId, objectId)))));
 
 		/* Otherwise, must be owner of the existing object */
@@ -577,7 +577,7 @@ AlterObjectNamespace_internal(Relation rel, Oid objid, Oid nspOid)
 	CheckSetNamespace(oldNspOid, nspOid, classId, objid);
 
 	/* Permission checks ... superusers can always do it */
-	if (!has_admin_privilege(GetUserId()))
+	if (!superuser())
 	{
 		Datum		owner;
 		Oid			ownerId;
@@ -587,7 +587,7 @@ AlterObjectNamespace_internal(Relation rel, Oid objid, Oid nspOid)
 		if (Anum_owner <= 0)
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-					 (errmsg("must be superuser or have ADMIN to set schema of %s",
+					 (errmsg("must be superuser to set schema of %s",
 							 getObjectDescriptionOids(classId, objid)))));
 
 		/* Otherwise, must be owner of the existing object */
