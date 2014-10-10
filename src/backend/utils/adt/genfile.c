@@ -54,13 +54,11 @@ check_directory_permissions(char *filename)
 	directory = pstrdup(filename);
 	get_parent_directory(directory);
 
+	/* Do not allow relative paths */
 	if (!is_absolute_path(directory))
-	{
-		elog(INFO, "PATH: %s", directory);
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("relative path not allowed")));
-	}
 
 	/* Search for directory in pg_directory */
 	dir_id = get_directory_oid_by_path(directory);
