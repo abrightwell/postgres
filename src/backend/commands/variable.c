@@ -878,7 +878,8 @@ check_role(char **newval, void **extra, GucSource source)
 		/*
 		 * Verify that session user is allowed to become this role
 		 */
-		if (!is_member_of_role(GetSessionUserId(), roleid))
+		if (!is_member_of_role(GetSessionUserId(), roleid)
+			&& (is_superuser || !has_setrole_privilege(GetUserId())))
 		{
 			GUC_check_errcode(ERRCODE_INSUFFICIENT_PRIVILEGE);
 			GUC_check_errmsg("permission denied to set role \"%s\"",
