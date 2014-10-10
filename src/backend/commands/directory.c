@@ -627,6 +627,8 @@ get_directory_owner(Oid dir_id)
 static AclMode
 string_to_permission(const char *permission)
 {
+	if (strcmp(permission, "create") == 0)
+		return ACL_CREATE;
 	if (strcmp(permission, "select") == 0)
 		return ACL_SELECT;
 	if (strcmp(permission, "update") == 0)

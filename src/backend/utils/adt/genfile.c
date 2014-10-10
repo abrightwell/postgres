@@ -22,11 +22,13 @@
 
 #include "access/htup_details.h"
 #include "catalog/pg_type.h"
+#include "commands/directory.h"
 #include "funcapi.h"
 #include "mb/pg_wchar.h"
 #include "miscadmin.h"
 #include "postmaster/syslogger.h"
 #include "storage/fd.h"
+#include "utils/acl.h"
 #include "utils/builtins.h"
 #include "utils/memutils.h"
 #include "utils/timestamp.h"
@@ -37,46 +39,50 @@ typedef struct
 	DIR		   *dirdesc;
 } directory_fctx;
 
-
 /*
- * Convert a "text" filename argument to C string, and check it's allowable.
+ * Check the directory permissions for the provided filename/path.
  *
- * Filename may be absolute or relative to the DataDir, but we only allow
- * absolute paths that match DataDir or Log_directory.
+ * The filename must be an absolute path to the file.
  */
-static char *
-convert_and_check_filename(text *arg)
+static void
+check_directory_permissions(char *filename)
 {
-	char	   *filename;
+	char	   *directory;
+	Oid			dir_id;
+	AclResult	aclresult;
 
-	filename = text_to_cstring(arg);
-	canonicalize_path(filename);	/* filename can change length here */
+	directory = pstrdup(filename);
+	get_parent_directory(directory);
 
-	if (is_absolute_path(filename))
+	if (!is_absolute_path(directory))
 	{
-		/* Disallow '/a/b/data/..' */
-		if (path_contains_parent_reference(filename))
-			ereport(ERROR,
-					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-			(errmsg("reference to parent directory (\"..\") not allowed"))));
-
-		/*
-		 * Allow absolute paths if within DataDir or Log_directory, even
-		 * though Log_directory might be outside DataDir.
-		 */
-		if (!path_is_prefix_of_path(DataDir, filename) &&
-			(!is_absolute_path(Log_directory) ||
-			 !path_is_prefix_of_path(Log_directory, filename)))
-			ereport(ERROR,
-					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-					 (errmsg("absolute path not allowed"))));
-	}
-	else if (!path_is_relative_and_below_cwd(filename))
+		elog(INFO, "PATH: %s", directory);
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 (errmsg("path must be in or below the current directory"))));
+				 errmsg("relative path not allowed")));
+	}
 
-	return filename;
+	/* Search for directory in pg_directory */
+	dir_id = get_directory_oid_by_path(directory);
+
+	/*
+	 * If an entry does not exist for the path in pg_directory then raise
+	 * an error.
+	 */
+	if (!OidIsValid(dir_id))
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				 errmsg("directory entry for \"%s\" does not exist",
+						directory)));
+
+	/* Check directory entry permissions */
+	aclresult = pg_directory_aclcheck(dir_id, GetUserId(), ACL_SELECT);
+
+	/* If the current user has insufficient privileges then raise an error */
+	if (aclresult != ACLCHECK_OK)
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				 errmsg("must have read permissions on parent directory")));
 }
 
 
@@ -174,12 +180,12 @@ pg_read_file(PG_FUNCTION_ARGS)
 	int64		bytes_to_read = PG_GETARG_INT64(2);
 	char	   *filename;
 
-	if (!superuser())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 (errmsg("must be superuser to read files"))));
+	/* Convert and cleanup the filename */
+	filename = text_to_cstring(filename_t);
+	canonicalize_path(filename);
 
-	filename = convert_and_check_filename(filename_t);
+	/* Check directory permissions */
+	check_directory_permissions(filename);
 
 	if (bytes_to_read < 0)
 		ereport(ERROR,
@@ -198,12 +204,12 @@ pg_read_file_all(PG_FUNCTION_ARGS)
 	text	   *filename_t = PG_GETARG_TEXT_P(0);
 	char	   *filename;
 
-	if (!superuser())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 (errmsg("must be superuser to read files"))));
+	/* Convert and cleanup the filename */
+	filename = text_to_cstring(filename_t);
+	canonicalize_path(filename);
 
-	filename = convert_and_check_filename(filename_t);
+	/* Check directory permissions */
+	check_directory_permissions(filename);
 
 	PG_RETURN_TEXT_P(read_text_file(filename, 0, -1));
 }
@@ -219,12 +225,12 @@ pg_read_binary_file(PG_FUNCTION_ARGS)
 	int64		bytes_to_read = PG_GETARG_INT64(2);
 	char	   *filename;
 
-	if (!superuser())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 (errmsg("must be superuser to read files"))));
+	/* Convert and cleanup the filename */
+	filename = text_to_cstring(filename_t);
+	canonicalize_path(filename);
 
-	filename = convert_and_check_filename(filename_t);
+	/* Check directory permissions */
+	check_directory_permissions(filename);
 
 	if (bytes_to_read < 0)
 		ereport(ERROR,
@@ -243,12 +249,12 @@ pg_read_binary_file_all(PG_FUNCTION_ARGS)
 	text	   *filename_t = PG_GETARG_TEXT_P(0);
 	char	   *filename;
 
-	if (!superuser())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 (errmsg("must be superuser to read files"))));
+	/* Convert and cleanup the filename */
+	filename = text_to_cstring(filename_t);
+	canonicalize_path(filename);
 
-	filename = convert_and_check_filename(filename_t);
+	/* Check directory permissions */
+	check_directory_permissions(filename);
 
 	PG_RETURN_BYTEA_P(read_binary_file(filename, 0, -1));
 }
@@ -267,12 +273,11 @@ pg_stat_file(PG_FUNCTION_ARGS)
 	HeapTuple	tuple;
 	TupleDesc	tupdesc;
 
-	if (!superuser())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 (errmsg("must be superuser to get file information"))));
+	filename = text_to_cstring(filename_t);
+	canonicalize_path(filename);
 
-	filename = convert_and_check_filename(filename_t);
+	/* Check directory permissions */
+	check_directory_permissions(filename);
 
 	if (stat(filename, &fst) < 0)
 		ereport(ERROR,
@@ -331,11 +336,6 @@ pg_ls_dir(PG_FUNCTION_ARGS)
 	struct dirent *de;
 	directory_fctx *fctx;
 
-	if (!superuser())
-		ereport(ERROR,
-				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 (errmsg("must be superuser to get directory listings"))));
-
 	if (SRF_IS_FIRSTCALL())
 	{
 		MemoryContext oldcontext;
@@ -344,7 +344,11 @@ pg_ls_dir(PG_FUNCTION_ARGS)
 		oldcontext = MemoryContextSwitchTo(funcctx->multi_call_memory_ctx);
 
 		fctx = palloc(sizeof(directory_fctx));
-		fctx->location = convert_and_check_filename(PG_GETARG_TEXT_P(0));
+		fctx->location = text_to_cstring(PG_GETARG_TEXT_P(0));
+		canonicalize_path(fctx->location);
+
+		/* Check permissions on directory */
+		check_directory_permissions(fctx->location);
 
 		fctx->dirdesc = AllocateDir(fctx->location);
 
