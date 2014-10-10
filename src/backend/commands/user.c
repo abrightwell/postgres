@@ -79,6 +79,13 @@ CreateRole(CreateRoleStmt *stmt)
 	bool		canlogin = false;		/* Can this user login? */
 	bool		isreplication = false;	/* Is this a replication role? */
 	bool		bypassrls = false;		/* Is this a row security enabled role? */
+	bool		setrole = false;
+	bool		backup = false;
+	bool		grant = false;
+	bool		logrotate = false;
+	bool		monitor = false;
+	bool		procsignal = false;
+	bool		readonly = false;
 	int			connlimit = -1; /* maximum connections allowed */
 	List	   *addroleto = NIL;	/* roles to make this a member of */
 	List	   *rolemembers = NIL;		/* roles to be members of this role */
@@ -99,6 +106,13 @@ CreateRole(CreateRoleStmt *stmt)
 	DefElem    *dadminmembers = NULL;
 	DefElem    *dvalidUntil = NULL;
 	DefElem    *dbypassRLS = NULL;
+	DefElem    *dsetrole = NULL;
+	DefElem    *dbackup = NULL;
+	DefElem    *dgrant = NULL;
+	DefElem    *dlogrotate = NULL;
+	DefElem    *dmonitor = NULL;
+	DefElem    *dprocsignal = NULL;
+	DefElem    *dreadonly = NULL;
 
 	/* The defaults can vary depending on the original statement type */
 	switch (stmt->stmt_type)
@@ -233,6 +247,62 @@ CreateRole(CreateRoleStmt *stmt)
 						 errmsg("conflicting or redundant options")));
 			dbypassRLS = defel;
 		}
+		else if (strcmp(defel->defname, "setrole") == 0)
+		{
+			if (dsetrole)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+			dsetrole = defel;
+		}
+		else if (strcmp(defel->defname, "backup") == 0)
+		{
+			if (dbackup)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+			dbackup = defel;
+		}
+		else if (strcmp(defel->defname, "grant") == 0)
+		{
+			if (dgrant)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+			dgrant = defel;
+		}
+		else if (strcmp(defel->defname, "logrotate") == 0)
+		{
+			if (dlogrotate)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+			dlogrotate = defel;
+		}
+		else if (strcmp(defel->defname, "monitor") == 0)
+		{
+			if (dmonitor)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+			dmonitor = defel;
+		}
+		else if (strcmp(defel->defname, "procsignal") == 0)
+		{
+			if (dprocsignal)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+			dprocsignal = defel;
+		}
+		else if (strcmp(defel->defname, "readonly") == 0)
+		{
+			if (dreadonly)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+			dreadonly = defel;
+		}
 		else
 			elog(ERROR, "option \"%s\" not recognized",
 				 defel->defname);
@@ -270,6 +340,20 @@ CreateRole(CreateRoleStmt *stmt)
 		validUntil = strVal(dvalidUntil->arg);
 	if (dbypassRLS)
 		bypassrls = intVal(dbypassRLS->arg) != 0;
+	if (dsetrole)
+		setrole = intVal(dsetrole->arg) != 0;
+	if (dbackup)
+		backup = intVal(dbackup->arg) != 0;
+	if (dgrant)
+		grant = intVal(dgrant->arg) != 0;
+	if (dlogrotate)
+		logrotate = intVal(dlogrotate->arg) != 0;
+	if (dmonitor)
+		monitor = intVal(dmonitor->arg) != 0;
+	if (dprocsignal)
+		procsignal = intVal(dprocsignal->arg) != 0;
+	if (dreadonly)
+		readonly = intVal(dreadonly->arg) != 0;
 
 	/* Check some permissions first */
 	if (issuper)
@@ -293,6 +377,13 @@ CreateRole(CreateRoleStmt *stmt)
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 					 errmsg("must be superuser to change bypassrls attribute.")));
+	}
+	else if (setrole)
+	{
+		if (!superuser())
+			ereport(ERROR,
+					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+					 errmsg("must be superuser to change setrole attribute.")));
 	}
 	else
 	{
@@ -387,6 +478,13 @@ CreateRole(CreateRoleStmt *stmt)
 	new_record_nulls[Anum_pg_authid_rolvaliduntil - 1] = validUntil_null;
 
 	new_record[Anum_pg_authid_rolbypassrls - 1] = BoolGetDatum(bypassrls);
+	new_record[Anum_pg_authid_rolsetrole - 1] = BoolGetDatum(setrole);
+	new_record[Anum_pg_authid_rolbackup - 1] = BoolGetDatum(backup);
+	new_record[Anum_pg_authid_rolgrant - 1] = BoolGetDatum(grant);
+	new_record[Anum_pg_authid_rollogrotate - 1] = BoolGetDatum(logrotate);
+	new_record[Anum_pg_authid_rolmonitor - 1] = BoolGetDatum(monitor);
+	new_record[Anum_pg_authid_rolprocsignal - 1] = BoolGetDatum(procsignal);
+	new_record[Anum_pg_authid_rolreadonly - 1] = BoolGetDatum(readonly);
 
 	tuple = heap_form_tuple(pg_authid_dsc, new_record, new_record_nulls);
 
@@ -488,6 +586,13 @@ AlterRole(AlterRoleStmt *stmt)
 	Datum		validUntil_datum;		/* same, as timestamptz Datum */
 	bool		validUntil_null;
 	bool		bypassrls = -1;
+	bool		setrole = -1;
+	bool		backup = -1;
+	bool		grant = -1;
+	bool		logrotate = -1;
+	bool		monitor = -1;
+	bool		procsignal = -1;
+	bool		readonly = -1;
 	DefElem    *dpassword = NULL;
 	DefElem    *dissuper = NULL;
 	DefElem    *dinherit = NULL;
@@ -499,6 +604,13 @@ AlterRole(AlterRoleStmt *stmt)
 	DefElem    *drolemembers = NULL;
 	DefElem    *dvalidUntil = NULL;
 	DefElem    *dbypassRLS = NULL;
+	DefElem    *dsetrole = NULL;
+	DefElem    *dbackup = NULL;
+	DefElem    *dgrant = NULL;
+	DefElem    *dlogrotate = NULL;
+	DefElem    *dmonitor = NULL;
+	DefElem    *dprocsignal = NULL;
+	DefElem    *dreadonly = NULL;
 	Oid			roleid;
 
 	/* Extract options from the statement node tree */
@@ -601,6 +713,62 @@ AlterRole(AlterRoleStmt *stmt)
 						 errmsg("conflicting or redundant options")));
 			dbypassRLS = defel;
 		}
+		else if (strcmp(defel->defname, "setrole") == 0)
+		{
+			if (dsetrole)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+			dsetrole = defel;
+		}
+		else if (strcmp(defel->defname, "backup") == 0)
+		{
+			if (dbackup)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+			dbackup = defel;
+		}
+		else if (strcmp(defel->defname, "grant") == 0)
+		{
+			if (dgrant)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+			dgrant = defel;
+		}
+		else if (strcmp(defel->defname, "logrotate") == 0)
+		{
+			if (dlogrotate)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+			dlogrotate = defel;
+		}
+		else if (strcmp(defel->defname, "monitor") == 0)
+		{
+			if (dmonitor)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+			dmonitor = defel;
+		}
+		else if (strcmp(defel->defname, "procsignal") == 0)
+		{
+			if (dprocsignal)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+			dprocsignal = defel;
+		}
+		else if (strcmp(defel->defname, "readonly") == 0)
+		{
+			if (dreadonly)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+			dreadonly = defel;
+		}
 		else
 			elog(ERROR, "option \"%s\" not recognized",
 				 defel->defname);
@@ -634,6 +802,20 @@ AlterRole(AlterRoleStmt *stmt)
 		validUntil = strVal(dvalidUntil->arg);
 	if (dbypassRLS)
 		bypassrls = intVal(dbypassRLS->arg);
+	if (dsetrole)
+		setrole = intVal(dsetrole->arg);
+	if (dbackup)
+		backup = intVal(dbackup->arg);
+	if (dgrant)
+		grant = intVal(dgrant->arg);
+	if (dlogrotate)
+		logrotate = intVal(dlogrotate->arg);
+	if (dmonitor)
+		monitor = intVal(dmonitor->arg);
+	if (dprocsignal)
+		procsignal = intVal(dprocsignal->arg);
+	if (dreadonly)
+		readonly = intVal(dreadonly->arg);
 
 	/*
 	 * Scan the pg_authid relation to be certain the user exists.
@@ -675,6 +857,13 @@ AlterRole(AlterRoleStmt *stmt)
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 					 errmsg("must be superuser to change bypassrls attribute")));
 	}
+	else if (((Form_pg_authid) GETSTRUCT(tuple))->rolsetrole || setrole >= 0)
+	{
+		if (!superuser())
+			ereport(ERROR,
+					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+					 errmsg("must be superuser to change setrole attribute")));
+	}
 	else if (!has_createrole_privilege(GetUserId()))
 	{
 		if (!(inherit < 0 &&
@@ -682,6 +871,12 @@ AlterRole(AlterRoleStmt *stmt)
 			  createdb < 0 &&
 			  canlogin < 0 &&
 			  isreplication < 0 &&
+			  backup < 0 &&
+			  grant < 0 &&
+			  logrotate < 0 &&
+			  monitor < 0 &&
+			  procsignal < 0 &&
+			  readonly < 0 &&
 			  !dconnlimit &&
 			  !rolemembers &&
 			  !validUntil &&
@@ -812,6 +1007,48 @@ AlterRole(AlterRoleStmt *stmt)
 	{
 		new_record[Anum_pg_authid_rolbypassrls - 1] = BoolGetDatum(bypassrls > 0);
 		new_record_repl[Anum_pg_authid_rolbypassrls - 1] = true;
+	}
+
+	if (setrole >= 0)
+	{
+		new_record[Anum_pg_authid_rolsetrole - 1] = BoolGetDatum(setrole > 0);
+		new_record_repl[Anum_pg_authid_rolsetrole - 1] = true;
+	}
+
+	if (backup >= 0)
+	{
+		new_record[Anum_pg_authid_rolbackup - 1] = BoolGetDatum(backup > 0);
+		new_record_repl[Anum_pg_authid_rolbackup - 1] = true;
+	}
+
+	if (grant >= 0)
+	{
+		new_record[Anum_pg_authid_rolgrant - 1] = BoolGetDatum(grant > 0);
+		new_record_repl[Anum_pg_authid_rolgrant - 1] = true;
+	}
+
+	if (logrotate >= 0)
+	{
+		new_record[Anum_pg_authid_rollogrotate - 1] = BoolGetDatum(logrotate > 0);
+		new_record_repl[Anum_pg_authid_rollogrotate - 1] = true;
+	}
+
+	if (monitor >= 0)
+	{
+		new_record[Anum_pg_authid_rolmonitor - 1] = BoolGetDatum(monitor > 0);
+		new_record_repl[Anum_pg_authid_rolmonitor - 1] = true;
+	}
+
+	if (procsignal >= 0)
+	{
+		new_record[Anum_pg_authid_rolprocsignal - 1] = BoolGetDatum(procsignal > 0);
+		new_record_repl[Anum_pg_authid_rolprocsignal - 1] = true;
+	}
+
+	if (readonly >= 0)
+	{
+		new_record[Anum_pg_authid_rolreadonly - 1] = BoolGetDatum(readonly > 0);
+		new_record_repl[Anum_pg_authid_rolreadonly - 1] = true;
 	}
 
 	new_tuple = heap_modify_tuple(tuple, pg_authid_dsc, new_record,

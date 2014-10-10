@@ -2716,18 +2716,6 @@ _copyGrantDirectoryStmt(const GrantDirectoryStmt *from)
 	return newnode;
 }
 
-static GrantPermissionStmt *
-_copyGrantPermissionStmt(const GrantPermissionStmt *from)
-{
-	GrantPermissionStmt *newnode = makeNode(GrantPermissionStmt);
-
-	COPY_NODE_FIELD(roles);
-	COPY_NODE_FIELD(permissions);
-	COPY_SCALAR_FIELD(is_grant);
-
-	return newnode;
-}
-
 static AlterDefaultPrivilegesStmt *
 _copyAlterDefaultPrivilegesStmt(const AlterDefaultPrivilegesStmt *from)
 {
@@ -4372,9 +4360,6 @@ copyObject(const void *from)
 			break;
 		case T_GrantRoleStmt:
 			retval = _copyGrantRoleStmt(from);
-			break;
-		case T_GrantPermissionStmt:
-			retval = _copyGrantPermissionStmt(from);
 			break;
 		case T_AlterDefaultPrivilegesStmt:
 			retval = _copyAlterDefaultPrivilegesStmt(from);

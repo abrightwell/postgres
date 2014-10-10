@@ -43,7 +43,6 @@
 #include "catalog/pg_opclass.h"
 #include "catalog/pg_operator.h"
 #include "catalog/pg_opfamily.h"
-#include "catalog/pg_permission.h"
 #include "catalog/pg_proc.h"
 #include "catalog/pg_tablespace.h"
 #include "catalog/pg_type.h"
@@ -51,7 +50,6 @@
 #include "catalog/pg_ts_dict.h"
 #include "commands/dbcommands.h"
 #include "commands/directory.h"
-#include "commands/permission.h"
 #include "commands/proclang.h"
 #include "commands/tablespace.h"
 #include "foreign/foreign.h"
@@ -5232,16 +5230,21 @@ has_bypassrls_privilege(Oid roleid)
  * Check whether specified role has ADMIN priviledge (or is a superuser)
  */
 bool
-has_admin_privilege(Oid roleid)
+has_setrole_privilege(Oid roleid)
 {
 	bool		result = false;
+	HeapTuple	utup;
 
 	/* Superusers bypass all permission checking. */
 	if (superuser_arg(roleid))
 		return true;
 
-	result = HasPermission(roleid, PERM_ADMIN);
-
+	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
+	if (HeapTupleIsValid(utup))
+	{
+		result = ((Form_pg_authid) GETSTRUCT(utup))->rolsetrole;
+		ReleaseSysCache(utup);
+	}
 	return result;
 }
 
@@ -5252,12 +5255,18 @@ bool
 has_backup_privilege(Oid roleid)
 {
 	bool		result = false;
+	HeapTuple	utup;
 
 	/* Superusers bypass all permission checking. */
 	if (superuser_arg(roleid))
 		return true;
 
-	result = HasPermission(roleid, PERM_BACKUP);
+	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
+	if (HeapTupleIsValid(utup))
+	{
+		result = ((Form_pg_authid) GETSTRUCT(utup))->rolbackup;
+		ReleaseSysCache(utup);
+	}
 
 	return result;
 }
@@ -5269,13 +5278,18 @@ bool
 has_log_rotate_privilege(Oid roleid)
 {
 	bool		result = false;
+	HeapTuple	utup;
 
 	/* Superusers bypass all permission checking. */
 	if (superuser_arg(roleid))
 		return true;
 
-	result = HasPermission(roleid, PERM_LOG_ROTATE);
-
+	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
+	if (HeapTupleIsValid(utup))
+	{
+		result = ((Form_pg_authid) GETSTRUCT(utup))->rollogrotate;
+		ReleaseSysCache(utup);
+	}
 	return result;
 }
 
@@ -5286,13 +5300,18 @@ bool
 has_monitor_privilege(Oid roleid)
 {
 	bool		result = false;
+	HeapTuple	utup;
 
 	/* Superusers bypass all permission checking. */
 	if (superuser_arg(roleid))
 		return true;
 
-	result = HasPermission(roleid, PERM_MONITOR);
-
+	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
+	if (HeapTupleIsValid(utup))
+	{
+		result = ((Form_pg_authid) GETSTRUCT(utup))->rolmonitor;
+		ReleaseSysCache(utup);
+	}
 	return result;
 }
 
@@ -5303,13 +5322,18 @@ bool
 has_procsignal_privilege(Oid roleid)
 {
 	bool		result = false;
+	HeapTuple	utup;
 
 	/* Superusers bypass all permission checking. */
 	if (superuser_arg(roleid))
 		return true;
 
-	result = HasPermission(roleid, PERM_PROCSIGNAL);
-
+	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
+	if (HeapTupleIsValid(utup))
+	{
+		result = ((Form_pg_authid) GETSTRUCT(utup))->rolbypassrls;
+		ReleaseSysCache(utup);
+	}
 	return result;
 }
 

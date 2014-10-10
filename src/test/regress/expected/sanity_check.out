@@ -118,7 +118,6 @@ pg_namespace|t
 pg_opclass|t
 pg_operator|t
 pg_opfamily|t
-pg_permission|t
 pg_pltemplate|t
 pg_proc|t
 pg_range|t

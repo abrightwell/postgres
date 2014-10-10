@@ -4837,8 +4837,8 @@ has_privs_of_role(Oid member, Oid role)
 	if (member == role)
 		return true;
 
-	/* Superusers and roles with ADMIN are part of every role */
-	if (has_admin_privilege(member))
+	/* Superusers are part of every role */
+	if (superuser_arg(member))
 		return true;
 
 	/*
@@ -4861,8 +4861,8 @@ is_member_of_role(Oid member, Oid role)
 	if (member == role)
 		return true;
 
-	/* Superusers and roles with ADMIN are part of every role */
-	if (has_admin_privilege(member))
+	/* Superusers are part of every role */
+	if (superuser_arg(member))
 		return true;
 
 	/*
@@ -4919,7 +4919,7 @@ is_admin_of_role(Oid member, Oid role)
 	List	   *roles_list;
 	ListCell   *l;
 
-	if (has_admin_privilege(member))
+	if (superuser_arg(member))
 		return true;
 
 	if (member == role)
@@ -5050,11 +5050,11 @@ select_best_grantor(Oid roleId, AclMode privileges,
 
 	/*
 	 * The object owner is always treated as having all grant options, so if
-	 * roleId is the owner it's easy.  Also, if roleId is a superuser or has
-	 * ADMIN privilege then it's easy: superusers and users with ADMIN are
-	 * implicitly members of every role, so they act as the object owner.
+	 * roleId is the owner it's easy.  Also, if roleId is a superuser then it's
+	 * easy: superusers and users with ADMIN are implicitly members of every
+	 * role, so they act as the object owner.
 	 */
-	if (roleId == ownerId || has_admin_privilege(roleId))
+	if (roleId == ownerId || superuser_arg(roleId))
 	{
 		*grantorId = ownerId;
 		*grantOptions = needed_goptions;

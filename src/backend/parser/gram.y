@@ -51,7 +51,6 @@
 
 #include "catalog/index.h"
 #include "catalog/namespace.h"
-#include "catalog/pg_permission.h"
 #include "catalog/pg_trigger.h"
 #include "commands/defrem.h"
 #include "commands/trigger.h"
@@ -332,8 +331,6 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 %type <str>		iso_level opt_encoding
 %type <node>	grantee
 %type <list>	grantee_list
-%type <ival>	permission
-%type <list>	permission_list
 %type <accesspriv> privilege
 %type <list>	privileges privilege_list
 %type <privtarget> privilege_target
@@ -552,7 +549,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 	AGGREGATE ALL ALSO ALTER ALWAYS ANALYSE ANALYZE AND ANY ARRAY AS ASC
 	ASSERTION ASSIGNMENT ASYMMETRIC AT ATTRIBUTE AUTHORIZATION
 
-	BACKUP BACKWARD BEFORE BEGIN_P BETWEEN BIGINT BINARY BIT
+	BACKWARD BEFORE BEGIN_P BETWEEN BIGINT BINARY BIT
 	BOOLEAN_P BOTH BY
 
 	CACHE CALLED CASCADE CASCADED CASE CAST CATALOG_P CHAIN CHAR_P
@@ -591,9 +588,9 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 
 	LABEL LANGUAGE LARGE_P LAST_P LATERAL_P
 	LEADING LEAKPROOF LEAST LEFT LEVEL LIKE LIMIT LISTEN LOAD LOCAL
-	LOCALTIME LOCALTIMESTAMP LOCATION LOCK_P LOG_P LOGGED
+	LOCALTIME LOCALTIMESTAMP LOCATION LOCK_P LOGGED
 
-	MAPPING MATCH MATERIALIZED MAXVALUE MINUTE_P MINVALUE MODE MONITOR MONTH_P MOVE
+	MAPPING MATCH MATERIALIZED MAXVALUE MINUTE_P MINVALUE MODE MONTH_P MOVE
 
 	NAME_P NAMES NATIONAL NATURAL NCHAR NEXT NO NONE
 	NOT NOTHING NOTIFY NOTNULL NOWAIT NULL_P NULLIF
@@ -604,13 +601,13 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 
 	PARSER PARTIAL PARTITION PASSING PASSWORD PLACING PLANS POLICY POSITION
 	PRECEDING PRECISION PRESERVE PREPARE PREPARED PRIMARY
-	PRIOR PRIVILEGES PROCEDURAL PROCEDURE PROCSIGNAL PROGRAM
+	PRIOR PRIVILEGES PROCEDURAL PROCEDURE PROGRAM
 
 	QUOTE
 
 	RANGE READ REAL REASSIGN RECHECK RECURSIVE REF REFERENCES REFRESH REINDEX
 	RELATIVE_P RELEASE RENAME REPEATABLE REPLACE REPLICA
-	RESET RESTART RESTRICT RETURNING RETURNS REVOKE RIGHT ROLE ROLLBACK ROTATE
+	RESET RESTART RESTRICT RETURNING RETURNS REVOKE RIGHT ROLE ROLLBACK
 	ROW ROWS RULE
 
 	SAVEPOINT SCHEMA SCROLL SEARCH SECOND_P SECURITY SELECT SEQUENCE SEQUENCES
@@ -989,11 +986,47 @@ AlterOptRoleElem:
 						 */
 						$$ = makeDefElem("inherit", (Node *)makeInteger(FALSE));
 					}
+					else if (strcmp($1, "setrole") == 0)
+						$$ = makeDefElem("setrole", (Node *)makeInteger(TRUE));
+					else if (strcmp($1, "nosetrole") == 0)
+						$$ = makeDefElem("setrole", (Node *)makeInteger(FALSE));
+					else if (strcmp($1, "backup") == 0)
+						$$ = makeDefElem("backup", (Node *)makeInteger(TRUE));
+					else if (strcmp($1, "nobackup") == 0)
+						$$ = makeDefElem("backup", (Node *)makeInteger(FALSE));
+					else if (strcmp($1, "nogrant") == 0)
+					{
+						/*
+						 * Note that GRANT is a keyword, so it's handled by main parser, but
+						 * NOGRANT is handled here.
+						 */
+						$$ = makeDefElem("grant", (Node *)makeInteger(FALSE));
+					}
+					else if (strcmp($1, "logrotate") == 0)
+						$$ = makeDefElem("logrotate", (Node *)makeInteger(TRUE));
+					else if (strcmp($1, "nologrotate") == 0)
+						$$ = makeDefElem("logrotate", (Node *)makeInteger(FALSE));
+					else if (strcmp($1, "monitor") == 0)
+						$$ = makeDefElem("monitor", (Node *)makeInteger(TRUE));
+					else if (strcmp($1, "nomonitor") == 0)
+						$$ = makeDefElem("monitor", (Node *)makeInteger(FALSE));
+					else if (strcmp($1, "procsignal") == 0)
+						$$ = makeDefElem("procsignal", (Node *)makeInteger(TRUE));
+					else if (strcmp($1, "noprocsignal") == 0)
+						$$ = makeDefElem("procsignal", (Node *)makeInteger(FALSE));
+					else if (strcmp($1, "readonly") == 0)
+						$$ = makeDefElem("readonly", (Node *)makeInteger(TRUE));
+					else if (strcmp($1, "noreadonly") == 0)
+						$$ = makeDefElem("readonly", (Node *)makeInteger(FALSE));
 					else
 						ereport(ERROR,
 								(errcode(ERRCODE_SYNTAX_ERROR),
 								 errmsg("unrecognized role option \"%s\"", $1),
 									 parser_errposition(@1)));
+				}
+			| GRANT
+				{
+					$$ = makeDefElem("grant", (Node *)makeInteger(TRUE));
 				}
 		;
 
@@ -6341,14 +6374,6 @@ GrantRoleStmt:
 					n->grantor = $6;
 					$$ = (Node*)n;
 				}
-			| GRANT permission_list TO role_list
-			{
-				GrantPermissionStmt *n = makeNode(GrantPermissionStmt);
-				n->is_grant = true;
-				n->permissions = $2;
-				n->roles = $4;
-				$$ = (Node*)n;
-			}
 		;
 
 RevokeRoleStmt:
@@ -6372,14 +6397,6 @@ RevokeRoleStmt:
 					n->behavior = $9;
 					$$ = (Node*)n;
 				}
-			| REVOKE permission_list FROM role_list
-			{
-				GrantPermissionStmt *n = makeNode(GrantPermissionStmt);
-				n->is_grant = false;
-				n->permissions = $2;
-				n->roles = $4;
-				$$ = (Node*)n;
-			}
 		;
 
 opt_grant_admin_option: WITH ADMIN OPTION				{ $$ = TRUE; }
@@ -6388,19 +6405,6 @@ opt_grant_admin_option: WITH ADMIN OPTION				{ $$ = TRUE; }
 
 opt_granted_by: GRANTED BY RoleId						{ $$ = $3; }
 			| /*EMPTY*/									{ $$ = NULL; }
-		;
-
-
-permission_list: permission						{ $$ = list_make1_int($1); }
-			| permission_list ',' permission	{ $$ = lappend_int($1, $3); }
-		;
-
-permission: USER PROCSIGNAL						{ $$ = PERM_PROCSIGNAL; }
-			| USER BACKUP						{ $$ = PERM_BACKUP; }
-			| USER LOG_P ROTATE					{ $$ = PERM_LOG_ROTATE; }
-			| USER ADMIN						{ $$ = PERM_ADMIN; }
-			| USER MONITOR						{ $$ = PERM_MONITOR; }
-			| /*EMPTY*/							{ $$ = PERM_INVALID; }
 		;
 
 /*****************************************************************************
@@ -13191,7 +13195,6 @@ unreserved_keyword:
 			| ASSIGNMENT
 			| AT
 			| ATTRIBUTE
-			| BACKUP
 			| BACKWARD
 			| BEFORE
 			| BEGIN_P
@@ -13301,7 +13304,6 @@ unreserved_keyword:
 			| LOCAL
 			| LOCATION
 			| LOCK_P
-			| LOG_P
 			| LOGGED
 			| MAPPING
 			| MATCH
@@ -13310,7 +13312,6 @@ unreserved_keyword:
 			| MINUTE_P
 			| MINVALUE
 			| MODE
-			| MONITOR
 			| MONTH_P
 			| MOVE
 			| NAME_P
@@ -13347,7 +13348,6 @@ unreserved_keyword:
 			| PRIVILEGES
 			| PROCEDURAL
 			| PROCEDURE
-			| PROCSIGNAL
 			| PROGRAM
 			| QUOTE
 			| RANGE
@@ -13371,7 +13371,6 @@ unreserved_keyword:
 			| REVOKE
 			| ROLE
 			| ROLLBACK
-			| ROTATE
 			| ROWS
 			| RULE
 			| SAVEPOINT

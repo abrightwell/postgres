@@ -22,11 +22,9 @@
 
 #include "access/sysattr.h"
 #include "catalog/catalog.h"
-#include "catalog/pg_permission.h"
 #include "catalog/pg_tablespace.h"
 #include "catalog/pg_type.h"
 #include "commands/dbcommands.h"
-#include "commands/permission.h"
 #include "funcapi.h"
 #include "miscadmin.h"
 #include "parser/keywords.h"
@@ -119,8 +117,7 @@ pg_signal_backend(int pid, int sig)
 	 * If the current user is neither superuser, the owner of the process nor
 	 * have the ADMIN or PROCSIGNAL permission, then permission is denied.
 	 */
-	if (!(has_admin_privilege(GetUserId())
-		 || has_procsignal_privilege(GetUserId())
+	if (!has_procsignal_privilege(GetUserId()
 		 || proc->roleId == GetUserId()))
 		return SIGNAL_BACKEND_NOPERMISSION;
 
@@ -130,7 +127,7 @@ pg_signal_backend(int pid, int sig)
 	 * signaled and permission is denied.  Only superuser can signal superuser
 	 * owned processes.
 	 */
-	if ((has_admin_privilege(GetUserId()) || has_procsignal_privilege(GetUserId()))
+	if (has_procsignal_privilege(GetUserId())
 		&& !superuser()
 		&& superuser_arg(proc->roleId))
 		return SIGNAL_BACKEND_NOPERMISSION;
@@ -221,8 +218,7 @@ pg_reload_conf(PG_FUNCTION_ARGS)
 Datum
 pg_rotate_logfile(PG_FUNCTION_ARGS)
 {
-	if (!(has_log_rotate_privilege(GetUserId())
-		 || has_admin_privilege(GetUserId())))
+	if (!has_log_rotate_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("must be superuser or have LOG ROTATE permission to rotate log files")));

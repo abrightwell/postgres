@@ -683,7 +683,6 @@ pg_stat_get_activity(PG_FUNCTION_ARGS)
 		current_user_id = GetUserId();
 
 		if (has_monitor_privilege(current_user_id)
-			|| has_admin_privilege(current_user_id)
 			|| beentry->st_userid == current_user_id)
 		{
 			SockAddr	zero_clientaddr;
@@ -889,8 +888,7 @@ pg_stat_get_backend_activity(PG_FUNCTION_ARGS)
 
 	if ((beentry = pgstat_fetch_stat_beentry(beid)) == NULL)
 		activity = "<backend information not available>";
-	else if (!(has_monitor_privilege(current_user_id)
-			  || has_admin_privilege(current_user_id))
+	else if (!has_monitor_privilege(current_user_id)
 			 && beentry->st_userid != current_user_id)
 		activity = "<insufficient privilege>";
 	else if (*(beentry->st_activity) == '\0')
@@ -915,8 +913,7 @@ pg_stat_get_backend_waiting(PG_FUNCTION_ARGS)
 
 	current_user_id = GetUserId();
 
-	if (!(has_monitor_privilege(current_user_id)
-		 || has_admin_privilege(current_user_id))
+	if (!has_monitor_privilege(current_user_id)
 		&& beentry->st_userid != current_user_id)
 		PG_RETURN_NULL();
 
@@ -939,8 +936,7 @@ pg_stat_get_backend_activity_start(PG_FUNCTION_ARGS)
 
 	current_user_id = GetUserId();
 
-	if (!(has_monitor_privilege(current_user_id)
-		 || has_admin_privilege(current_user_id))
+	if (!has_monitor_privilege(current_user_id)
 		&& beentry->st_userid != current_user_id)
 		PG_RETURN_NULL();
 
@@ -970,8 +966,7 @@ pg_stat_get_backend_xact_start(PG_FUNCTION_ARGS)
 
 	current_user_id = GetUserId();
 
-	if (!(has_monitor_privilege(current_user_id)
-		 || has_admin_privilege(current_user_id))
+	if (!has_monitor_privilege(current_user_id)
 		&& beentry->st_userid != current_user_id)
 		PG_RETURN_NULL();
 
@@ -997,8 +992,7 @@ pg_stat_get_backend_start(PG_FUNCTION_ARGS)
 
 	current_user_id = GetUserId();
 
-	if (!(has_monitor_privilege(current_user_id)
-		 || has_admin_privilege(current_user_id))
+	if (!has_monitor_privilege(current_user_id)
 		&& beentry->st_userid != current_user_id)
 		PG_RETURN_NULL();
 
@@ -1026,8 +1020,7 @@ pg_stat_get_backend_client_addr(PG_FUNCTION_ARGS)
 
 	current_user_id = GetUserId();
 
-	if (!(has_monitor_privilege(current_user_id)
-		 || has_admin_privilege(current_user_id))
+	if (!has_monitor_privilege(current_user_id)
 		&& beentry->st_userid != current_user_id)
 		PG_RETURN_NULL();
 
@@ -1082,8 +1075,7 @@ pg_stat_get_backend_client_port(PG_FUNCTION_ARGS)
 	 */
 	current_user_id = GetUserId();
 
-	if (!(has_monitor_privilege(current_user_id)
-		 || has_admin_privilege(current_user_id))
+	if (!has_monitor_privilege(current_user_id)
 		&& beentry->st_userid != current_user_id)
 		PG_RETURN_NULL();
 

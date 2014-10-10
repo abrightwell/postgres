@@ -40,7 +40,6 @@
 #include "commands/extension.h"
 #include "commands/matview.h"
 #include "commands/lockcmds.h"
-#include "commands/permission.h"
 #include "commands/policy.h"
 #include "commands/portalcmds.h"
 #include "commands/prepare.h"
@@ -188,7 +187,6 @@ check_xact_readonly(Node *parsetree)
 		case T_GrantStmt:
 		case T_GrantRoleStmt:
 		case T_GrantDirectoryStmt:
-		case T_GrantPermissionStmt:
 		case T_AlterDefaultPrivilegesStmt:
 		case T_TruncateStmt:
 		case T_DropOwnedStmt:
@@ -563,10 +561,6 @@ standard_ProcessUtility(Node *parsetree,
 
 		case T_GrantDirectoryStmt:
 			GrantDirectory((GrantDirectoryStmt *) parsetree);
-			break;
-
-		case T_GrantPermissionStmt:
-			GrantPermission((GrantPermissionStmt *) parsetree);
 			break;
 
 		case T_CreatedbStmt:
@@ -2047,14 +2041,6 @@ CreateCommandTag(Node *parsetree)
 				GrantDirectoryStmt *stmt = (GrantDirectoryStmt *) parsetree;
 
 				tag = (stmt->is_grant ? "GRANT ON DIRECTORY" : "REVOKE ON DIRECTORY");
-			}
-			break;
-
-		case T_GrantPermissionStmt:
-			{
-				GrantPermissionStmt *stmt = (GrantPermissionStmt *) parsetree;
-
-				tag = (stmt->is_grant) ? "GRANT PERMISSION" : "REVOKE PERMISSION";
 			}
 			break;
 
