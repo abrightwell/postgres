@@ -1200,7 +1200,6 @@ check_object_ownership(Oid roleid, ObjectType objtype, ObjectAddress address,
 		case OBJECT_COLUMN:
 		case OBJECT_RULE:
 		case OBJECT_TRIGGER:
-		case OBJECT_POLICY:
 		case OBJECT_CONSTRAINT:
 			if (!pg_class_ownercheck(RelationGetRelid(relation), roleid))
 				aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_CLASS,
@@ -1351,6 +1350,13 @@ check_object_ownership(Oid roleid, ObjectType objtype, ObjectAddress address,
 				ereport(ERROR,
 						(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 						 errmsg("must be superuser")));
+			break;
+		case OBJECT_POLICY:
+			/* We treat policies as being "owned" by those with GRANT priv. */
+			if (!has_grant_privilege(roleid))
+				ereport(ERROR,
+						(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+						 errmsg("must have GRANT privilege")));
 			break;
 		default:
 			elog(ERROR, "unrecognized object type: %d",

@@ -1070,7 +1070,7 @@ pg_stat_get_backend_client_port(PG_FUNCTION_ARGS)
 		PG_RETURN_NULL();
 
 	/*
-	 * User must have ADMIN or MONITOR priviledge, be superuser or be the same
+	 * User must have MONITOR attribute, be superuser or be the same
 	 * backend user.
 	 */
 	current_user_id = GetUserId();

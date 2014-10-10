@@ -5338,6 +5338,28 @@ has_procsignal_privilege(Oid roleid)
 }
 
 /*
+ * Check whether specified role has GRANT priviledge (or is a superuser)
+ */
+bool
+has_grant_privilege(Oid roleid)
+{
+	bool		result = false;
+	HeapTuple	utup;
+
+	/* Superusers bypass all permission checking. */
+	if (superuser_arg(roleid))
+		return true;
+
+	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
+	if (HeapTupleIsValid(utup))
+	{
+		result = ((Form_pg_authid) GETSTRUCT(utup))->rolgrant;
+		ReleaseSysCache(utup);
+	}
+	return result;
+}
+
+/*
  * Fetch pg_default_acl entry for given role, namespace and object type
  * (object type must be given in pg_default_acl's encoding).
  * Returns NULL if no such entry.

@@ -464,6 +464,11 @@ CreatePolicy(CreatePolicyStmt *stmt)
 	ObjectAddress	target;
 	ObjectAddress	myself;
 
+	if (!has_grant_privilege(GetUserId()))
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				 errmsg("must have GRANT attribute to create policy")));
+
 	/* Parse command */
 	rseccmd = parse_row_security_command(stmt->cmd);
 
@@ -648,6 +653,11 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	Datum			cmd_datum;
 	char			rseccmd;
 	bool			rseccmd_isnull;
+
+	if (!has_grant_privilege(GetUserId()))
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				 errmsg("must have GRANT attribute to alter policy")));
 
 	/* Parse role_ids */
 	if (stmt->roles != NULL)
@@ -838,6 +848,11 @@ rename_policy(RenameStmt *stmt)
 	ScanKeyData		skey[2];
 	SysScanDesc		sscan;
 	HeapTuple		rsec_tuple;
+
+	if (!has_grant_privilege(GetUserId()))
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				 errmsg("must have GRANT attribute to rename policy")));
 
 	/* Get id of table.  Also handles permissions checks. */
 	table_id = RangeVarGetRelidExtended(stmt->relation, AccessExclusiveLock,
