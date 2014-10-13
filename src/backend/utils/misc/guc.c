@@ -71,6 +71,7 @@
 #include "storage/predicate.h"
 #include "tcop/tcopprot.h"
 #include "tsearch/ts_cache.h"
+#include "utils/acl.h"
 #include "utils/builtins.h"
 #include "utils/bytea.h"
 #include "utils/guc_tables.h"
@@ -475,6 +476,8 @@ int			tcp_keepalives_interval;
 int			tcp_keepalives_count;
 
 int			row_security = true;
+
+bool		enable_grant = false;
 
 /*
  * This really belongs in pg_shmem.c, but is defined here so that it doesn't
@@ -1539,6 +1542,16 @@ static struct config_bool ConfigureNamesBool[] =
 			GUC_NOT_IN_SAMPLE | GUC_DISALLOW_IN_FILE
 		},
 		&data_checksums,
+		false,
+		NULL, NULL, NULL
+	},
+
+	{
+		{"enable_grant", PGC_SUSET, CONN_AUTH_SECURITY,
+			gettext_noop("Enables GRANT role attribute restrictions."),
+			NULL
+		},
+		&enable_grant,
 		false,
 		NULL, NULL, NULL
 	},
