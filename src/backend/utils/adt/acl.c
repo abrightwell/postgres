@@ -5062,7 +5062,7 @@ select_best_grantor(Oid roleId, AclMode privileges,
 	 */
 	if ((!enable_grant && roleId == ownerId)
 		|| superuser_arg(roleId)
-		|| has_grant_privilege(roleId))
+		|| (enable_grant && has_grant_privilege(roleId)))
 	{
 		*grantorId = ownerId;
 		*grantOptions = needed_goptions;
