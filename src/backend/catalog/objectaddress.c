@@ -74,6 +74,7 @@
 #include "storage/lmgr.h"
 #include "storage/sinval.h"
 #include "utils/builtins.h"
+#include "utils/guc.h"
 #include "utils/fmgroids.h"
 #include "utils/lsyscache.h"
 #include "utils/syscache.h"
@@ -1352,11 +1353,20 @@ check_object_ownership(Oid roleid, ObjectType objtype, ObjectAddress address,
 						 errmsg("must be superuser")));
 			break;
 		case OBJECT_POLICY:
-			/* We treat policies as being "owned" by those with GRANT priv. */
-			if (!has_grant_privilege(roleid))
+			/*
+			 * When GRANT restrictions are enabled, we treat policies as being
+			 * "owned" by those with GRANT priv.
+			 */
+			if (enable_grant && !has_grant_privilege(roleid))
 				ereport(ERROR,
 						(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 						 errmsg("must have GRANT privilege")));
+			else
+			{
+				if (!pg_class_ownercheck(RelationGetRelid(relation), roleid))
+				aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_CLASS,
+							   RelationGetRelationName(relation));
+			}
 			break;
 		default:
 			elog(ERROR, "unrecognized object type: %d",

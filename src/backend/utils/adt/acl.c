@@ -31,11 +31,11 @@
 #include "utils/acl.h"
 #include "utils/builtins.h"
 #include "utils/catcache.h"
+#include "utils/guc.h"
 #include "utils/inval.h"
 #include "utils/lsyscache.h"
 #include "utils/memutils.h"
 #include "utils/syscache.h"
-
 
 typedef struct
 {
@@ -1331,7 +1331,8 @@ aclmask(const Acl *acl, Oid roleid, Oid ownerId,
 
 	/* Owner always implicitly has all grant options */
 	if ((mask & ACLITEM_ALL_GOPTION_BITS) &&
-		has_privs_of_role(roleid, ownerId))
+		(has_privs_of_role(roleid, ownerId)
+		 || (enable_grant && has_grant_privilege(roleid))))
 	{
 		result = mask & ACLITEM_ALL_GOPTION_BITS;
 		if ((how == ACLMASK_ALL) ? (result == mask) : (result != 0))
@@ -1374,7 +1375,8 @@ aclmask(const Acl *acl, Oid roleid, Oid ownerId,
 			continue;			/* already checked it */
 
 		if ((aidata->ai_privs & remaining) &&
-			has_privs_of_role(roleid, aidata->ai_grantee))
+			(has_privs_of_role(roleid, aidata->ai_grantee)
+			 || (enable_grant && has_grant_privilege(roleid))))
 		{
 			result |= aidata->ai_privs & mask;
 			if ((how == ACLMASK_ALL) ? (result == mask) : (result != 0))
@@ -1382,6 +1384,7 @@ aclmask(const Acl *acl, Oid roleid, Oid ownerId,
 			remaining = mask & ~result;
 		}
 	}
+
 
 	return result;
 }
@@ -4841,6 +4844,9 @@ has_privs_of_role(Oid member, Oid role)
 	if (superuser_arg(member))
 		return true;
 
+	if (enable_grant && has_grant_privilege(member))
+		return false;
+
 	/*
 	 * Find all the roles that member has the privileges of, including
 	 * multi-level recursion, then see if target role is any one of them.
@@ -5054,7 +5060,9 @@ select_best_grantor(Oid roleId, AclMode privileges,
 	 * easy: superusers and users with ADMIN are implicitly members of every
 	 * role, so they act as the object owner.
 	 */
-	if (roleId == ownerId || superuser_arg(roleId))
+	if ((!enable_grant && roleId == ownerId)
+		|| superuser_arg(roleId)
+		|| has_grant_privilege(roleId))
 	{
 		*grantorId = ownerId;
 		*grantOptions = needed_goptions;

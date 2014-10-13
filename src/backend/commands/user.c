@@ -33,6 +33,7 @@
 #include "storage/lmgr.h"
 #include "utils/acl.h"
 #include "utils/builtins.h"
+#include "utils/guc.h"
 #include "utils/fmgroids.h"
 #include "utils/syscache.h"
 #include "utils/timestamp.h"
@@ -1469,6 +1470,11 @@ GrantRole(GrantRoleStmt *stmt)
 	List	   *grantee_ids;
 	ListCell   *item;
 
+	if (enable_grant && !has_grant_privilege(GetUserId()))
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				 errmsg("must have GRANT attribute")));
+
 	if (stmt->grantor)
 		grantor = get_role_oid(stmt->grantor, false);
 	else
@@ -1628,7 +1634,8 @@ AddRoleMems(const char *rolename, Oid roleid,
 
 	/*
 	 * Check permissions: must have createrole or admin option on the role to
-	 * be changed.  To mess with a superuser role, you gotta be superuser.
+	 * be changed or if GRANT restrictions are enabled, the must have GRANT
+	 * attribute.  To mess with a superuser role, you gotta be superuser.
 	 */
 	if (superuser_arg(roleid))
 	{
@@ -1639,7 +1646,11 @@ AddRoleMems(const char *rolename, Oid roleid,
 	}
 	else
 	{
-		if (!has_createrole_privilege(GetUserId()) &&
+		if (enable_grant && !has_grant_privilege(GetUserId()))
+			ereport(ERROR,
+					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+					 errmsg("must have GRANT attribute")));
+		else if (!has_createrole_privilege(GetUserId()) &&
 			!is_admin_of_role(grantorId, roleid))
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
@@ -1687,6 +1698,19 @@ AddRoleMems(const char *rolename, Oid roleid,
 					(errcode(ERRCODE_INVALID_GRANT_OPERATION),
 					 (errmsg("role \"%s\" is a member of role \"%s\"",
 							 rolename, membername))));
+
+		/*
+		 * Roles with the GRANT attribute should not be able to be granted to
+		 * roles witout it.  However, roles with the GRANT attribute can be added
+		 * to other roles with it.
+		 */
+		if (enable_grant
+			&& !has_grant_privilege(roleid)
+			&& has_grant_privilege(memberid))
+			ereport(ERROR,
+					(errcode(ERRCODE_INVALID_GRANT_OPERATION),
+					 errmsg("role \"%s\" has GRANT attribute",
+							membername)));
 
 		/*
 		 * Check if entry for this role/member already exists; if so, give
@@ -1785,7 +1809,11 @@ DelRoleMems(const char *rolename, Oid roleid,
 	}
 	else
 	{
-		if (!has_createrole_privilege(GetUserId()) &&
+		if (enable_grant && !has_grant_privilege(GetUserId()))
+			ereport(ERROR,
+					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+					 errmsg("must have GRANT attribute")));
+		else if (!has_createrole_privilege(GetUserId()) &&
 			!is_admin_of_role(GetUserId(), roleid))
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),

@@ -59,6 +59,7 @@
 #include "parser/parse_type.h"
 #include "utils/acl.h"
 #include "utils/builtins.h"
+#include "utils/guc.h"
 #include "utils/fmgroids.h"
 #include "utils/lsyscache.h"
 #include "utils/rel.h"
@@ -395,6 +396,11 @@ ExecuteGrantStmt(GrantStmt *stmt)
 	const char *errormsg;
 	AclMode		all_privileges;
 
+	if (enable_grant && !has_grant_privilege(GetUserId()))
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				 errmsg("must have GRANT attribute")));
+
 	/*
 	 * Turn the regular GrantStmt into the InternalGrant form.
 	 */
@@ -436,10 +442,16 @@ ExecuteGrantStmt(GrantStmt *stmt)
 
 		if (grantee->rolname == NULL)
 			istmt.grantees = lappend_oid(istmt.grantees, ACL_ID_PUBLIC);
-		else
-			istmt.grantees =
-				lappend_oid(istmt.grantees,
-							get_role_oid(grantee->rolname, false));
+		else {
+			Oid roleid = get_role_oid(grantee->rolname, false);
+
+			if (istmt.is_grant && (enable_grant && has_grant_privilege(roleid)))
+				ereport(ERROR,
+					(errcode(ERRCODE_INVALID_GRANT_OPERATION),
+					 errmsg("grantee cannot have GRANT attribute")));
+
+			istmt.grantees = lappend_oid(istmt.grantees, roleid);
+		}
 	}
 
 	/*

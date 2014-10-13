@@ -36,6 +36,7 @@
 #include "utils/acl.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
+#include "utils/guc.h"
 #include "utils/fmgroids.h"
 #include "utils/inval.h"
 #include "utils/lsyscache.h"
@@ -464,7 +465,7 @@ CreatePolicy(CreatePolicyStmt *stmt)
 	ObjectAddress	target;
 	ObjectAddress	myself;
 
-	if (!has_grant_privilege(GetUserId()))
+	if (enable_grant && !has_grant_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("must have GRANT attribute to create policy")));
@@ -654,7 +655,7 @@ AlterPolicy(AlterPolicyStmt *stmt)
 	char			rseccmd;
 	bool			rseccmd_isnull;
 
-	if (!has_grant_privilege(GetUserId()))
+	if (enable_grant && !has_grant_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("must have GRANT attribute to alter policy")));
@@ -849,7 +850,7 @@ rename_policy(RenameStmt *stmt)
 	SysScanDesc		sscan;
 	HeapTuple		rsec_tuple;
 
-	if (!has_grant_privilege(GetUserId()))
+	if (enable_grant && !has_grant_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("must have GRANT attribute to rename policy")));
