@@ -3971,6 +3971,13 @@ pg_namespace_aclmask(Oid nsp_oid, Oid roleid,
 		return mask;
 
 	/*
+	 * Roles with READONLY privilege are implicitly allowed and *only* allowed
+	 * USAGE on all schemas.
+	 */
+	if (has_readonly_privilege(roleid))
+		return ACL_USAGE;
+
+	/*
 	 * If we have been assigned this namespace as a temp namespace, check to
 	 * make sure we have CREATE TEMP permission on the database, and if so act
 	 * as though we have all standard (but not GRANT OPTION) permissions on
@@ -5366,6 +5373,28 @@ has_grant_privilege(Oid roleid)
 	if (HeapTupleIsValid(utup))
 	{
 		result = ((Form_pg_authid) GETSTRUCT(utup))->rolgrant;
+		ReleaseSysCache(utup);
+	}
+	return result;
+}
+
+/*
+ * Check whether specified role has READONLY priviledge (or is a superuser)
+ */
+bool
+has_readonly_privilege(Oid roleid)
+{
+	bool		result = false;
+	HeapTuple	utup;
+
+	/* Superusers bypass all permission checking. */
+	if (superuser_arg(roleid))
+		return true;
+
+	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
+	if (HeapTupleIsValid(utup))
+	{
+		result = ((Form_pg_authid) GETSTRUCT(utup))->rolreadonly;
 		ReleaseSysCache(utup);
 	}
 	return result;

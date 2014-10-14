@@ -578,11 +578,19 @@ ExecCheckRTEPerms(RangeTblEntry *rte)
 	userid = rte->checkAsUser ? rte->checkAsUser : GetUserId();
 
 	/*
-	 * We must have *all* the requiredPerms bits, but some of the bits can be
-	 * satisfied from column-level rather than relation-level permissions.
-	 * First, remove any bits that are satisfied by relation permissions.
+	 * If we are not superuser and have READONLY privilege we are implicitly
+	 * allowed and *only* allowed to SELECT on all tables.
+	 *
+	 * Otherwise, We must have *all* the requiredPerms bits, but some of the
+	 * bits can be satisfied from column-level rather than relation-level
+	 * permissions. First, remove any bits that are satisfied by relation
+	 * permissions.
 	 */
-	relPerms = pg_class_aclmask(relOid, userid, requiredPerms, ACLMASK_ALL);
+	if (!superuser_arg(userid) && has_readonly_privilege(userid))
+		relPerms = ACL_SELECT;
+	else
+		relPerms = pg_class_aclmask(relOid, userid, requiredPerms, ACLMASK_ALL);
+
 	remainingPerms = requiredPerms & ~relPerms;
 	if (remainingPerms != 0)
 	{

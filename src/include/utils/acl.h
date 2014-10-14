@@ -341,5 +341,6 @@ extern bool has_log_rotate_privilege(Oid roleid);
 extern bool has_monitor_privilege(Oid roleid);
 extern bool has_procsignal_privilege(Oid roleid);
 extern bool has_grant_privilege(Oid roleid);
+extern bool has_readonly_privilege(Oid roleid);
 
 #endif   /* ACL_H */
