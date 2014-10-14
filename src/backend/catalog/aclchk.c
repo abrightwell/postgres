@@ -445,7 +445,7 @@ ExecuteGrantStmt(GrantStmt *stmt)
 		else {
 			Oid roleid = get_role_oid(grantee->rolname, false);
 
-			if (istmt.is_grant && (enable_grant && has_grant_privilege(roleid)))
+			if (enable_grant && has_grant_privilege(roleid))
 				ereport(ERROR,
 					(errcode(ERRCODE_INVALID_GRANT_OPERATION),
 					 errmsg("grantee cannot have GRANT attribute")));

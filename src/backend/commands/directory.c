@@ -72,7 +72,6 @@ RemoveDirectoryById(Oid dir_id)
 void
 CreateDirectory(CreateDirectoryStmt *stmt)
 {
-#ifdef HAVE_SYMLINK
 	Relation		pg_directory_rel;
 	Datum			values[Natts_pg_directory];
 	bool			nulls[Natts_pg_directory];
@@ -197,12 +196,6 @@ CreateDirectory(CreateDirectoryStmt *stmt)
 
 	/* Clean up */
 	heap_close(pg_directory_rel, RowExclusiveLock);
-
-#else    /* !HAVE_SYMLINK */
-	ereport(ERROR,
-			(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
-			 errmsg("directories are not supported on this platform")));
-#endif   /* HAVE_SYMLINK */
 }
 
 /*
