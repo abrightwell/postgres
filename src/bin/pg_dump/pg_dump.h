@@ -112,7 +112,8 @@ typedef enum
 	DO_POST_DATA_BOUNDARY,
 	DO_EVENT_TRIGGER,
 	DO_REFRESH_MATVIEW,
-	DO_ROW_SECURITY
+	DO_ROW_SECURITY,
+	DO_DIRECTORY_ALIAS
 } DumpableObjectType;
 
 typedef struct _dumpableObject
@@ -505,6 +506,15 @@ typedef struct _rowSecurityInfo
 	char		   *rsecwithcheck;
 } RowSecurityInfo;
 
+typedef struct _directoryAliasInfo
+{
+	DumpableObject  dobj;
+	char		   *diralias;
+	char		   *diracl;
+	char		   *dirpath;
+	char		   *rolname;	/* name of owner */
+} DirectoryAliasInfo;
+
 /* global decls */
 extern bool force_quotes;		/* double-quotes for identifiers flag */
 extern bool g_verbose;			/* verbose flag */
@@ -597,5 +607,6 @@ extern void getExtensionMembership(Archive *fout, ExtensionInfo extinfo[],
 					   int numExtensions);
 extern EventTriggerInfo *getEventTriggers(Archive *fout, int *numEventTriggers);
 extern void getRowSecurity(Archive *fout, TableInfo tblinfo[], int numTables);
+extern void getDirectoryAliases(Archive *fout, int *numDirectoryAliases);
 
 #endif   /* PG_DUMP_H */

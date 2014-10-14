@@ -397,7 +397,7 @@ GrantDirectory(GrantDirectoryStmt *stmt)
 {
 	Relation		pg_directory_rel;
 	Oid				grantor;
-	List		   *grantee_ids;
+	List		   *grantee_ids = NIL;
 	AclMode			permissions;
 	ListCell	   *item;
 
@@ -424,16 +424,34 @@ GrantDirectory(GrantDirectoryStmt *stmt)
 		grantor = GetUserId();
 
 	/* Convert grantee names to oids */
-	grantee_ids = roleNamesToIds(stmt->grantees);
+	foreach(item, stmt->grantees)
+	{
+		PrivGrantee *grantee = (PrivGrantee *) lfirst(item);
+
+		if (grantee->rolname == NULL)
+			grantee_ids = lappend_oid(grantee_ids, ACL_ID_PUBLIC);
+		else
+		{
+			Oid roleid = get_role_oid(grantee->rolname, false);
+			grantee_ids = lappend_oid(grantee_ids, roleid);
+		}
+	}
 
 	permissions = ACL_NO_RIGHTS;
 
-	/* Condense all permissions */
-	foreach(item, stmt->permissions)
+	/* If ALL was provided then set permissions to ACL_ALL_RIGHTS_DIRECTORY */
+	if (stmt->permissions == NIL)
+		permissions = ACL_ALL_RIGHTS_DIRECTORY;
+	else
 	{
-		AccessPriv *priv = (AccessPriv *) lfirst(item);
-		permissions |= string_to_permission(priv->priv_name);
+		/* Condense all permissions */
+		foreach(item, stmt->permissions)
+		{
+			AccessPriv *priv = (AccessPriv *) lfirst(item);
+			permissions |= string_to_permission(priv->priv_name);
+		}
 	}
+
 
 	/*
 	 * Though it shouldn't be possible to provide permissions other than READ

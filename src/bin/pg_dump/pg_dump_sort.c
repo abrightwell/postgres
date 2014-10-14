@@ -71,7 +71,8 @@ static const int oldObjectTypePriority[] =
 	13,							/* DO_POST_DATA_BOUNDARY */
 	20,							/* DO_EVENT_TRIGGER */
 	15,							/* DO_REFRESH_MATVIEW */
-	21							/* DO_ROW_SECURITY */
+	21,							/* DO_ROW_SECURITY */
+	22,							/* DO_DIRECTORY_ALIAS */
 };
 
 /*
@@ -120,7 +121,8 @@ static const int newObjectTypePriority[] =
 	25,							/* DO_POST_DATA_BOUNDARY */
 	32,							/* DO_EVENT_TRIGGER */
 	33,							/* DO_REFRESH_MATVIEW */
-	34							/* DO_ROW_SECURITY */
+	34,							/* DO_ROW_SECURITY */
+	35,							/* DO_DIRECTORY_ALIAS */
 };
 
 static DumpId preDataBoundId;
@@ -1439,6 +1441,11 @@ describeDumpableObject(DumpableObject *obj, char *buf, int bufsize)
 		case DO_ROW_SECURITY:
 			snprintf(buf, bufsize,
 					 "ROW-SECURITY POLICY (ID %d OID %u)",
+					 obj->dumpId, obj->catId.oid);
+			return;
+		case DO_DIRECTORY_ALIAS:
+			snprintf(buf, bufsize,
+					 "DIRECTORY ALIAS (ID %d OID %u)",
 					 obj->dumpId, obj->catId.oid);
 			return;
 		case DO_PRE_DATA_BOUNDARY:

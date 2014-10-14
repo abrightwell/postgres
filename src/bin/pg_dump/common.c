@@ -100,6 +100,7 @@ getSchemaData(Archive *fout, int *numTablesPtr)
 	int			numForeignServers;
 	int			numDefaultACLs;
 	int			numEventTriggers;
+	int			numDirectoryAliases;
 
 	if (g_verbose)
 		write_msg(NULL, "reading schemas\n");
@@ -247,6 +248,10 @@ getSchemaData(Archive *fout, int *numTablesPtr)
 	if (g_verbose)
 		write_msg(NULL, "reading row-security policies\n");
 	getRowSecurity(fout, tblinfo, numTables);
+
+	if (g_verbose)
+		write_msg(NULL, "reading directory aliases\n");
+	getDirectoryAliases(fout, &numDirectoryAliases);
 
 	*numTablesPtr = numTables;
 	return tblinfo;

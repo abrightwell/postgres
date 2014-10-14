@@ -326,7 +326,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 
 %type <node>	dir_perm_opts
 %type <str>		OptDirectoryOwner
-%type <list>	dir_perm_list
+%type <list>	dir_permissions dir_perm_list
 
 %type <str>		iso_level opt_encoding
 %type <node>	grantee
@@ -6415,7 +6415,7 @@ opt_granted_by: GRANTED BY RoleId						{ $$ = $3; }
  *
  *****************************************************************************/
 GrantDirStmt:
-			GRANT ON DIRECTORY name_list dir_perm_list TO role_list
+			GRANT ON DIRECTORY name_list dir_permissions TO grantee_list
 				opt_granted_by
 				{
 					GrantDirectoryStmt *n = makeNode(GrantDirectoryStmt);
@@ -6429,7 +6429,7 @@ GrantDirStmt:
 		;
 
 RevokeDirStmt:
-			REVOKE ON DIRECTORY name_list dir_perm_list FROM role_list
+			REVOKE ON DIRECTORY name_list dir_permissions FROM grantee_list
 				{
 					GrantDirectoryStmt *n = makeNode(GrantDirectoryStmt);
 					n->is_grant = false;
@@ -6439,6 +6439,13 @@ RevokeDirStmt:
 					$$ = (Node*)n;
 				}
 		;
+
+/* either ALL or a list of individual permissions */
+dir_permissions: dir_perm_list
+					{ $$ = $1; }
+				| ALL { $$ = NIL; }
+			;
+
 
 dir_perm_list: dir_perm_opts					{ $$ = list_make1($1); }
 			| dir_perm_list ',' dir_perm_opts	{ $$ = lappend($1, $3); }
