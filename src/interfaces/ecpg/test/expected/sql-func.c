@@ -54,7 +54,7 @@ if (sqlca.sqlwarn[0] == 'W') sqlprint();
 if (sqlca.sqlcode < 0) sqlprint();}
 #line 17 "func.pgc"
 
-  { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "create table log ( name text , w text )", ECPGt_EOIT, ECPGt_EORT);
+  { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "create table Log ( name text , w text )", ECPGt_EOIT, ECPGt_EORT);
 #line 18 "func.pgc"
 
 if (sqlca.sqlwarn[0] == 'W') sqlprint();
@@ -66,7 +66,7 @@ if (sqlca.sqlcode < 0) sqlprint();}
 
   { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "create function My_Table_Check ( ) returns trigger as $test$\
     BEGIN\
-	INSERT INTO log VALUES(TG_NAME, TG_WHEN);\
+	INSERT INTO Log VALUES(TG_NAME, TG_WHEN);\
 	RETURN NEW;\
     END; $test$ language plpgsql", ECPGt_EOIT, ECPGt_EORT);
 #line 26 "func.pgc"
@@ -106,7 +106,7 @@ if (sqlca.sqlwarn[0] == 'W') sqlprint();
 if (sqlca.sqlcode < 0) sqlprint();}
 #line 35 "func.pgc"
 
-  { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "select name from log limit 1", ECPGt_EOIT, 
+  { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "select name from Log limit 1", ECPGt_EOIT, 
 	ECPGt_char,(text),(long)25,(long)1,(25)*sizeof(char), 
 	ECPGt_NO_INDICATOR, NULL , 0L, 0L, 0L, ECPGt_EORT);
 #line 36 "func.pgc"
@@ -137,7 +137,7 @@ if (sqlca.sqlwarn[0] == 'W') sqlprint();
 if (sqlca.sqlcode < 0) sqlprint();}
 #line 40 "func.pgc"
 
-  { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "drop table log", ECPGt_EOIT, ECPGt_EORT);
+  { ECPGdo(__LINE__, 0, 1, NULL, 0, ECPGst_normal, "drop table Log", ECPGt_EOIT, ECPGt_EORT);
 #line 41 "func.pgc"
 
 if (sqlca.sqlwarn[0] == 'W') sqlprint();
