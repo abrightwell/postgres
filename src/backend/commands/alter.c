@@ -41,6 +41,7 @@
 #include "commands/conversioncmds.h"
 #include "commands/dbcommands.h"
 #include "commands/defrem.h"
+#include "commands/directory.h"
 #include "commands/event_trigger.h"
 #include "commands/extension.h"
 #include "commands/policy.h"
@@ -710,7 +711,6 @@ ExecAlterOwnerStmt(AlterOwnerStmt *stmt)
 		case OBJECT_AGGREGATE:
 		case OBJECT_COLLATION:
 		case OBJECT_CONVERSION:
-		case OBJECT_DIRECTORY:
 		case OBJECT_FUNCTION:
 		case OBJECT_LANGUAGE:
 		case OBJECT_LARGEOBJECT:
@@ -751,6 +751,11 @@ ExecAlterOwnerStmt(AlterOwnerStmt *stmt)
 				return address.objectId;
 			}
 			break;
+
+		case OBJECT_DIRECTORY:
+			return AlterDirectoryOwner(strVal(linitial(stmt->object)), newowner);
+			break;
+
 		default:
 			elog(ERROR, "unrecognized AlterOwnerStmt type: %d",
 				 (int) stmt->objectType);

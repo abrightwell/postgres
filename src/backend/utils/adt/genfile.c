@@ -45,14 +45,10 @@ typedef struct
  * The filename must be an absolute path to the file.
  */
 static void
-check_directory_permissions(char *filename)
+check_directory_permissions(char *directory)
 {
-	char	   *directory;
 	Oid			dir_id;
 	AclResult	aclresult;
-
-	directory = pstrdup(filename);
-	get_parent_directory(directory);
 
 	/* Do not allow relative paths */
 	if (!is_absolute_path(directory))
@@ -177,13 +173,16 @@ pg_read_file(PG_FUNCTION_ARGS)
 	int64		seek_offset = PG_GETARG_INT64(1);
 	int64		bytes_to_read = PG_GETARG_INT64(2);
 	char	   *filename;
+	char	   *directory;
 
 	/* Convert and cleanup the filename */
 	filename = text_to_cstring(filename_t);
 	canonicalize_path(filename);
 
 	/* Check directory permissions */
-	check_directory_permissions(filename);
+	directory = pstrdup(filename);
+	get_parent_directory(directory);
+	check_directory_permissions(directory);
 
 	if (bytes_to_read < 0)
 		ereport(ERROR,
@@ -201,13 +200,16 @@ pg_read_file_all(PG_FUNCTION_ARGS)
 {
 	text	   *filename_t = PG_GETARG_TEXT_P(0);
 	char	   *filename;
+	char	   *directory;
 
 	/* Convert and cleanup the filename */
 	filename = text_to_cstring(filename_t);
 	canonicalize_path(filename);
 
 	/* Check directory permissions */
-	check_directory_permissions(filename);
+	directory = pstrdup(filename);
+	get_parent_directory(directory);
+	check_directory_permissions(directory);
 
 	PG_RETURN_TEXT_P(read_text_file(filename, 0, -1));
 }
@@ -222,13 +224,16 @@ pg_read_binary_file(PG_FUNCTION_ARGS)
 	int64		seek_offset = PG_GETARG_INT64(1);
 	int64		bytes_to_read = PG_GETARG_INT64(2);
 	char	   *filename;
+	char	   *directory;
 
 	/* Convert and cleanup the filename */
 	filename = text_to_cstring(filename_t);
 	canonicalize_path(filename);
 
 	/* Check directory permissions */
-	check_directory_permissions(filename);
+	directory = pstrdup(filename);
+	get_parent_directory(directory);
+	check_directory_permissions(directory);
 
 	if (bytes_to_read < 0)
 		ereport(ERROR,
@@ -246,13 +251,16 @@ pg_read_binary_file_all(PG_FUNCTION_ARGS)
 {
 	text	   *filename_t = PG_GETARG_TEXT_P(0);
 	char	   *filename;
+	char	   *directory;
 
 	/* Convert and cleanup the filename */
 	filename = text_to_cstring(filename_t);
 	canonicalize_path(filename);
 
 	/* Check directory permissions */
-	check_directory_permissions(filename);
+	directory = pstrdup(filename);
+	get_parent_directory(directory);
+	check_directory_permissions(directory);
 
 	PG_RETURN_BYTEA_P(read_binary_file(filename, 0, -1));
 }
@@ -265,6 +273,7 @@ pg_stat_file(PG_FUNCTION_ARGS)
 {
 	text	   *filename_t = PG_GETARG_TEXT_P(0);
 	char	   *filename;
+	char	   *directory;
 	struct stat fst;
 	Datum		values[6];
 	bool		isnull[6];
@@ -275,7 +284,9 @@ pg_stat_file(PG_FUNCTION_ARGS)
 	canonicalize_path(filename);
 
 	/* Check directory permissions */
-	check_directory_permissions(filename);
+	directory = pstrdup(filename);
+	get_parent_directory(directory);
+	check_directory_permissions(directory);
 
 	if (stat(filename, &fst) < 0)
 		ereport(ERROR,

@@ -6445,14 +6445,7 @@ dir_perm_list: dir_perm_opts					{ $$ = list_make1($1); }
 		;
 
 dir_perm_opts:
-			CREATE
-				{
-					AccessPriv *n = makeNode(AccessPriv);
-					n->priv_name = pstrdup("create");
-					n->cols = NIL;
-					$$ = (Node*)n;
-				}
-			| READ
+			READ
 				{
 					AccessPriv *n = makeNode(AccessPriv);
 					n->priv_name = pstrdup("select");

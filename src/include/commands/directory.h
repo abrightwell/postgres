@@ -20,6 +20,7 @@
 extern void RemoveDirectoryById(Oid dir_id);
 extern void CreateDirectory(CreateDirectoryStmt *stmt);
 extern void AlterDirectory(AlterDirectoryStmt *stmt);
+extern Oid AlterDirectoryOwner(const char *alias, Oid new_owner);
 extern void GrantDirectory(GrantDirectoryStmt *stmt);
 
 extern char *get_directory_alias(Oid dir_id);

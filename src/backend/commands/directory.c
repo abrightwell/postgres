@@ -24,6 +24,7 @@
 #include "miscadmin.h"
 #include "utils/acl.h"
 #include "utils/builtins.h"
+#include "utils/guc.h"
 #include "utils/fmgroids.h"
 #include "utils/rel.h"
 #include "utils/syscache.h"
@@ -82,18 +83,26 @@ CreateDirectory(CreateDirectoryStmt *stmt)
 	char		   *path;
 	Oid				owner_id;
 
+	/* Must be superuser to create a directory entry. */
+	if (!superuser())
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				 errmsg("must be superuser to create directory")));
+
 	/* Unix-ify the path, and strip any trailing slashes */
 	path = pstrdup(stmt->path);
 	canonicalize_path(path);
 
-	/*
-	 * Need permission checks here.  Superuser is implied to be necessary, but
-	 * perhaps this would also be allowed by an ADMIN role?
-	 */
-
-	/* However, the eventual owner does not have to be either. */
+	/* If owner is provided, then it must be a superuser. */
 	if (stmt->owner != NULL)
+	{
 		owner_id = get_role_oid(stmt->owner, false);
+
+		if (!superuser_arg(owner_id))
+			ereport(ERROR,
+					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+					 errmsg("directory owner must be a superuser")));
+	}
 	else
 		owner_id = GetUserId();
 
@@ -215,6 +224,12 @@ AlterDirectory(AlterDirectoryStmt *stmt)
 	HeapTuple		new_tuple;
 	char		   *path;
 
+	/* Must be superuser to alter directory */
+	if (!superuser())
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				 errmsg("must be superuser to alter directory")));
+
 	/* Unix-ify the new path, and strip any trailing slashes */
 	path = pstrdup(stmt->path);
 	canonicalize_path(path);
@@ -281,6 +296,103 @@ AlterDirectory(AlterDirectoryStmt *stmt)
 }
 
 /*
+ * AlterDirectoryOwner
+ *   handles the execution of the ALTER DIRECTORY OWNER TO command.
+ *
+ * alias - the directory to change.
+ * new_owner - the Oid of the new owner.
+ */
+Oid
+AlterDirectoryOwner(const char *alias, Oid new_owner)
+{
+	Relation			pg_directory_rel;
+	Oid					dir_id;
+	ScanKeyData			skey[1];
+	HeapScanDesc		scandesc;
+	HeapTuple			tuple;
+	Datum				values[Natts_pg_directory];
+	bool				nulls[Natts_pg_directory];
+	bool				replaces[Natts_pg_directory];
+	HeapTuple			new_tuple;
+	Form_pg_directory	dir_form;
+
+	/* Must be superuser to alter directory owner */
+	if (!superuser())
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				 errmsg("must be superuser to alter directory owner")));
+
+	/* Open pg_directory catalog */
+	pg_directory_rel = heap_open(DirectoryRelationId, RowExclusiveLock);
+
+	/* Search for directory by alias */
+	ScanKeyInit(&skey[0],
+				Anum_pg_directory_diralias,
+				BTEqualStrategyNumber, F_NAMEEQ,
+				CStringGetDatum(alias));
+
+	/*
+	 * We use a heapscan here even though there is an index on alias and path.
+	 * We do this on the theory that pg_directory will usually have a
+	 * relatively small number of entries and therefore it is safe to assume
+	 * an index scan would be wasted effort.
+	 */
+	scandesc = heap_beginscan_catalog(pg_directory_rel, 1, skey);
+
+	tuple = heap_getnext(scandesc, ForwardScanDirection);
+
+	/* If directory does not exist then raise an error */
+	if (!HeapTupleIsValid(tuple))
+		ereport(ERROR,
+				(errcode(ERRCODE_UNDEFINED_OBJECT),
+				 errmsg("directory \"%s\" does not exist", alias)));
+
+	dir_id = HeapTupleGetOid(tuple);
+	dir_form = (Form_pg_directory) GETSTRUCT(tuple);
+
+	/*
+	 * If the new owner is the same as the existing owner, consider the
+	 * command to have succeeded.
+	 */
+	if (dir_form->dirowner != new_owner)
+	{
+		if (!superuser_arg(new_owner))
+			ereport(ERROR,
+					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+					 errmsg("new owner must be superuser")));
+
+		memset(replaces, 0, sizeof(replaces));
+		memset(nulls,    0, sizeof(nulls));
+		memset(values,   0, sizeof(values));
+
+		values[Anum_pg_directory_dirowner - 1] = ObjectIdGetDatum(new_owner);
+		replaces[Anum_pg_directory_dirowner - 1] = true;
+
+		new_tuple = heap_modify_tuple(tuple, RelationGetDescr(pg_directory_rel),
+									  values, nulls, replaces);
+
+		simple_heap_update(pg_directory_rel, &tuple->t_self, new_tuple);
+
+		/* Update Catalog Indexes */
+		CatalogUpdateIndexes(pg_directory_rel, new_tuple);
+
+		heap_freetuple(new_tuple);
+
+		changeDependencyOnOwner(DirectoryRelationId, HeapTupleIsValid(tuple),
+								new_owner);
+	}
+
+	/* Post alter hook for directory */
+	InvokeObjectPostAlterHook(DirectoryRelationId, HeapTupleGetOid(tuple), 0);
+
+	/* Clean Up */
+	heap_endscan(scandesc);
+	heap_close(pg_directory_rel, RowExclusiveLock);
+
+	return dir_id;
+}
+
+/*
  * GrantDirectory
  *   handles the execution of the GRANT/REVOKE ON DIRECTORY command.
  *
@@ -295,6 +407,18 @@ GrantDirectory(GrantDirectoryStmt *stmt)
 	List		   *grantee_ids;
 	AclMode			permissions;
 	ListCell	   *item;
+
+	if (!superuser())
+	{
+		if (enable_grant && !has_grant_privilege(GetUserId()))
+			ereport(ERROR,
+					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+					 errmsg("must have GRANT privilege to grant directory permissions")));
+		else
+			ereport(ERROR,
+					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+					 errmsg("must be superuser to grant directory permissions")));
+	}
 
 	/*
 	 * Grantor is optional.  If it is not provided then set it to the current
@@ -627,8 +751,6 @@ get_directory_owner(Oid dir_id)
 static AclMode
 string_to_permission(const char *permission)
 {
-	if (strcmp(permission, "create") == 0)
-		return ACL_CREATE;
 	if (strcmp(permission, "select") == 0)
 		return ACL_SELECT;
 	if (strcmp(permission, "update") == 0)
