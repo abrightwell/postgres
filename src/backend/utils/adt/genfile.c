@@ -50,37 +50,33 @@ check_directory_permissions(char *directory)
 	Oid			dir_id;
 	AclResult	aclresult;
 
-	/* Superusers are always allowed, no directory restrictions are applied. */
-	if (!superuser())
-	{
-		/* Do not allow relative paths */
-		if (!superuser() && !is_absolute_path(directory))
-			ereport(ERROR,
-					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-					 errmsg("relative path not allowed")));
+	/* Do not allow relative paths */
+	if (!is_absolute_path(directory))
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				 errmsg("relative path not allowed")));
 
-		/* Search for directory in pg_directory */
-		dir_id = get_directory_oid_by_path(directory);
+	/* Search for directory in pg_directory */
+	dir_id = get_directory_oid_by_path(directory);
 
-		/*
-		 * If an entry does not exist for the path in pg_directory then raise
-		 * an error.
-		 */
-		if (!OidIsValid(dir_id))
-			ereport(ERROR,
-					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-					 errmsg("directory entry for \"%s\" does not exist",
-							directory)));
+	/*
+	 * If an entry does not exist for the path in pg_directory then raise
+	 * an error.
+	 */
+	if (!OidIsValid(dir_id))
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				 errmsg("directory entry for \"%s\" does not exist",
+						directory)));
 
-		/* Check directory entry permissions */
-		aclresult = pg_directory_aclcheck(dir_id, GetUserId(), ACL_SELECT);
+	/* Check directory entry permissions */
+	aclresult = pg_directory_aclcheck(dir_id, GetUserId(), ACL_SELECT);
 
-		/* If the current user has insufficient privileges then raise an error */
-		if (aclresult != ACLCHECK_OK)
-			ereport(ERROR,
-					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-					 errmsg("must have read permissions on parent directory")));
-	}
+	/* If the current user has insufficient privileges then raise an error */
+	if (aclresult != ACLCHECK_OK)
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				 errmsg("must have read permissions on parent directory")));
 }
 
 
@@ -183,10 +179,13 @@ pg_read_file(PG_FUNCTION_ARGS)
 	filename = text_to_cstring(filename_t);
 	canonicalize_path(filename);
 
-	/* Check directory permissions */
-	directory = pstrdup(filename);
-	get_parent_directory(directory);
-	check_directory_permissions(directory);
+	/* Superuser is always allowed to bypass directory permissions */
+	if (!superuser())
+	{
+		directory = pstrdup(filename);
+		get_parent_directory(directory);
+		check_directory_permissions(directory);
+	}
 
 	if (bytes_to_read < 0)
 		ereport(ERROR,
@@ -210,10 +209,13 @@ pg_read_file_all(PG_FUNCTION_ARGS)
 	filename = text_to_cstring(filename_t);
 	canonicalize_path(filename);
 
-	/* Check directory permissions */
-	directory = pstrdup(filename);
-	get_parent_directory(directory);
-	check_directory_permissions(directory);
+	/* Superuser is always allowed to bypass directory permissions */
+	if (!superuser())
+	{
+		directory = pstrdup(filename);
+		get_parent_directory(directory);
+		check_directory_permissions(directory);
+	}
 
 	PG_RETURN_TEXT_P(read_text_file(filename, 0, -1));
 }
@@ -234,10 +236,13 @@ pg_read_binary_file(PG_FUNCTION_ARGS)
 	filename = text_to_cstring(filename_t);
 	canonicalize_path(filename);
 
-	/* Check directory permissions */
-	directory = pstrdup(filename);
-	get_parent_directory(directory);
-	check_directory_permissions(directory);
+	/* Superuser is always allowed to bypass directory permissions */
+	if (!superuser())
+	{
+		directory = pstrdup(filename);
+		get_parent_directory(directory);
+		check_directory_permissions(directory);
+	}
 
 	if (bytes_to_read < 0)
 		ereport(ERROR,
@@ -261,10 +266,13 @@ pg_read_binary_file_all(PG_FUNCTION_ARGS)
 	filename = text_to_cstring(filename_t);
 	canonicalize_path(filename);
 
-	/* Check directory permissions */
-	directory = pstrdup(filename);
-	get_parent_directory(directory);
-	check_directory_permissions(directory);
+	/* Superuser is always allowed to bypass directory permissions */
+	if (!superuser())
+	{
+		directory = pstrdup(filename);
+		get_parent_directory(directory);
+		check_directory_permissions(directory);
+	}
 
 	PG_RETURN_BYTEA_P(read_binary_file(filename, 0, -1));
 }
@@ -287,10 +295,13 @@ pg_stat_file(PG_FUNCTION_ARGS)
 	filename = text_to_cstring(filename_t);
 	canonicalize_path(filename);
 
-	/* Check directory permissions */
-	directory = pstrdup(filename);
-	get_parent_directory(directory);
-	check_directory_permissions(directory);
+	/* Superuser is always allowed to bypass directory permissions */
+	if (!superuser())
+	{
+		directory = pstrdup(filename);
+		get_parent_directory(directory);
+		check_directory_permissions(directory);
+	}
 
 	if (stat(filename, &fst) < 0)
 		ereport(ERROR,
@@ -360,8 +371,9 @@ pg_ls_dir(PG_FUNCTION_ARGS)
 		fctx->location = text_to_cstring(PG_GETARG_TEXT_P(0));
 		canonicalize_path(fctx->location);
 
-		/* Check permissions on directory */
-		check_directory_permissions(fctx->location);
+		/* Superuser is always allowed to bypass directory permissions */
+		if (!superuser())
+			check_directory_permissions(fctx->location);
 
 		fctx->dirdesc = AllocateDir(fctx->location);
 

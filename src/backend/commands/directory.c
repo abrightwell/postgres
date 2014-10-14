@@ -401,17 +401,18 @@ GrantDirectory(GrantDirectoryStmt *stmt)
 	AclMode			permissions;
 	ListCell	   *item;
 
-	if (!superuser())
-	{
-		if (enable_grant && !has_grant_privilege(GetUserId()))
-			ereport(ERROR,
-					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-					 errmsg("must have GRANT privilege to grant directory permissions")));
-		else
-			ereport(ERROR,
-					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-					 errmsg("must be superuser to grant directory permissions")));
-	}
+	/*
+	 * Only superusers are allowed to grant directory permissions, unless
+	 * enable_grant is true, then ONLY roles with GRANT can grant permissions.
+	 */
+	if (!enable_grant && !superuser())
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				 errmsg("must be superuser to grant directory permissions")));
+	else if (enable_grant && !has_grant_privilege(GetUserId()))
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				 errmsg("must have GRANT privilege to grant directory permissions")));
 
 	/*
 	 * Grantor is optional.  If it is not provided then set it to the current
@@ -675,16 +676,11 @@ get_directory_oid(const char *alias, bool missing_ok)
 {
 	Oid				dir_id;
 	Relation		pg_directory_rel;
-	HeapScanDesc	scandesc;
-	HeapTuple		tuple;
 	ScanKeyData		skey[1];
+	SysScanDesc		sscan;
+	HeapTuple		tuple;
 
-	/*
-	 * Search pg_directory.  We use a heapscan here even though there is an index
-	 * on alias.  We do this on the theory that pg_directory will usually have a
-	 * relatively small number of entries and therefore it is safe to assume
-	 * an index scan would be wasted effort.
-	 */
+	/* Search pg_directory for directory entry with provided alias */
 	pg_directory_rel = heap_open(DirectoryRelationId, AccessShareLock);
 
 	ScanKeyInit(&skey[0],
@@ -692,15 +688,17 @@ get_directory_oid(const char *alias, bool missing_ok)
 				BTEqualStrategyNumber, F_NAMEEQ,
 				CStringGetDatum(alias));
 
-	scandesc = heap_beginscan_catalog(pg_directory_rel, 1, skey);
-	tuple = heap_getnext(scandesc, ForwardScanDirection);
+	sscan = systable_beginscan(pg_directory_rel, DirectoryAliasPathIndexId,
+							   true, NULL, 1, skey);
+
+	tuple = systable_getnext(sscan);
 
 	if (HeapTupleIsValid(tuple))
 		dir_id = HeapTupleGetOid(tuple);
 	else
 		dir_id = InvalidOid;
 
-	heap_endscan(scandesc);
+	systable_endscan(sscan);
 	heap_close(pg_directory_rel, AccessShareLock);
 
 	if (!OidIsValid(dir_id) && !missing_ok)
