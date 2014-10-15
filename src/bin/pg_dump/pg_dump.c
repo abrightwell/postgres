@@ -191,7 +191,7 @@ static void dumpUserMappings(Archive *fout,
 				 const char *servername, const char *namespace,
 				 const char *owner, CatalogId catalogId, DumpId dumpId);
 static void dumpDefaultACL(Archive *fout, DumpOptions *dopt, DefaultACLInfo *daclinfo);
-static void dumpDirectoryAlias(Archive *fout, DirectoryAliasInfo *dirinfo);
+static void dumpDirectoryAlias(Archive *fout, DumpOptions *dopt, DirectoryAliasInfo *dirinfo);
 
 static void dumpACL(Archive *fout, DumpOptions *dopt, CatalogId objCatId, DumpId objDumpId,
 		const char *type, const char *name, const char *subname,
@@ -3038,13 +3038,13 @@ getDirectoryAliases(Archive *fout, int *numDirectoryAliases)
 }
 
 static void
-dumpDirectoryAlias(Archive *fout, DirectoryAliasInfo *dirinfo)
+dumpDirectoryAlias(Archive *fout, DumpOptions *dopt, DirectoryAliasInfo *dirinfo)
 {
 	PQExpBuffer		create_query;
 	PQExpBuffer		delete_query;
 	char		   *diralias;
 
-	if (!dirinfo->dobj.dump || dataOnly)
+	if (!dirinfo->dobj.dump || dopt->dataOnly)
 		return;
 
 	create_query = createPQExpBuffer();
@@ -3068,7 +3068,7 @@ dumpDirectoryAlias(Archive *fout, DirectoryAliasInfo *dirinfo)
 
 	/* Dump ACL - because of the special GRANT syntax, we cannot use dumpACL */
 	if (dirinfo->diracl)
-		dumpACL(fout, dirinfo->dobj.catId, dirinfo->dobj.dumpId,
+		dumpACL(fout, dopt, dirinfo->dobj.catId, dirinfo->dobj.dumpId,
 				"DIRECTORY", diralias, NULL, dirinfo->dobj.name,
 				NULL, dirinfo->rolname,
 				dirinfo->diracl);
@@ -8309,7 +8309,7 @@ dumpDumpableObject(Archive *fout, DumpOptions *dopt, DumpableObject *dobj)
 			dumpRowSecurity(fout, dopt, (RowSecurityInfo *) dobj);
 			break;
 		case DO_DIRECTORY_ALIAS:
-			dumpDirectoryAlias(fout, (DirectoryAliasInfo *) dobj);
+			dumpDirectoryAlias(fout, dopt, (DirectoryAliasInfo *) dobj);
 			break;
 		case DO_PRE_DATA_BOUNDARY:
 		case DO_POST_DATA_BOUNDARY:
