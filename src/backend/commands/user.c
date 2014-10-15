@@ -386,6 +386,13 @@ CreateRole(CreateRoleStmt *stmt)
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 					 errmsg("must be superuser to change setrole attribute.")));
 	}
+	else if (grant)
+	{
+		if (!superuser())
+			ereport(ERROR,
+					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+					 errmsg("must be superuser to change grant attribute.")));
+	}
 	else
 	{
 		if (!has_createrole_privilege(GetUserId()))
@@ -864,6 +871,13 @@ AlterRole(AlterRoleStmt *stmt)
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 					 errmsg("must be superuser to change setrole attribute")));
+	}
+	else if (((Form_pg_authid) GETSTRUCT(tuple))->rolgrant || grant >= 0)
+	{
+		if (!superuser())
+			ereport(ERROR,
+					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+					 errmsg("must be superuser to change grant attribute")));
 	}
 	else if (!has_createrole_privilege(GetUserId()))
 	{
