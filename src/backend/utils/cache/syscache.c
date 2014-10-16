@@ -37,6 +37,7 @@
 #include "catalog/pg_default_acl.h"
 #include "catalog/pg_depend.h"
 #include "catalog/pg_description.h"
+#include "catalog/pg_diralias.h"
 #include "catalog/pg_enum.h"
 #include "catalog/pg_event_trigger.h"
 #include "catalog/pg_foreign_data_wrapper.h"
@@ -363,6 +364,17 @@ static const struct cachedesc cacheinfo[] = {
 			Anum_pg_default_acl_defaclrole,
 			Anum_pg_default_acl_defaclnamespace,
 			Anum_pg_default_acl_defaclobjtype,
+			0
+		},
+		8
+	},
+	{DirAliasRelationId,		/* DIRALIASOID */
+		DirAliasOidIndexId,
+		1,
+		{
+			ObjectIdAttributeNumber,
+			0,
+			0,
 			0
 		},
 		8

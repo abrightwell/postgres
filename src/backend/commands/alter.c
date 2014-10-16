@@ -41,6 +41,7 @@
 #include "commands/conversioncmds.h"
 #include "commands/dbcommands.h"
 #include "commands/defrem.h"
+#include "commands/diralias.h"
 #include "commands/event_trigger.h"
 #include "commands/extension.h"
 #include "commands/policy.h"
@@ -349,6 +350,7 @@ ExecRenameStmt(RenameStmt *stmt)
 		case OBJECT_AGGREGATE:
 		case OBJECT_COLLATION:
 		case OBJECT_CONVERSION:
+		case OBJECT_DIRALIAS:
 		case OBJECT_EVENT_TRIGGER:
 		case OBJECT_FDW:
 		case OBJECT_FOREIGN_SERVER:

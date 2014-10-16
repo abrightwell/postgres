@@ -19,6 +19,7 @@
 #include "dumputils.h"
 
 #include "parser/keywords.h"
+#include "pg_backup_utils.h"
 
 
 /* Globals from keywords.c */
@@ -545,10 +546,16 @@ buildACLCommands(const char *name, const char *subname,
 	 * wire-in knowledge about the default public privileges for different
 	 * kinds of objects.
 	 */
-	appendPQExpBuffer(firstsql, "%sREVOKE ALL", prefix);
-	if (subname)
-		appendPQExpBuffer(firstsql, "(%s)", subname);
-	appendPQExpBuffer(firstsql, " ON %s %s FROM PUBLIC;\n", type, name);
+	if (strcmp(type, "DIRALIAS") == 0)
+		appendPQExpBuffer(firstsql, "REVOKE ON DIRALIAS %s ALL FROM PUBLIC;\n",
+						  name);
+	else
+	{
+		appendPQExpBuffer(firstsql, "%sREVOKE ALL", prefix);
+		if (subname)
+			appendPQExpBuffer(firstsql, "(%s)", subname);
+		appendPQExpBuffer(firstsql, " ON %s %s FROM PUBLIC;\n", type, name);
+	}
 
 	/*
 	 * We still need some hacking though to cover the case where new default
@@ -593,16 +600,34 @@ buildACLCommands(const char *name, const char *subname,
 					? strcmp(privswgo->data, "ALL") != 0
 					: strcmp(privs->data, "ALL") != 0)
 				{
-					appendPQExpBuffer(firstsql, "%sREVOKE ALL", prefix);
-					if (subname)
-						appendPQExpBuffer(firstsql, "(%s)", subname);
-					appendPQExpBuffer(firstsql, " ON %s %s FROM %s;\n",
-									  type, name, fmtId(grantee->data));
+					/* Handle special GRANT syntax for DIRALIAS */
+					if (strcmp(type, "DIRALIAS") == 0)
+						appendPQExpBuffer(firstsql, "REVOKE ON DIRALIAS %s ALL FROM %s;\n",
+										  name, fmtId(grantee->data));
+					else
+					{
+						appendPQExpBuffer(firstsql, "%sREVOKE ALL", prefix);
+						if (subname)
+							appendPQExpBuffer(firstsql, "(%s)", subname);
+						appendPQExpBuffer(firstsql, " ON %s %s FROM %s;\n",
+										  type, name, fmtId(grantee->data));
+					}
+
 					if (privs->len > 0)
-						appendPQExpBuffer(firstsql,
-										  "%sGRANT %s ON %s %s TO %s;\n",
-										  prefix, privs->data, type, name,
-										  fmtId(grantee->data));
+					{
+						/* Handle special GRANT syntax for DIRALIAS */
+						if (strcmp(type, "DIRALIAS") == 0)
+							appendPQExpBuffer(firstsql,
+											  "%sGRANT ON DIRALIAS %s %s TO %s;\n",
+											  prefix, name, privs->data,
+											  fmtId(grantee->data));
+						else
+							appendPQExpBuffer(firstsql,
+											  "%sGRANT %s ON %s %s TO %s;\n",
+											  prefix, privs->data, type, name,
+											  fmtId(grantee->data));
+					}
+
 					if (privswgo->len > 0)
 						appendPQExpBuffer(firstsql,
 							"%sGRANT %s ON %s %s TO %s WITH GRANT OPTION;\n",
@@ -622,8 +647,14 @@ buildACLCommands(const char *name, const char *subname,
 
 				if (privs->len > 0)
 				{
-					appendPQExpBuffer(secondsql, "%sGRANT %s ON %s %s TO ",
-									  prefix, privs->data, type, name);
+					/* Handle special GRANT syntax for DIRALIAS */
+					if (strcmp(type, "DIRALIAS") == 0)
+						appendPQExpBuffer(secondsql, "%sGRANT ON DIRALIAS %s %s TO ",
+										  prefix, name, privs->data);
+					else
+						appendPQExpBuffer(secondsql, "%sGRANT %s ON %s %s TO ",
+										  prefix, privs->data, type, name);
+
 					if (grantee->len == 0)
 						appendPQExpBufferStr(secondsql, "PUBLIC;\n");
 					else if (strncmp(grantee->data, "group ",
@@ -660,11 +691,18 @@ buildACLCommands(const char *name, const char *subname,
 	 */
 	if (!found_owner_privs && owner)
 	{
-		appendPQExpBuffer(firstsql, "%sREVOKE ALL", prefix);
-		if (subname)
-			appendPQExpBuffer(firstsql, "(%s)", subname);
-		appendPQExpBuffer(firstsql, " ON %s %s FROM %s;\n",
-						  type, name, fmtId(owner));
+		/* Handle special GRANT syntax for DIRALIAS */
+		if (strcmp(type, "DIRALIAS") == 0)
+			appendPQExpBuffer(firstsql, "REVOKE ON DIRALIAS %s ALL FROM %s",
+							  name, fmtId(owner));
+		else
+		{
+			appendPQExpBuffer(firstsql, "%sREVOKE ALL", prefix);
+			if (subname)
+				appendPQExpBuffer(firstsql, "(%s)", subname);
+			appendPQExpBuffer(firstsql, " ON %s %s FROM %s;\n",
+							  type, name, fmtId(owner));
+		}
 	}
 
 	destroyPQExpBuffer(grantee);
@@ -872,6 +910,11 @@ do { \
 	{
 		CONVERT_PRIV('r', "SELECT");
 		CONVERT_PRIV('w', "UPDATE");
+	}
+	else if (strcmp(type, "DIRALIAS") == 0)
+	{
+		CONVERT_PRIV('r', "READ");
+		CONVERT_PRIV('w', "WRITE");
 	}
 	else
 		abort();

@@ -3106,7 +3106,8 @@ _getObjectDescription(PQExpBuffer buf, TocEntry *te, ArchiveHandle *AH)
 		strcmp(type, "SCHEMA") == 0 ||
 		strcmp(type, "FOREIGN DATA WRAPPER") == 0 ||
 		strcmp(type, "SERVER") == 0 ||
-		strcmp(type, "USER MAPPING") == 0)
+		strcmp(type, "USER MAPPING") == 0 ||
+		strcmp(type, "DIRALIAS") == 0)
 	{
 		/* We already know that search_path was set properly */
 		appendPQExpBuffer(buf, "%s %s", type, fmtId(te->tag));
@@ -3307,7 +3308,8 @@ _printTocEntry(ArchiveHandle *AH, TocEntry *te, RestoreOptions *ropt, bool isDat
 			strcmp(te->desc, "TEXT SEARCH DICTIONARY") == 0 ||
 			strcmp(te->desc, "TEXT SEARCH CONFIGURATION") == 0 ||
 			strcmp(te->desc, "FOREIGN DATA WRAPPER") == 0 ||
-			strcmp(te->desc, "SERVER") == 0)
+			strcmp(te->desc, "SERVER") == 0 ||
+			strcmp(te->desc, "DIRALIAS") == 0)
 		{
 			PQExpBuffer temp = createPQExpBuffer();
 

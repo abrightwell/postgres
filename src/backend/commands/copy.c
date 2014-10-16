@@ -28,6 +28,7 @@
 #include "catalog/pg_type.h"
 #include "commands/copy.h"
 #include "commands/defrem.h"
+#include "commands/diralias.h"
 #include "commands/trigger.h"
 #include "executor/executor.h"
 #include "libpq/libpq.h"
@@ -788,9 +789,13 @@ DoCopy(const CopyStmt *stmt, const char *queryString, uint64 *processed)
 	Oid			relid;
 	Node	   *query = NULL;
 
-	/* Disallow COPY to/from file or program except to superusers. */
 	if (!pipe && !superuser())
 	{
+		/*
+		 * Disallow COPY to/from program except to superusers.  If COPY is to/from
+		 * a file then diallow unless the current user is either superuser or has
+		 * been granted the appropriate permissions on the target parent directory.
+		 */
 		if (stmt->is_program)
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
@@ -798,11 +803,43 @@ DoCopy(const CopyStmt *stmt, const char *queryString, uint64 *processed)
 					 errhint("Anyone can COPY to stdout or from stdin. "
 						   "psql's \\copy command also works for anyone.")));
 		else
-			ereport(ERROR,
-					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-					 errmsg("must be superuser to COPY to or from a file"),
-					 errhint("Anyone can COPY to stdout or from stdin. "
-						   "psql's \\copy command also works for anyone.")));
+		{
+			char	   *path;
+			Oid			diralias_id;
+			AclResult	aclresult;
+
+			/* Get the parent directory */
+			path = pstrdup(stmt->filename);
+			canonicalize_path(path);
+			get_parent_directory(path);
+
+			/* Search for directory in pg_diralias */
+			diralias_id = get_diralias_oid_by_path(path);
+
+			/*
+			 * If an entry does not exist for the path in pg_diralias then raise
+			 * an error.
+			 */
+			if (!OidIsValid(diralias_id))
+				ereport(ERROR,
+						(errcode(ERRCODE_UNDEFINED_OBJECT),
+						 errmsg("a directory alias entry for \"%s\" does not exist.",
+								path)));
+
+			/* Check directory alias entry permissions */
+			if (stmt->is_from)
+				aclresult = pg_diralias_aclcheck(diralias_id, GetUserId(), ACL_SELECT);
+			else
+				aclresult = pg_diralias_aclcheck(diralias_id, GetUserId(), ACL_UPDATE);
+
+			/* If the current user has insufficient privileges then raise an error. */
+			if (aclresult != ACLCHECK_OK)
+				ereport(ERROR,
+						(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+						 errmsg("must have permissions to COPY to or from \"%s\"", path),
+						 errhint("Anyone can COPY to stdout or from stdin. "
+								 "psql's \\copy command also works for anyone.")));
+		}
 	}
 
 	if (stmt->relation)

@@ -33,6 +33,7 @@
 #include "commands/createas.h"
 #include "commands/dbcommands.h"
 #include "commands/defrem.h"
+#include "commands/diralias.h"
 #include "commands/discard.h"
 #include "commands/event_trigger.h"
 #include "commands/explain.h"
@@ -185,6 +186,7 @@ check_xact_readonly(Node *parsetree)
 		case T_DropRoleStmt:
 		case T_GrantStmt:
 		case T_GrantRoleStmt:
+		case T_GrantDirAliasStmt:
 		case T_AlterDefaultPrivilegesStmt:
 		case T_TruncateStmt:
 		case T_DropOwnedStmt:
@@ -555,6 +557,10 @@ standard_ProcessUtility(Node *parsetree,
 		case T_GrantRoleStmt:
 			/* no event triggers for global objects */
 			GrantRole((GrantRoleStmt *) parsetree);
+			break;
+
+		case T_GrantDirAliasStmt:
+			ExecuteGrantDirAliasStmt((GrantDirAliasStmt *) parsetree);
 			break;
 
 		case T_CreatedbStmt:
@@ -1329,6 +1335,14 @@ ProcessUtilitySlow(Node *parsetree,
 				AlterPolicy((AlterPolicyStmt *) parsetree);
 				break;
 
+			case T_CreateDirAliasStmt:	/* CREATE DIRALIAS */
+				CreateDirAlias((CreateDirAliasStmt *) parsetree);
+				break;
+
+			case T_AlterDirAliasStmt:	/* ALTER DIRALIAS */
+				AlterDirAlias((AlterDirAliasStmt *) parsetree);
+				break;
+
 			default:
 				elog(ERROR, "unrecognized node type: %d",
 					 (int) nodeTag(parsetree));
@@ -1595,6 +1609,9 @@ AlterObjectTypeCommandTag(ObjectType objtype)
 			break;
 		case OBJECT_DATABASE:
 			tag = "ALTER DATABASE";
+			break;
+		case OBJECT_DIRALIAS:
+			tag = "ALTER DIRALIAS";
 			break;
 		case OBJECT_DOMAIN:
 			tag = "ALTER DOMAIN";
@@ -1959,6 +1976,9 @@ CreateCommandTag(Node *parsetree)
 				case OBJECT_POLICY:
 					tag = "DROP POLICY";
 					break;
+				case OBJECT_DIRALIAS:
+					tag = "DROP DIRALIAS";
+					break;
 				default:
 					tag = "???";
 			}
@@ -2013,6 +2033,14 @@ CreateCommandTag(Node *parsetree)
 				GrantStmt  *stmt = (GrantStmt *) parsetree;
 
 				tag = (stmt->is_grant) ? "GRANT" : "REVOKE";
+			}
+			break;
+
+		case T_GrantDirAliasStmt:
+			{
+				GrantDirAliasStmt *stmt = (GrantDirAliasStmt *) parsetree;
+
+				tag = (stmt->is_grant ? "GRANT ON DIRALIAS" : "REVOKE ON DIRALIAS");
 			}
 			break;
 
@@ -2308,6 +2336,14 @@ CreateCommandTag(Node *parsetree)
 
 		case T_AlterPolicyStmt:
 			tag = "ALTER POLICY";
+			break;
+
+		case T_CreateDirAliasStmt:
+			tag = "CREATE DIRALIAS";
+			break;
+
+		case T_AlterDirAliasStmt:
+			tag = "ALTER DIRALIAS";
 			break;
 
 		case T_PrepareStmt:
@@ -2859,6 +2895,14 @@ GetCommandLogLevel(Node *parsetree)
 			break;
 
 		case T_AlterPolicyStmt:
+			lev = LOGSTMT_DDL;
+			break;
+
+		case T_CreateDirAliasStmt:
+			lev = LOGSTMT_DDL;
+			break;
+
+		case T_AlterDirAliasStmt:
 			lev = LOGSTMT_DDL;
 			break;
 

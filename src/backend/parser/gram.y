@@ -258,7 +258,8 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 		DeallocateStmt PrepareStmt ExecuteStmt
 		DropOwnedStmt ReassignOwnedStmt
 		AlterTSConfigurationStmt AlterTSDictionaryStmt
-		CreateMatViewStmt RefreshMatViewStmt
+		CreateMatViewStmt RefreshMatViewStmt GrantDirStmt RevokeDirStmt
+		CreateDirAliasStmt AlterDirAliasStmt
 
 %type <node>	select_no_parens select_with_parens select_clause
 				simple_select values_clause
@@ -323,6 +324,9 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 %type <str>		row_security_cmd RowSecurityDefaultForCmd
 %type <node>	RowSecurityOptionalWithCheck RowSecurityOptionalExpr
 %type <list>	RowSecurityDefaultToRole RowSecurityOptionalToRole
+
+%type <node>	dir_perm_opts
+%type <list>	dir_permissions dir_perm_list
 
 %type <str>		iso_level opt_encoding
 %type <node>	grantee
@@ -559,7 +563,8 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 
 	DATA_P DATABASE DAY_P DEALLOCATE DEC DECIMAL_P DECLARE DEFAULT DEFAULTS
 	DEFERRABLE DEFERRED DEFINER DELETE_P DELIMITER DELIMITERS DESC
-	DICTIONARY DISABLE_P DISCARD DISTINCT DO DOCUMENT_P DOMAIN_P DOUBLE_P DROP
+	DICTIONARY DIRALIAS DISABLE_P DISCARD DISTINCT DO DOCUMENT_P DOMAIN_P
+	DOUBLE_P DROP
 
 	EACH ELSE ENABLE_P ENCODING ENCRYPTED END_P ENUM_P ESCAPE EVENT EXCEPT
 	EXCLUDE EXCLUDING EXCLUSIVE EXECUTE EXISTS EXPLAIN
@@ -734,6 +739,7 @@ stmt :
 			| AlterDatabaseStmt
 			| AlterDatabaseSetStmt
 			| AlterDefaultPrivilegesStmt
+			| AlterDirAliasStmt
 			| AlterDomainStmt
 			| AlterEnumStmt
 			| AlterExtensionStmt
@@ -769,6 +775,7 @@ stmt :
 			| CreateAssertStmt
 			| CreateCastStmt
 			| CreateConversionStmt
+			| CreateDirAliasStmt
 			| CreateDomainStmt
 			| CreateExtensionStmt
 			| CreateFdwStmt
@@ -820,6 +827,7 @@ stmt :
 			| ExplainStmt
 			| FetchStmt
 			| GrantStmt
+			| GrantDirStmt
 			| GrantRoleStmt
 			| ImportForeignSchemaStmt
 			| IndexStmt
@@ -837,6 +845,7 @@ stmt :
 			| RemoveOperStmt
 			| RenameStmt
 			| RevokeStmt
+			| RevokeDirStmt
 			| RevokeRoleStmt
 			| RuleStmt
 			| SecLabelStmt
@@ -4622,6 +4631,34 @@ row_security_cmd:
 
 /*****************************************************************************
  *
+ *		QUERIES:
+ *				CREATE DIRALIAS <name> AS <path>
+ *				ALTER DIRALIAS <name> AS <path>
+ *
+ *****************************************************************************/
+
+CreateDirAliasStmt:
+			CREATE DIRALIAS name AS Sconst
+				{
+					CreateDirAliasStmt *n = makeNode(CreateDirAliasStmt);
+					n->name = $3;
+					n->path = $5;
+					$$ = (Node *) n;
+				}
+		;
+
+AlterDirAliasStmt:
+			ALTER DIRALIAS name AS Sconst
+				{
+					AlterDirAliasStmt *n = makeNode(AlterDirAliasStmt);
+					n->name = $3;
+					n->path = $5;
+					$$ = (Node *) n;
+				}
+		;
+
+/*****************************************************************************
+ *
  *		QUERIES :
  *				CREATE TRIGGER ...
  *				DROP TRIGGER ...
@@ -5497,6 +5534,7 @@ drop_type:	TABLE									{ $$ = OBJECT_TABLE; }
 			| CONVERSION_P							{ $$ = OBJECT_CONVERSION; }
 			| SCHEMA								{ $$ = OBJECT_SCHEMA; }
 			| EXTENSION								{ $$ = OBJECT_EXTENSION; }
+			| DIRALIAS								{ $$ = OBJECT_DIRALIAS; }
 			| TEXT_P SEARCH PARSER					{ $$ = OBJECT_TSPARSER; }
 			| TEXT_P SEARCH DICTIONARY				{ $$ = OBJECT_TSDICTIONARY; }
 			| TEXT_P SEARCH TEMPLATE				{ $$ = OBJECT_TSTEMPLATE; }
@@ -6326,6 +6364,67 @@ opt_grant_admin_option: WITH ADMIN OPTION				{ $$ = TRUE; }
 
 opt_granted_by: GRANTED BY RoleId						{ $$ = $3; }
 			| /*EMPTY*/									{ $$ = NULL; }
+		;
+
+/*****************************************************************************
+ *
+ *		QUERIES:
+ *				GRANT ON DIRALIAS <alias> <permissions> TO <roles>
+ *				REVOKE ON DIRALIAS <alias> <permsissions> FROM <roles>
+ *
+ *****************************************************************************/
+GrantDirStmt:
+			GRANT ON DIRALIAS name_list dir_permissions TO grantee_list
+				opt_granted_by
+				{
+					GrantDirAliasStmt *n = makeNode(GrantDirAliasStmt);
+					n->is_grant = true;
+					n->directories = $4;
+					n->permissions = $5;
+					n->grantees = $7;
+					n->grantor = $8;
+					$$ = (Node*)n;
+				}
+		;
+
+RevokeDirStmt:
+			REVOKE ON DIRALIAS name_list dir_permissions FROM grantee_list
+				{
+					GrantDirAliasStmt *n = makeNode(GrantDirAliasStmt);
+					n->is_grant = false;
+					n->directories = $4;
+					n->permissions = $5;
+					n->grantees = $7;
+					$$ = (Node*)n;
+				}
+		;
+
+/* either ALL or a list of individual permissions */
+dir_permissions: dir_perm_list
+					{ $$ = $1; }
+				| ALL { $$ = NIL; }
+			;
+
+
+dir_perm_list: dir_perm_opts					{ $$ = list_make1($1); }
+			| dir_perm_list ',' dir_perm_opts	{ $$ = lappend($1, $3); }
+		;
+
+dir_perm_opts:
+			READ
+				{
+					AccessPriv *n = makeNode(AccessPriv);
+					n->priv_name = pstrdup("select");
+					n->cols = NIL;
+					$$ = (Node*)n;
+				}
+			| WRITE
+				{
+					AccessPriv *n = makeNode(AccessPriv);
+					n->priv_name = pstrdup("update");
+					n->cols = NIL;
+					$$ = (Node*)n;
+				}
 		;
 
 /*****************************************************************************
@@ -7285,6 +7384,15 @@ RenameStmt: ALTER AGGREGATE func_name aggr_args RENAME TO name
 					RenameStmt *n = makeNode(RenameStmt);
 					n->renameType = OBJECT_DATABASE;
 					n->subname = $3;
+					n->newname = $6;
+					n->missing_ok = false;
+					$$ = (Node *)n;
+				}
+			| ALTER DIRALIAS name RENAME TO name
+				{
+					RenameStmt *n = makeNode(RenameStmt);
+					n->renameType = OBJECT_DIRALIAS;
+					n->object = list_make1(makeString($3));
 					n->newname = $6;
 					n->missing_ok = false;
 					$$ = (Node *)n;
@@ -13087,6 +13195,7 @@ unreserved_keyword:
 			| DELIMITER
 			| DELIMITERS
 			| DICTIONARY
+			| DIRALIAS
 			| DISABLE_P
 			| DISCARD
 			| DOCUMENT_P

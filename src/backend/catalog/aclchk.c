@@ -30,6 +30,7 @@
 #include "catalog/pg_collation.h"
 #include "catalog/pg_conversion.h"
 #include "catalog/pg_database.h"
+#include "catalog/pg_diralias.h"
 #include "catalog/pg_default_acl.h"
 #include "catalog/pg_event_trigger.h"
 #include "catalog/pg_extension.h"
@@ -48,6 +49,7 @@
 #include "catalog/pg_ts_config.h"
 #include "catalog/pg_ts_dict.h"
 #include "commands/dbcommands.h"
+#include "commands/diralias.h"
 #include "commands/proclang.h"
 #include "commands/tablespace.h"
 #include "foreign/foreign.h"
@@ -3183,6 +3185,190 @@ ExecGrant_Type(InternalGrant *istmt)
 	heap_close(relation, RowExclusiveLock);
 }
 
+/*
+ * ExecuteGrantDirAliasStmt
+ *   handles the execution of the GRANT/REVOKE ON DIRALIAS command.
+ *
+ * stmt - the GrantDirAliasStmt that describes the directory aliases and
+ *        permissions to be granted/revoked.
+ */
+void
+ExecuteGrantDirAliasStmt(GrantDirAliasStmt *stmt)
+{
+	Relation		pg_diralias_rel;
+	Oid				grantor;
+	List		   *grantee_ids = NIL;
+	AclMode			permissions;
+	ListCell	   *item;
+
+	/* Must be superuser to grant directory alias permissions */
+	if (!superuser())
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				 errmsg("must be superuser to grant directory alias permissions")));
+
+	/*
+	 * Grantor is optional.  If it is not provided then set it to the current
+	 * user.
+	 */
+	if (stmt->grantor)
+		grantor = get_role_oid(stmt->grantor, false);
+	else
+		grantor = GetUserId();
+
+	/* Convert grantee names to oids */
+	foreach(item, stmt->grantees)
+	{
+		PrivGrantee *grantee = (PrivGrantee *) lfirst(item);
+
+		if (grantee->rolname == NULL)
+			grantee_ids = lappend_oid(grantee_ids, ACL_ID_PUBLIC);
+		else
+		{
+			Oid roleid = get_role_oid(grantee->rolname, false);
+			grantee_ids = lappend_oid(grantee_ids, roleid);
+		}
+	}
+
+	permissions = ACL_NO_RIGHTS;
+
+	/* If ALL was provided then set permissions to ACL_ALL_RIGHTS_DIRALIAS */
+	if (stmt->permissions == NIL)
+		permissions = ACL_ALL_RIGHTS_DIRALIAS;
+	else
+	{
+		/* Condense all permissions */
+		foreach(item, stmt->permissions)
+		{
+			AccessPriv *priv = (AccessPriv *) lfirst(item);
+			permissions |= string_to_privilege(priv->priv_name);
+		}
+	}
+
+
+	/*
+	 * Though it shouldn't be possible to provide permissions other than READ
+	 * and WRITE, check to make sure no others have been set.  If they have,
+	 * then warn the user and correct the permissions.
+	 */
+	if (permissions & !((AclMode) ACL_ALL_RIGHTS_DIRALIAS))
+	{
+		ereport(WARNING,
+				(errcode(ERRCODE_INVALID_GRANT_OPERATION),
+				 errmsg("directory aliases only support READ and WRITE permissions")));
+
+		permissions &= ACL_ALL_RIGHTS_DIRALIAS;
+	}
+
+	pg_diralias_rel = heap_open(DirAliasRelationId, RowExclusiveLock);
+
+	/* Grant/Revoke permissions on directory aliases */
+	foreach(item, stmt->directories)
+	{
+		Datum			values[Natts_pg_diralias];
+		bool			replaces[Natts_pg_diralias];
+		bool			nulls[Natts_pg_diralias];
+		ScanKeyData		skey[1];
+		HeapScanDesc	scandesc;
+		HeapTuple		tuple;
+		HeapTuple		new_tuple;
+		Datum			datum;
+		Oid				owner_id;
+		Acl			   *dir_acl;
+		Acl			   *new_acl;
+		bool			is_null;
+		int				num_old_members;
+		int				num_new_members;
+		Oid			   *old_members;
+		Oid			   *new_members;
+		Oid				diralias_id;
+		char		   *name;
+
+		name = strVal(lfirst(item));
+
+		ScanKeyInit(&skey[0],
+					Anum_pg_diralias_dirname,
+					BTEqualStrategyNumber, F_NAMEEQ,
+					CStringGetDatum(name));
+
+		scandesc = heap_beginscan_catalog(pg_diralias_rel, 1, skey);
+
+		tuple = heap_getnext(scandesc, ForwardScanDirection);
+
+		if (!HeapTupleIsValid(tuple))
+			elog(ERROR, "could not find tuple for directory alias \"%s\"", name);
+
+		/*
+		 * Get directory alias owner id.  Since all superusers are considered
+		 * to be owners of a directory alias, it is safe to assume that the
+		 * current user is an owner, given the superuser check above.
+		 */
+		owner_id = GetUserId();
+
+		/* Get directory alias ACL */
+		datum = heap_getattr(tuple, Anum_pg_diralias_diracl,
+							 RelationGetDescr(pg_diralias_rel), &is_null);
+
+		/* Get the directory alias oid */
+		diralias_id = HeapTupleGetOid(tuple);
+
+		/*
+		 * If there are currently no permissions granted on the directory alias,
+		 * then add default permissions, which should include the permssions
+		 * granted to the owner of the table.  Directory aliases are owned by
+		 * all superusers.
+		 */
+		if (is_null)
+		{
+			dir_acl = acldefault(ACL_OBJECT_DIRALIAS, owner_id);
+			num_old_members = 0;
+			old_members = NULL;
+		}
+		else
+		{
+			dir_acl = DatumGetAclPCopy(datum);
+
+			/* Get the roles in the current ACL */
+			num_old_members = aclmembers(dir_acl, &old_members);
+		}
+
+		/* Merge new ACL with current ACL */
+		new_acl = merge_acl_with_grant(dir_acl, stmt->is_grant, false,
+									   DROP_CASCADE, grantee_ids, permissions,
+									   grantor, owner_id);
+
+		num_new_members = aclmembers(new_acl, &new_members);
+
+		/* Insert new ACL value */
+		memset(values,   0, sizeof(values));
+		memset(nulls,    0, sizeof(nulls));
+		memset(replaces, 0, sizeof(replaces));
+
+		values[Anum_pg_diralias_diracl - 1] = PointerGetDatum(new_acl);
+		replaces[Anum_pg_diralias_diracl - 1] = true;
+
+		new_tuple = heap_modify_tuple(tuple, RelationGetDescr(pg_diralias_rel),
+									  values, nulls, replaces);
+
+		simple_heap_update(pg_diralias_rel, &new_tuple->t_self, new_tuple);
+
+		/* Update Indexes */
+		CatalogUpdateIndexes(pg_diralias_rel, new_tuple);
+
+		/* Update shared dependency ACL information */
+		updateAclDependencies(DirAliasRelationId, diralias_id, 0,
+							  owner_id,
+							  num_old_members, old_members,
+							  num_new_members, new_members);
+
+		/* Clean Up */
+		pfree(new_acl);
+		heap_endscan(scandesc);
+	}
+
+	heap_close(pg_diralias_rel, RowExclusiveLock);
+}
+
 
 static AclMode
 string_to_privilege(const char *privname)
@@ -3307,6 +3493,8 @@ static const char *const no_priv_msg[MAX_ACL_KIND] =
 	gettext_noop("permission denied for event trigger %s"),
 	/* ACL_KIND_EXTENSION */
 	gettext_noop("permission denied for extension %s"),
+	/* ACL_KIND_DIRALIAS */
+	gettext_noop("permission denied for directory alias %s"),
 };
 
 static const char *const not_owner_msg[MAX_ACL_KIND] =
@@ -3353,6 +3541,8 @@ static const char *const not_owner_msg[MAX_ACL_KIND] =
 	gettext_noop("must be owner of event trigger %s"),
 	/* ACL_KIND_EXTENSION */
 	gettext_noop("must be owner of extension %s"),
+	/* ACL_KIND_DIRALIAS */
+	gettext_noop("must be owner of directory alias %s"),
 };
 
 
@@ -4194,6 +4384,62 @@ pg_foreign_server_aclmask(Oid srv_oid, Oid roleid,
 }
 
 /*
+ * Exported routine for examining a user's permissions for a directory alias.
+ */
+AclMode
+pg_diralias_aclmask(Oid dir_oid, Oid roleid, AclMode mask, AclMaskHow how)
+{
+	AclMode				result;
+	HeapTuple			tuple;
+	Datum				aclDatum;
+	bool				isNull;
+	Acl				   *acl;
+
+	/* Bypass permission checks for superusers */
+	if (superuser_arg(roleid))
+		return mask;
+
+	/* Must get the directory alias's tuple from pg_diralias */
+	tuple = SearchSysCache1(DIRALIASOID, ObjectIdGetDatum(dir_oid));
+	if (!HeapTupleIsValid(tuple))
+			ereport(ERROR,
+					(errcode(ERRCODE_UNDEFINED_OBJECT),
+					 errmsg("directory alias with OID %u does not exist", dir_oid)));
+
+	aclDatum = SysCacheGetAttr(DIRALIASOID, tuple,
+							   Anum_pg_diralias_diracl, &isNull);
+	if (isNull)
+	{
+		/* No ACL, so build default ACL */
+		acl = acldefault(ACL_OBJECT_DIRALIAS, roleid);
+		aclDatum = (Datum) 0;
+	}
+	else
+	{
+		/* detoast rel's ACL if necessary */
+		acl = DatumGetAclP(aclDatum);
+	}
+
+	/*
+	 * We use InvalidOid as the ownerid for determining the aclmask.  This is
+	 * because directory aliases belong to all superusers.  aclmask() uses the
+	 * ownerid to determine grant options by implying that owners always have
+	 * all grant options.  If roleid, is not a superuser and therefore an owner
+	 * (which it couldn't be at this point), then this check in aclmask() must
+	 * be false. Therefore, by using InvalidOid we are guaranteed this behavior.
+	 */
+	result = aclmask(acl, roleid, InvalidOid, mask, how);
+
+	/* if we have a detoasted copy, free it */
+	if (acl && (Pointer) acl != DatumGetPointer(aclDatum))
+		pfree(acl);
+
+	ReleaseSysCache(tuple);
+
+	return result;
+}
+
+/*
  * Exported routine for examining a user's privileges for a type.
  */
 AclMode
@@ -4507,6 +4753,18 @@ AclResult
 pg_type_aclcheck(Oid type_oid, Oid roleid, AclMode mode)
 {
 	if (pg_type_aclmask(type_oid, roleid, mode, ACLMASK_ANY) != 0)
+		return ACLCHECK_OK;
+	else
+		return ACLCHECK_NO_PRIV;
+}
+
+/*
+ * Exported routine for checking a user's access permissions to a directory alias
+ */
+AclResult
+pg_diralias_aclcheck(Oid dir_oid, Oid roleid, AclMode mode)
+{
+	if (pg_diralias_aclmask(dir_oid, roleid, mode, ACLMASK_ANY) != 0)
 		return ACLCHECK_OK;
 	else
 		return ACLCHECK_NO_PRIV;

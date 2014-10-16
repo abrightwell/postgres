@@ -299,6 +299,12 @@ DECLARE_UNIQUE_INDEX(pg_extension_name_index, 3081, on pg_extension using btree(
 DECLARE_UNIQUE_INDEX(pg_range_rngtypid_index, 3542, on pg_range using btree(rngtypid oid_ops));
 #define RangeTypidIndexId					3542
 
+DECLARE_UNIQUE_INDEX(pg_directory_oid_index, 6101, on pg_diralias using btree(oid oid_ops));
+#define DirAliasOidIndexId					6101
+
+DECLARE_UNIQUE_INDEX(pg_directory_name_index, 6102, on pg_diralias using btree(dirname name_ops));
+#define DirAliasNameIndexId				6102
+
 DECLARE_UNIQUE_INDEX(pg_rowsecurity_oid_index, 3257, on pg_rowsecurity using btree(oid oid_ops));
 #define RowSecurityOidIndexId				3257
 

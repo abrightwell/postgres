@@ -278,6 +278,7 @@ typedef enum NodeTag
 	T_AlterDomainStmt,
 	T_SetOperationStmt,
 	T_GrantStmt,
+	T_GrantDirAliasStmt,
 	T_GrantRoleStmt,
 	T_AlterDefaultPrivilegesStmt,
 	T_ClosePortalStmt,
@@ -368,6 +369,8 @@ typedef enum NodeTag
 	T_AlterSystemStmt,
 	T_CreatePolicyStmt,
 	T_AlterPolicyStmt,
+	T_CreateDirAliasStmt,
+	T_AlterDirAliasStmt,
 
 	/*
 	 * TAGS FOR PARSE TREE NODES (parsenodes.h)

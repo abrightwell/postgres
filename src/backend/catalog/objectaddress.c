@@ -26,6 +26,7 @@
 #include "catalog/pg_authid.h"
 #include "catalog/pg_cast.h"
 #include "catalog/pg_default_acl.h"
+#include "catalog/pg_diralias.h"
 #include "catalog/pg_event_trigger.h"
 #include "catalog/pg_collation.h"
 #include "catalog/pg_constraint.h"
@@ -54,6 +55,7 @@
 #include "catalog/pg_user_mapping.h"
 #include "commands/dbcommands.h"
 #include "commands/defrem.h"
+#include "commands/diralias.h"
 #include "commands/event_trigger.h"
 #include "commands/extension.h"
 #include "commands/policy.h"
@@ -358,6 +360,18 @@ static const ObjectPropertyType ObjectProperty[] =
 		false
 	},
 	{
+		DirAliasRelationId,
+		DirAliasOidIndexId,
+		DIRALIASOID,
+		-1,
+		Anum_pg_diralias_dirname,
+		InvalidAttrNumber,
+		InvalidAttrNumber,
+		InvalidAttrNumber,
+		-1,
+		false
+	},
+	{
 		EventTriggerRelationId,
 		EventTriggerOidIndexId,
 		EVENTTRIGGEROID,
@@ -536,6 +550,7 @@ get_object_address(ObjectType objtype, List *objname, List *objargs,
 													   &relation, missing_ok);
 				break;
 			case OBJECT_DATABASE:
+			case OBJECT_DIRALIAS:
 			case OBJECT_EXTENSION:
 			case OBJECT_TABLESPACE:
 			case OBJECT_ROLE:
@@ -746,6 +761,9 @@ get_object_address_unqualified(ObjectType objtype,
 			case OBJECT_DATABASE:
 				msg = gettext_noop("database name cannot be qualified");
 				break;
+			case OBJECT_DIRALIAS:
+				msg = gettext_noop("directory alias cannot be qualified");
+				break;
 			case OBJECT_EXTENSION:
 				msg = gettext_noop("extension name cannot be qualified");
 				break;
@@ -788,6 +806,11 @@ get_object_address_unqualified(ObjectType objtype,
 		case OBJECT_DATABASE:
 			address.classId = DatabaseRelationId;
 			address.objectId = get_database_oid(name, missing_ok);
+			address.objectSubId = 0;
+			break;
+		case OBJECT_DIRALIAS:
+			address.classId = DirAliasRelationId;
+			address.objectId = get_diralias_oid(name, missing_ok);
 			address.objectSubId = 0;
 			break;
 		case OBJECT_EXTENSION:
@@ -1318,6 +1341,7 @@ check_object_ownership(Oid roleid, ObjectType objtype, ObjectAddress address,
 			break;
 		case OBJECT_TSPARSER:
 		case OBJECT_TSTEMPLATE:
+		case OBJECT_DIRALIAS:
 			/* We treat these object types as being owned by superusers */
 			if (!superuser_arg(roleid))
 				ereport(ERROR,
@@ -2221,6 +2245,18 @@ getObjectDescription(const ObjectAddress *object)
 
 				systable_endscan(sscan);
 				heap_close(rsec_rel, AccessShareLock);
+				break;
+			}
+
+		case OCLASS_DIRALIAS:
+			{
+				char	   *diralias_name;
+
+				diralias_name = get_diralias_name(object->objectId);
+				if (!diralias_name)
+					elog(ERROR, "cache lookup failed for directory alias %u",
+						 object->objectId);
+				appendStringInfo(&buffer, _("directory alias %s"), diralias_name);
 				break;
 			}
 

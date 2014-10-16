@@ -380,6 +380,10 @@ does_not_exist_skipping(ObjectType objtype, List *objname, List *objargs)
 												  list_length(objname) - 1));
 			}
 			break;
+		case OBJECT_DIRALIAS:
+			msg = gettext_noop("directory alias \"%s\" does not exist, skipping");
+			name = NameListToString(objname);
+			break;
 		case OBJECT_EVENT_TRIGGER:
 			msg = gettext_noop("event trigger \"%s\" does not exist, skipping");
 			name = NameListToString(objname);

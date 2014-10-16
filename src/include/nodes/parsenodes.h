@@ -1212,6 +1212,7 @@ typedef enum ObjectType
 	OBJECT_COLLATION,
 	OBJECT_CONVERSION,
 	OBJECT_DATABASE,
+	OBJECT_DIRALIAS,
 	OBJECT_DOMAIN,
 	OBJECT_EVENT_TRIGGER,
 	OBJECT_EXTENSION,
@@ -1412,6 +1413,7 @@ typedef enum GrantObjectType
 	ACL_OBJECT_LARGEOBJECT,		/* largeobject */
 	ACL_OBJECT_NAMESPACE,		/* namespace */
 	ACL_OBJECT_TABLESPACE,		/* tablespace */
+	ACL_OBJECT_DIRALIAS,		/* directory alias */
 	ACL_OBJECT_TYPE				/* type */
 } GrantObjectType;
 
@@ -1481,6 +1483,20 @@ typedef struct GrantRoleStmt
 	char	   *grantor;		/* set grantor to other than current role */
 	DropBehavior behavior;		/* drop behavior (for REVOKE) */
 } GrantRoleStmt;
+
+/* ----------------------
+ *		Grant/Revoke Directory Permission Statement
+ * ----------------------
+ */
+typedef struct GrantDirAliasStmt
+{
+	NodeTag		type;
+	List	   *directories;			/* the directory alias/name */
+	List	   *permissions;	/* list of permission to be granted/revoked */
+	List	   *grantees;		/* list of roles to be granted/revoked permission */
+	bool		is_grant;		/* true = GRANT, false = REVOKE */
+	char	   *grantor;		/* set grantor to other than current role */
+} GrantDirAliasStmt;
 
 /* ----------------------
  *	Alter Default Privileges Statement
@@ -1888,6 +1904,28 @@ typedef struct AlterPolicyStmt
 	Node	   *qual;			/* the policy's condition */
 	Node	   *with_check;		/* the policy's WITH CHECK condition. */
 } AlterPolicyStmt;
+
+/* ----------------------
+ *		Create DIRALIAS Statement
+ * ----------------------
+ */
+typedef struct CreateDirAliasStmt
+{
+	NodeTag		type;
+	char	   *name;
+	char	   *path;
+} CreateDirAliasStmt;
+
+/* ----------------------
+ *		Alter DIRALIAS Statement
+ * ----------------------
+ */
+typedef struct AlterDirAliasStmt
+{
+	NodeTag		type;
+	char	   *name;
+	char	   *path;
+} AlterDirAliasStmt;
 
 /* ----------------------
  *		Create TRIGGER Statement

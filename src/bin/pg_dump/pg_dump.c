@@ -191,6 +191,7 @@ static void dumpUserMappings(Archive *fout,
 				 const char *servername, const char *namespace,
 				 const char *owner, CatalogId catalogId, DumpId dumpId);
 static void dumpDefaultACL(Archive *fout, DumpOptions *dopt, DefaultACLInfo *daclinfo);
+static void dumpDirectoryAlias(Archive *fout, DumpOptions *dopt, DirectoryAliasInfo *dirinfo);
 
 static void dumpACL(Archive *fout, DumpOptions *dopt, CatalogId objCatId, DumpId objDumpId,
 		const char *type, const char *name, const char *subname,
@@ -2981,6 +2982,99 @@ dumpRowSecurity(Archive *fout, DumpOptions *dopt, RowSecurityInfo *rsinfo)
 
 	destroyPQExpBuffer(query);
 	destroyPQExpBuffer(delqry);
+}
+
+void
+getDirectoryAliases(Archive *fout, int *numDirectoryAliases)
+{
+	PQExpBuffer				query;
+	PGresult			   *res;
+	DirectoryAliasInfo	   *dirinfo;
+	int				i_tableoid;
+	int				i_oid;
+	int				i_diralias;
+	int				i_dirpath;
+	int				i_rolname;
+	int				i_diracl;
+	int				i, ntups;
+
+	if (fout->remoteVersion < 90500)
+		return;
+
+	query = createPQExpBuffer();
+
+	/* Make sure we are in proper schema */
+	selectSourceSchema(fout, "pg_catalog");
+
+	appendPQExpBuffer(query, "SELECT tableoid, oid, diralias, dirpath, "
+					  "(%s dirowner) AS rolname, diracl "
+					  "FROM pg_catalog.pg_directory",
+					  username_subquery);
+
+	res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
+
+	ntups = PQntuples(res);
+
+	dirinfo = (DirectoryAliasInfo *) pg_malloc(ntups * sizeof(DirectoryAliasInfo));
+
+	i_tableoid = PQfnumber(res, "tableoid");
+	i_oid = PQfnumber(res, "oid");
+	i_diralias = PQfnumber(res, "diralias");
+	i_dirpath = PQfnumber(res, "dirpath");
+	i_rolname = PQfnumber(res, "rolname");
+	i_diracl = PQfnumber(res, "diracl");
+
+	for (i = 0; i < ntups; i++)
+	{
+		dirinfo[i].dobj.objType = DO_DIRALIAS;
+		dirinfo[i].dobj.catId.tableoid = atooid(PQgetvalue(res, i, i_tableoid));
+		dirinfo[i].dobj.catId.oid = atooid(PQgetvalue(res, i, i_oid));
+		AssignDumpId(&dirinfo[i].dobj);
+		dirinfo[i].dobj.name = pg_strdup(PQgetvalue(res, i, i_diralias));
+		dirinfo[i].rolname = pg_strdup(PQgetvalue(res, i, i_rolname));
+		dirinfo[i].dirpath = pg_strdup(PQgetvalue(res, i, i_dirpath));
+		dirinfo[i].diracl = pg_strdup(PQgetvalue(res, i, i_diracl));
+	}
+}
+
+static void
+dumpDirectoryAlias(Archive *fout, DumpOptions *dopt, DirectoryAliasInfo *dirinfo)
+{
+	PQExpBuffer		create_query;
+	PQExpBuffer		delete_query;
+	char		   *diralias;
+
+	if (!dirinfo->dobj.dump || dopt->dataOnly)
+		return;
+
+	create_query = createPQExpBuffer();
+	delete_query = createPQExpBuffer();
+
+	diralias = pg_strdup(fmtId(dirinfo->dobj.name));
+
+	appendPQExpBuffer(delete_query, "DROP DIRALIAS %s;\n", diralias);
+
+	appendPQExpBuffer(create_query, "CREATE DIRALIAS %s AS \'%s\';\n",
+					  diralias, dirinfo->dirpath);
+
+	ArchiveEntry(fout, dirinfo->dobj.catId, dirinfo->dobj.dumpId,
+				 dirinfo->dobj.name,
+				 NULL, NULL,
+				 dirinfo->rolname, false,
+				 "DIRALIAS", SECTION_POST_DATA,
+				 create_query->data, delete_query->data, NULL,
+				 NULL, 0,
+				 NULL, NULL);
+
+	/* Dump ACL - because of the special GRANT syntax, we cannot use dumpACL */
+	if (dirinfo->diracl)
+		dumpACL(fout, dopt, dirinfo->dobj.catId, dirinfo->dobj.dumpId,
+				"DIRALIAS", diralias, NULL, dirinfo->dobj.name,
+				NULL, dirinfo->rolname,
+				dirinfo->diracl);
+
+	destroyPQExpBuffer(create_query);
+	destroyPQExpBuffer(delete_query);
 }
 
 static void
@@ -8213,6 +8307,9 @@ dumpDumpableObject(Archive *fout, DumpOptions *dopt, DumpableObject *dobj)
 			break;
 		case DO_ROW_SECURITY:
 			dumpRowSecurity(fout, dopt, (RowSecurityInfo *) dobj);
+			break;
+		case DO_DIRALIAS:
+			dumpDirectoryAlias(fout, dopt, (DirectoryAliasInfo *) dobj);
 			break;
 		case DO_PRE_DATA_BOUNDARY:
 		case DO_POST_DATA_BOUNDARY:
@@ -15617,6 +15714,7 @@ addBoundaryDependencies(DumpableObject **dobjs, int numObjs,
 			case DO_EVENT_TRIGGER:
 			case DO_DEFAULT_ACL:
 			case DO_ROW_SECURITY:
+			case DO_DIRALIAS:
 				/* Post-data objects: must come after the post-data boundary */
 				addObjectDependency(dobj, postDataBound->dumpId);
 				break;

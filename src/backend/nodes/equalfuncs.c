@@ -1046,6 +1046,18 @@ _equalGrantRoleStmt(const GrantRoleStmt *a, const GrantRoleStmt *b)
 }
 
 static bool
+_equalGrantDirAliasStmt(const GrantDirAliasStmt *a, const GrantDirAliasStmt *b)
+{
+	COMPARE_NODE_FIELD(directories);
+	COMPARE_NODE_FIELD(permissions);
+	COMPARE_NODE_FIELD(grantees);
+	COMPARE_SCALAR_FIELD(is_grant);
+	COMPARE_STRING_FIELD(grantor);
+
+	return true;
+}
+
+static bool
 _equalAlterDefaultPrivilegesStmt(const AlterDefaultPrivilegesStmt *a, const AlterDefaultPrivilegesStmt *b)
 {
 	COMPARE_NODE_FIELD(options);
@@ -2034,6 +2046,24 @@ _equalAlterPolicyStmt(const AlterPolicyStmt *a, const AlterPolicyStmt *b)
 }
 
 static bool
+_equalCreateDirAliasStmt(const CreateDirAliasStmt *a, const CreateDirAliasStmt *b)
+{
+	COMPARE_STRING_FIELD(name);
+	COMPARE_STRING_FIELD(path);
+
+	return true;
+}
+
+static bool
+_equalAlterDirAliasStmt(const AlterDirAliasStmt *a, const AlterDirAliasStmt *b)
+{
+	COMPARE_STRING_FIELD(name);
+	COMPARE_STRING_FIELD(path);
+
+	return true;
+}
+
+static bool
 _equalAExpr(const A_Expr *a, const A_Expr *b)
 {
 	COMPARE_SCALAR_FIELD(kind);
@@ -2778,6 +2808,9 @@ equal(const void *a, const void *b)
 		case T_GrantStmt:
 			retval = _equalGrantStmt(a, b);
 			break;
+		case T_GrantDirAliasStmt:
+			retval = _equalGrantDirAliasStmt(a, b);
+			break;
 		case T_GrantRoleStmt:
 			retval = _equalGrantRoleStmt(a, b);
 			break;
@@ -3056,6 +3089,12 @@ equal(const void *a, const void *b)
 			break;
 		case T_AlterPolicyStmt:
 			retval = _equalAlterPolicyStmt(a, b);
+			break;
+		case T_CreateDirAliasStmt:
+			retval = _equalCreateDirAliasStmt(a, b);
+			break;
+		case T_AlterDirAliasStmt:
+			retval = _equalAlterDirAliasStmt(a, b);
 			break;
 		case T_A_Expr:
 			retval = _equalAExpr(a, b);
