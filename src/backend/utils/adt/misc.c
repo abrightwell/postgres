@@ -116,17 +116,17 @@ pg_signal_backend(int pid, int sig)
 
 	/*
 	 * If the current user is neither superuser, the owner of the process nor
-	 * have the ADMIN or PROCSIGNAL permission, then permission is denied.
+	 * have the PROCSIGNAL privilege, then permission is denied.
 	 */
-	if (!has_procsignal_privilege(GetUserId()
+	if (!(has_procsignal_privilege(GetUserId())
 		 || proc->roleId == GetUserId()))
 		return SIGNAL_BACKEND_NOPERMISSION;
 
 	/*
-	 * If the current user has ADMIN or PROCSIGNAL permission, is not superuser
-	 * and the process is owned by superuser, then the process cannot be
-	 * signaled and permission is denied.  Only superuser can signal superuser
-	 * owned processes.
+	 * If the current user has PROCSIGNAL privilege, is not superuser and the
+	 * process is owned by superuser, then the process cannot be signaled and
+	 * permission is denied.  Only superuser can signal superuser owned
+	 * processes.
 	 */
 	if (has_procsignal_privilege(GetUserId())
 		&& !superuser()

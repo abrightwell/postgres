@@ -5350,7 +5350,7 @@ has_procsignal_privilege(Oid roleid)
 	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
 	if (HeapTupleIsValid(utup))
 	{
-		result = ((Form_pg_authid) GETSTRUCT(utup))->rolbypassrls;
+		result = ((Form_pg_authid) GETSTRUCT(utup))->rolprocsignal;
 		ReleaseSysCache(utup);
 	}
 	return result;
