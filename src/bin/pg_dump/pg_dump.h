@@ -461,13 +461,13 @@ typedef struct _blobInfo
  */
 typedef struct _rowSecurityInfo
 {
-	DumpableObject  dobj;
-	TableInfo	   *rstable;
-	char		   *rsecpolname;	/* null indicates RLS is enabled on rel */
-	char		   *rseccmd;
-	char		   *rsecroles;
-	char		   *rsecqual;
-	char		   *rsecwithcheck;
+	DumpableObject dobj;
+	TableInfo  *rstable;
+	char	   *rsecpolname;	/* null indicates RLS is enabled on rel */
+	char	   *rseccmd;
+	char	   *rsecroles;
+	char	   *rsecqual;
+	char	   *rsecwithcheck;
 } RowSecurityInfo;
 
 typedef struct _directoryAliasInfo
