@@ -1812,20 +1812,11 @@ get_db_info(const char *name, LOCKMODE lockmode,
 static bool
 have_createdb_privilege(void)
 {
-	bool		result = false;
-	HeapTuple	utup;
-
 	/* Superusers can always do everything */
 	if (superuser())
 		return true;
 
-	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(GetUserId()));
-	if (HeapTupleIsValid(utup))
-	{
-		result = ((Form_pg_authid) GETSTRUCT(utup))->rolcreatedb;
-		ReleaseSysCache(utup);
-	}
-	return result;
+	return role_has_capability(GetUserId(), ROLE_ATTR_CREATEDB);
 }
 
 /*

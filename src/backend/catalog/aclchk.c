@@ -3427,7 +3427,7 @@ aclcheck_error_type(AclResult aclerr, Oid typeOid)
 static bool
 has_rolcatupdate(Oid roleid)
 {
-	bool		rolcatupdate;
+	RoleAttr	rolcatupdate;
 	HeapTuple	tuple;
 
 	tuple = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
@@ -3436,11 +3436,11 @@ has_rolcatupdate(Oid roleid)
 				(errcode(ERRCODE_UNDEFINED_OBJECT),
 				 errmsg("role with OID %u does not exist", roleid)));
 
-	rolcatupdate = ((Form_pg_authid) GETSTRUCT(tuple))->rolcatupdate;
+	rolcatupdate = ((Form_pg_authid) GETSTRUCT(tuple))->rolattr;
 
 	ReleaseSysCache(tuple);
 
-	return rolcatupdate;
+	return ((rolcatupdate & ROLE_ATTR_CATUPDATE) > 0);
 }
 
 /*
@@ -5050,6 +5050,22 @@ pg_extension_ownercheck(Oid ext_oid, Oid roleid)
 	return has_privs_of_role(roleid, ownerId);
 }
 
+bool
+role_has_capability(Oid roleid, RoleAttr capability)
+{
+	RoleAttr	attributes;
+	HeapTuple	utup;
+
+	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
+	if (HeapTupleIsValid(utup))
+	{
+		attributes = ((Form_pg_authid) GETSTRUCT(utup))->rolattr;
+		ReleaseSysCache(utup);
+	}
+
+	return ((attributes & capability) > 0);
+}
+
 /*
  * Check whether specified role has CREATEROLE privilege (or is a superuser)
  *
@@ -5064,39 +5080,21 @@ pg_extension_ownercheck(Oid ext_oid, Oid roleid)
 bool
 has_createrole_privilege(Oid roleid)
 {
-	bool		result = false;
-	HeapTuple	utup;
-
 	/* Superusers bypass all permission checking. */
 	if (superuser_arg(roleid))
 		return true;
 
-	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
-	if (HeapTupleIsValid(utup))
-	{
-		result = ((Form_pg_authid) GETSTRUCT(utup))->rolcreaterole;
-		ReleaseSysCache(utup);
-	}
-	return result;
+	return role_has_capability(roleid, ROLE_ATTR_CREATEROLE);
 }
 
 bool
 has_bypassrls_privilege(Oid roleid)
 {
-	bool		result = false;
-	HeapTuple	utup;
-
 	/* Superusers bypass all permission checking. */
 	if (superuser_arg(roleid))
 		return true;
 
-	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
-	if (HeapTupleIsValid(utup))
-	{
-		result = ((Form_pg_authid) GETSTRUCT(utup))->rolbypassrls;
-		ReleaseSysCache(utup);
-	}
-	return result;
+	return role_has_capability(roleid, ROLE_ATTR_BYPASSRLS);
 }
 
 /*

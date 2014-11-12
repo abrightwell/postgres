@@ -4638,16 +4638,16 @@ RoleMembershipCacheCallback(Datum arg, int cacheid, uint32 hashvalue)
 static bool
 has_rolinherit(Oid roleid)
 {
-	bool		result = false;
+	RoleAttr	attributes;
 	HeapTuple	utup;
 
 	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
 	if (HeapTupleIsValid(utup))
 	{
-		result = ((Form_pg_authid) GETSTRUCT(utup))->rolinherit;
+		attributes = ((Form_pg_authid) GETSTRUCT(utup))->rolattr;
 		ReleaseSysCache(utup);
 	}
-	return result;
+	return ((attributes & ROLE_ATTR_INHERIT) > 0);
 }
 
 

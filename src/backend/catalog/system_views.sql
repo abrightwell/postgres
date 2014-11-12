@@ -9,17 +9,17 @@
 CREATE VIEW pg_roles AS
     SELECT
         rolname,
-        rolsuper,
-        rolinherit,
-        rolcreaterole,
-        rolcreatedb,
-        rolcatupdate,
-        rolcanlogin,
-        rolreplication,
+        (rolattr & (1 << 0)) > 0 AS rolsuper,
+        (rolattr & (1 << 1)) > 0 AS rolinherit,
+        (rolattr & (1 << 2)) > 0 AS rolcreaterole,
+        (rolattr & (1 << 3)) > 0 AS rolcreatedb,
+        (rolattr & (1 << 4)) > 0 AS rolcatupdate,
+        (rolattr & (1 << 5)) > 0 AS rolcanlogin,
+        (rolattr & (1 << 6)) > 0 AS rolreplication,
+        (rolattr & (1 << 7)) > 0 AS rolbypassrls,
         rolconnlimit,
         '********'::text as rolpassword,
         rolvaliduntil,
-        rolbypassrls,
         setconfig as rolconfig,
         pg_authid.oid
     FROM pg_authid LEFT JOIN pg_db_role_setting s
@@ -29,16 +29,16 @@ CREATE VIEW pg_shadow AS
     SELECT
         rolname AS usename,
         pg_authid.oid AS usesysid,
-        rolcreatedb AS usecreatedb,
-        rolsuper AS usesuper,
-        rolcatupdate AS usecatupd,
-        rolreplication AS userepl,
+        (rolattr & (1 << 3)) > 0 AS usecreatedb,
+        (rolattr & (1 << 0)) > 0 AS usesuper,
+        (rolattr & (1 << 4)) > 0 AS usecatupd,
+        (rolattr & (1 << 6)) > 0 AS userepl,
         rolpassword AS passwd,
         rolvaliduntil::abstime AS valuntil,
         setconfig AS useconfig
     FROM pg_authid LEFT JOIN pg_db_role_setting s
     ON (pg_authid.oid = setrole AND setdatabase = 0)
-    WHERE rolcanlogin;
+    WHERE (rolattr & (1 << 5)) > 0;
 
 REVOKE ALL on pg_shadow FROM public;
 
@@ -48,7 +48,7 @@ CREATE VIEW pg_group AS
         oid AS grosysid,
         ARRAY(SELECT member FROM pg_auth_members WHERE roleid = oid) AS grolist
     FROM pg_authid
-    WHERE NOT rolcanlogin;
+    WHERE NOT ((rolattr & (1 << 5)) > 0);
 
 CREATE VIEW pg_user AS
     SELECT
