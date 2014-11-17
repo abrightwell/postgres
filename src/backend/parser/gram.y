@@ -54,6 +54,7 @@
 #include "catalog/pg_trigger.h"
 #include "commands/defrem.h"
 #include "commands/trigger.h"
+#include "commands/user.h"
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
 #include "parser/gramparse.h"
@@ -1068,6 +1069,17 @@ AlterRoleSetStmt:
 					n->setstmt = $5;
 					$$ = (Node *)n;
 				}
+		;
+
+AlterRoleCapabilityStmt:
+			ALTER ROLE RoleId add_drop CAPABILITY RoleCapabilityList
+			{
+				AlterRoleCapabilityStmt *n = makeNode(AlterRoleCapabilityStmt);
+				n->role = $3;
+				n->action = $4;
+				n->capaibilities = $6;
+				$$ = (Node *)n;
+			}
 		;
 
 

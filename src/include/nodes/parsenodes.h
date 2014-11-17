@@ -1971,6 +1971,16 @@ typedef enum RoleStmtType
 	ROLESTMT_GROUP
 } RoleStmtType;
 
+/* Role Attribute codes */
+#define ROLE_ATTR_SUPERUSER			0
+#define ROLE_ATTR_CREATE_ROLE		1
+#define ROLE_ATTR_CREATE_DB			2
+#define ROLE_ATTR_INHERIT			3
+#define ROLE_ATTR_REPLICATION		4
+#define ROLE_ATTR_LOGIN				5
+#define ROLE_ATTR_CATUPDATE			6
+#define ROLE_ATTR_BYPASSRLS			7
+
 typedef struct CreateRoleStmt
 {
 	NodeTag		type;
@@ -1994,6 +2004,14 @@ typedef struct AlterRoleSetStmt
 	char	   *database;		/* database name, or NULL */
 	VariableSetStmt *setstmt;	/* SET or RESET subcommand */
 } AlterRoleSetStmt;
+
+typedef struct AlterRoleCapabilityStmt
+{
+	NodeTag		type;
+	char	   *role;			/* role name */
+	int			action;			/* +1 = add capabilities, -1 = drop capabilities */
+	List	   *capabilities;	/* List of capabilities */
+} AlterRoleCapabilityStmt;
 
 typedef struct DropRoleStmt
 {
