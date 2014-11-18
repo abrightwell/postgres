@@ -46,7 +46,7 @@
 CATALOG(pg_authid,1260) BKI_SHARED_RELATION BKI_ROWTYPE_OID(2842) BKI_SCHEMA_MACRO
 {
 	NameData	rolname;		/* name of role */
-	int32		rolattr;		/* role attribute bitmask */
+	int64		rolattr;		/* role attribute bitmask */
 	int32		rolconnlimit;	/* max connections allowed (-1=no limit) */
 	/* remaining fields may be null; use heap_getattr to read them! */
 	text		rolpassword;	/* password, if any */
