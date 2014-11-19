@@ -389,7 +389,7 @@ CreateRole(CreateRoleStmt *stmt)
 	new_record[Anum_pg_authid_rolname - 1] =
 		DirectFunctionCall1(namein, CStringGetDatum(stmt->role));
 
-	new_record[Anum_pg_authid_rolattr - 1] = Int32GetDatum(attributes);
+	new_record[Anum_pg_authid_rolattr - 1] = Int64GetDatum(attributes);
 
 	new_record[Anum_pg_authid_rolconnlimit - 1] = Int32GetDatum(connlimit);
 
@@ -814,7 +814,7 @@ AlterRole(AlterRoleStmt *stmt)
 
 	/* If any role attributes were set, then update. */
 	if (new_record_repl[Anum_pg_authid_rolattr - 1])
-		new_record[Anum_pg_authid_rolattr - 1] = Int32GetDatum(attributes);
+		new_record[Anum_pg_authid_rolattr - 1] = Int64GetDatum(attributes);
 
 	if (dconnlimit)
 	{
