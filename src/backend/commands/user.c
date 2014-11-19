@@ -66,7 +66,7 @@ have_createrole_privilege(void)
 static RoleAttr
 set_role_attribute(RoleAttr attributes, RoleAttr attribute)
 {
-	return ((attributes & ~(0xFFFFFFFF)) | attribute);
+	return ((attributes & ~(0xFFFFFFFFFFFFFFFF)) | attribute);
 }
 
 /*
