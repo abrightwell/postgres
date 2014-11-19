@@ -63,16 +63,10 @@ have_createrole_privilege(void)
 	return has_createrole_privilege(GetUserId());
 }
 
-static bool
-has_role_attribute(RoleAttr attributes, RoleAttr attribute)
-{
-	return ((attributes & attribute) > 0);
-}
-
 static RoleAttr
 set_role_attribute(RoleAttr attributes, RoleAttr attribute)
 {
-	return ((attributes & ~(0xFFFF)) | attribute);
+	return ((attributes & ~(0xFFFFFFFF)) | attribute);
 }
 
 /*
@@ -99,7 +93,7 @@ CreateRole(CreateRoleStmt *stmt)
 	bool		canlogin = false;		/* Can this user login? */
 	bool		isreplication = false;	/* Is this a replication role? */
 	bool		bypassrls = false;		/* Is this a row security enabled role? */
-	RoleAttr	attributes = 0;
+	RoleAttr	attributes = ROLE_ATTR_NONE;	/* role attributes, initialized to none. */
 	int			connlimit = -1; /* maximum connections allowed */
 	List	   *addroleto = NIL;	/* roles to make this a member of */
 	List	   *rolemembers = NIL;		/* roles to be members of this role */
@@ -286,7 +280,6 @@ CreateRole(CreateRoleStmt *stmt)
 					(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
 					 errmsg("invalid connection limit: %d", connlimit)));
 	}
-
 	if (daddroleto)
 		addroleto = (List *) daddroleto->arg;
 	if (drolemembers)
@@ -689,21 +682,21 @@ AlterRole(AlterRoleStmt *stmt)
 
 	attributes = ((Form_pg_authid) GETSTRUCT(tuple))->rolattr;
 
-	if (has_role_attribute(attributes, ROLE_ATTR_SUPERUSER) || issuper >= 0)
+	if (((attributes & ROLE_ATTR_SUPERUSER) > 0) || issuper >= 0)
 	{
 		if (!superuser())
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 					 errmsg("must be superuser to alter superusers")));
 	}
-	else if (has_role_attribute(attributes, ROLE_ATTR_REPLICATION) || isreplication >= 0)
+	else if (((attributes & ROLE_ATTR_REPLICATION) > 0) || isreplication >= 0)
 	{
 		if (!superuser())
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 					 errmsg("must be superuser to alter replication users")));
 	}
-	else if (has_role_attribute(attributes, ROLE_ATTR_BYPASSRLS) || bypassrls >= 0)
+	else if (((attributes & ROLE_ATTR_BYPASSRLS) > 0) || bypassrls >= 0)
 	{
 		if (!superuser())
 			ereport(ERROR,
@@ -929,7 +922,7 @@ AlterRoleSet(AlterRoleSetStmt *stmt)
 		 * createrole, or just want to change your own settings
 		 */
 		attributes = ((Form_pg_authid) GETSTRUCT(roletuple))->rolattr;
-		if (has_role_attribute(attributes, ROLE_ATTR_SUPERUSER))
+		if ((attributes & ROLE_ATTR_SUPERUSER) > 0)
 		{
 			if (!superuser())
 				ereport(ERROR,
@@ -1055,7 +1048,7 @@ DropRole(DropRoleStmt *stmt)
 		 * scenario where you accidentally drop the last superuser.
 		 */
 		attributes = ((Form_pg_authid) GETSTRUCT(tuple))->rolattr;
-		if (has_role_attribute(attributes, ROLE_ATTR_SUPERUSER) && !superuser())
+		if (((attributes & ROLE_ATTR_SUPERUSER) > 0) && !superuser())
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 					 errmsg("must be superuser to drop superusers")));
@@ -1216,7 +1209,7 @@ RenameRole(const char *oldname, const char *newname)
 	 * createrole is enough privilege unless you want to mess with a superuser
 	 */
 	attributes = ((Form_pg_authid) GETSTRUCT(oldtuple))->rolattr;
-	if (has_role_attribute(attributes, ROLE_ATTR_SUPERUSER))
+	if ((attributes & ROLE_ATTR_SUPERUSER) > 0)
 	{
 		if (!superuser())
 			ereport(ERROR,

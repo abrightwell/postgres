@@ -84,7 +84,7 @@ typedef uint32 AclMode;			/* a bitmask of privilege bits */
  *
  * Caution: changing these codes breaks stored RoleAttrs, hence forces initdb.
  */
-typedef uint32 RoleAttr;		/* a bitmask for role attribute bits */
+typedef uint64 RoleAttr;		/* a bitmask for role attribute bits */
 
 #define ROLE_ATTR_SUPERUSER		(1<<0)
 #define ROLE_ATTR_INHERIT		(1<<1)
@@ -94,8 +94,8 @@ typedef uint32 RoleAttr;		/* a bitmask for role attribute bits */
 #define ROLE_ATTR_CANLOGIN		(1<<5)
 #define ROLE_ATTR_REPLICATION	(1<<6)
 #define ROLE_ATTR_BYPASSRLS		(1<<7)
-
 #define N_ROLE_ATTRIBUTES		8
+#define ROLE_ATTR_NONE			0
 
 /*****************************************************************************
  *	Query Tree

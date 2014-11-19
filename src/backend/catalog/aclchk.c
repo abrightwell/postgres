@@ -3423,26 +3423,6 @@ aclcheck_error_type(AclResult aclerr, Oid typeOid)
 }
 
 
-/* Check if given user has rolcatupdate privilege according to pg_authid */
-static bool
-has_rolcatupdate(Oid roleid)
-{
-	RoleAttr	rolcatupdate;
-	HeapTuple	tuple;
-
-	tuple = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
-	if (!HeapTupleIsValid(tuple))
-		ereport(ERROR,
-				(errcode(ERRCODE_UNDEFINED_OBJECT),
-				 errmsg("role with OID %u does not exist", roleid)));
-
-	rolcatupdate = ((Form_pg_authid) GETSTRUCT(tuple))->rolattr;
-
-	ReleaseSysCache(tuple);
-
-	return ((rolcatupdate & ROLE_ATTR_CATUPDATE) > 0);
-}
-
 /*
  * Relay for the various pg_*_mask routines depending on object kind
  */
@@ -3630,7 +3610,7 @@ pg_class_aclmask(Oid table_oid, Oid roleid,
 	if ((mask & (ACL_INSERT | ACL_UPDATE | ACL_DELETE | ACL_TRUNCATE | ACL_USAGE)) &&
 		IsSystemClass(table_oid, classForm) &&
 		classForm->relkind != RELKIND_VIEW &&
-		!has_rolcatupdate(roleid) &&
+		!role_has_attribute(roleid, ROLE_ATTR_CATUPDATE) &&
 		!allowSystemTableMods)
 	{
 #ifdef ACLDEBUG
@@ -5050,20 +5030,26 @@ pg_extension_ownercheck(Oid ext_oid, Oid roleid)
 	return has_privs_of_role(roleid, ownerId);
 }
 
+/*
+ * Check whether the specified role has a specific role attribute.
+ */
 bool
-role_has_capability(Oid roleid, RoleAttr capability)
+role_has_attribute(Oid roleid, RoleAttr attribute)
 {
 	RoleAttr	attributes;
-	HeapTuple	utup;
+	HeapTuple	tuple;
 
-	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
-	if (HeapTupleIsValid(utup))
-	{
-		attributes = ((Form_pg_authid) GETSTRUCT(utup))->rolattr;
-		ReleaseSysCache(utup);
-	}
+	tuple = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
 
-	return ((attributes & capability) > 0);
+	if (!HeapTupleIsValid(tuple))
+		ereport(ERROR,
+				(errcode(ERRCODE_UNDEFINED_OBJECT),
+				 errmsg("role with OID %u does not exist", roleid)));
+
+	attributes = ((Form_pg_authid) GETSTRUCT(tuple))->rolattr;
+	ReleaseSysCache(tuple);
+
+	return ((attributes & attribute) > 0);
 }
 
 /*
@@ -5084,9 +5070,12 @@ has_createrole_privilege(Oid roleid)
 	if (superuser_arg(roleid))
 		return true;
 
-	return role_has_capability(roleid, ROLE_ATTR_CREATEROLE);
+	return role_has_attribute(roleid, ROLE_ATTR_CREATEROLE);
 }
 
+/*
+ * Check whether specified role has BYPASSRLS privilege.
+ */
 bool
 has_bypassrls_privilege(Oid roleid)
 {
@@ -5094,7 +5083,7 @@ has_bypassrls_privilege(Oid roleid)
 	if (superuser_arg(roleid))
 		return true;
 
-	return role_has_capability(roleid, ROLE_ATTR_BYPASSRLS);
+	return role_has_attribute(roleid, ROLE_ATTR_BYPASSRLS);
 }
 
 /*

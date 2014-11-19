@@ -1816,7 +1816,7 @@ have_createdb_privilege(void)
 	if (superuser())
 		return true;
 
-	return role_has_capability(GetUserId(), ROLE_ATTR_CREATEDB);
+	return role_has_attribute(GetUserId(), ROLE_ATTR_CREATEDB);
 }
 
 /*
