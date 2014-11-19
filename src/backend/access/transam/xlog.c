@@ -1067,11 +1067,8 @@ XLogInsertRecord(XLogRecData *rdata, XLogRecPtr fpw_lsn)
 			/*
 			 * We have to piece together the WAL record data from the
 			 * XLogRecData entries, so that we can pass it to the rm_desc
-			 * function as one contiguous chunk. (but we can leave out any
-			 * extra entries we created for backup blocks)
+			 * function as one contiguous chunk.
 			 */
-			rdt_lastnormal->next = NULL;
-
 			initStringInfo(&recordbuf);
 			appendBinaryStringInfo(&recordbuf, (char *) rechdr, sizeof(XLogRecord));
 			for (; rdata != NULL; rdata = rdata->next)
@@ -6450,6 +6447,16 @@ StartupXLOG(void)
 	ShutdownWalRcv();
 
 	/*
+	 * Reset unlogged relations to the contents of their INIT fork. This is
+	 * done AFTER recovery is complete so as to include any unlogged relations
+	 * created during recovery, but BEFORE recovery is marked as having
+	 * completed successfully. Otherwise we'd not retry if any of the post
+	 * end-of-recovery steps fail.
+	 */
+	if (InRecovery)
+		ResetUnloggedRelations(UNLOGGED_RELATION_INIT);
+
+	/*
 	 * We don't need the latch anymore. It's not strictly necessary to disown
 	 * it, but let's do it for the sake of tidiness.
 	 */
@@ -6715,14 +6722,6 @@ StartupXLOG(void)
 	 * Preallocate additional log files, if wanted.
 	 */
 	PreallocXlogFiles(EndOfLog);
-
-	/*
-	 * Reset initial contents of unlogged relations.  This has to be done
-	 * AFTER recovery is complete so that any unlogged relations created
-	 * during recovery also get picked up.
-	 */
-	if (InRecovery)
-		ResetUnloggedRelations(UNLOGGED_RELATION_INIT);
 
 	/*
 	 * Okay, we're officially UP.

@@ -1980,7 +1980,7 @@ index_build(Relation heapRelation,
 	 * created it, or truncated twice in a subsequent transaction, the
 	 * relfilenode won't change, and nothing needs to be done here.
 	 */
-	if (heapRelation->rd_rel->relpersistence == RELPERSISTENCE_UNLOGGED &&
+	if (indexRelation->rd_rel->relpersistence == RELPERSISTENCE_UNLOGGED &&
 		!smgrexists(indexRelation->rd_smgr, INIT_FORKNUM))
 	{
 		RegProcedure ambuildempty = indexRelation->rd_am->ambuildempty;
@@ -2104,6 +2104,27 @@ IndexBuildHeapScan(Relation heapRelation,
 				   IndexBuildCallback callback,
 				   void *callback_state)
 {
+	return IndexBuildHeapRangeScan(heapRelation, indexRelation,
+								   indexInfo, allow_sync,
+								   0, InvalidBlockNumber,
+								   callback, callback_state);
+}
+
+/*
+ * As above, except that instead of scanning the complete heap, only the given
+ * number of blocks are scanned.  Scan to end-of-rel can be signalled by
+ * passing InvalidBlockNumber as numblocks.
+ */
+double
+IndexBuildHeapRangeScan(Relation heapRelation,
+						Relation indexRelation,
+						IndexInfo *indexInfo,
+						bool allow_sync,
+						BlockNumber start_blockno,
+						BlockNumber numblocks,
+						IndexBuildCallback callback,
+						void *callback_state)
+{
 	bool		is_system_catalog;
 	bool		checking_uniqueness;
 	HeapScanDesc scan;
@@ -2173,6 +2194,9 @@ IndexBuildHeapScan(Relation heapRelation,
 								NULL,	/* scan key */
 								true,	/* buffer access strategy OK */
 								allow_sync);	/* syncscan OK? */
+
+	/* set our scan endpoints */
+	heap_setscanlimits(scan, start_blockno, numblocks);
 
 	reltuples = 0;
 
@@ -3106,7 +3130,7 @@ IndexGetRelation(Oid indexId, bool missing_ok)
  * reindex_index - This routine is used to recreate a single index
  */
 void
-reindex_index(Oid indexId, bool skip_constraint_checks)
+reindex_index(Oid indexId, bool skip_constraint_checks, char persistence)
 {
 	Relation	iRel,
 				heapRelation;
@@ -3168,7 +3192,7 @@ reindex_index(Oid indexId, bool skip_constraint_checks)
 		}
 
 		/* We'll build a new physical relation for the index */
-		RelationSetNewRelfilenode(iRel, InvalidTransactionId,
+		RelationSetNewRelfilenode(iRel, persistence, InvalidTransactionId,
 								  InvalidMultiXactId);
 
 		/* Initialize the index and rebuild */
@@ -3286,6 +3310,12 @@ reindex_index(Oid indexId, bool skip_constraint_checks)
  * performance, other callers should include the flag only after transforming
  * the data in a manner that risks a change in constraint validity.
  *
+ * REINDEX_REL_FORCE_INDEXES_UNLOGGED: if true, set the persistence of the
+ * rebuilt indexes to unlogged.
+ *
+ * REINDEX_REL_FORCE_INDEXES_LOGGED: if true, set the persistence of the
+ * rebuilt indexes to permanent.
+ *
  * Returns true if any indexes were rebuilt (including toast table's index
  * when relevant).  Note that a CommandCounterIncrement will occur after each
  * index rebuild.
@@ -3347,6 +3377,7 @@ reindex_relation(Oid relid, int flags)
 	{
 		List	   *doneIndexes;
 		ListCell   *indexId;
+		char		persistence;
 
 		if (flags & REINDEX_REL_SUPPRESS_INDEX_USE)
 		{
@@ -3360,6 +3391,17 @@ reindex_relation(Oid relid, int flags)
 			CommandCounterIncrement();
 		}
 
+		/*
+		 * Compute persistence of indexes: same as that of owning rel, unless
+		 * caller specified otherwise.
+		 */
+		if (flags & REINDEX_REL_FORCE_INDEXES_UNLOGGED)
+			persistence = RELPERSISTENCE_UNLOGGED;
+		else if (flags & REINDEX_REL_FORCE_INDEXES_PERMANENT)
+			persistence = RELPERSISTENCE_PERMANENT;
+		else
+			persistence = rel->rd_rel->relpersistence;
+
 		/* Reindex all the indexes. */
 		doneIndexes = NIL;
 		foreach(indexId, indexIds)
@@ -3369,7 +3411,8 @@ reindex_relation(Oid relid, int flags)
 			if (is_pg_class)
 				RelationSetIndexList(rel, doneIndexes, InvalidOid);
 
-			reindex_index(indexOid, !(flags & REINDEX_REL_CHECK_CONSTRAINTS));
+			reindex_index(indexOid, !(flags & REINDEX_REL_CHECK_CONSTRAINTS),
+						  persistence);
 
 			CommandCounterIncrement();
 

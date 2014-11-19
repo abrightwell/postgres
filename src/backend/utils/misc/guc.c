@@ -96,14 +96,6 @@
 #define CONFIG_EXEC_PARAMS_NEW "global/config_exec_params.new"
 #endif
 
-/* upper limit for GUC variables measured in kilobytes of memory */
-/* note that various places assume the byte size fits in a "long" variable */
-#if SIZEOF_SIZE_T > 4 && SIZEOF_LONG > 4
-#define MAX_KILOBYTES	INT_MAX
-#else
-#define MAX_KILOBYTES	(INT_MAX / 1024)
-#endif
-
 #define KB_PER_MB (1024)
 #define KB_PER_GB (1024*1024)
 #define KB_PER_TB (1024*1024*1024)
@@ -908,7 +900,7 @@ static struct config_bool ConfigureNamesBool[] =
 
 	{
 		{"wal_log_hints", PGC_POSTMASTER, WAL_SETTINGS,
-			gettext_noop("Writes full pages to WAL when first modified after a checkpoint, even for a non-critical modifications"),
+			gettext_noop("Writes full pages to WAL when first modified after a checkpoint, even for a non-critical modifications."),
 			NULL
 		},
 		&wal_log_hints,
@@ -2550,6 +2542,17 @@ static struct config_int ConfigureNamesInt[] =
 		NULL, NULL, NULL
 	},
 
+	{
+		{"gin_pending_list_limit", PGC_USERSET, CLIENT_CONN_STATEMENT,
+			gettext_noop("Sets the maximum size of the pending list for GIN index."),
+			 NULL,
+			GUC_UNIT_KB
+		},
+		&gin_pending_list_limit,
+		4096, 64, MAX_KILOBYTES,
+		NULL, NULL, NULL
+	},
+
 	/* End-of-list marker */
 	{
 		{NULL, 0, 0, NULL, NULL}, NULL, 0, 0, 0, NULL, NULL, NULL
@@ -3501,7 +3504,7 @@ static struct config_enum ConfigureNamesEnum[] =
 
 	{
 		{"huge_pages", PGC_POSTMASTER, RESOURCES_MEM,
-			gettext_noop("Use of huge pages on Linux"),
+			gettext_noop("Use of huge pages on Linux."),
 			NULL
 		},
 		&huge_pages,
@@ -6605,7 +6608,7 @@ write_auto_conf_file(int fd, const char *filename, ConfigVariable **head_p)
 	 */
 	if (write(fd, buf.data, buf.len) < 0)
 		ereport(ERROR,
-				(errmsg("failed to write to \"%s\" file", filename)));
+				(errmsg("could not write to file \"%s\": %m", filename)));
 	resetStringInfo(&buf);
 
 	/*
@@ -6630,7 +6633,7 @@ write_auto_conf_file(int fd, const char *filename, ConfigVariable **head_p)
 
 		if (write(fd, buf.data, buf.len) < 0)
 			ereport(ERROR,
-					(errmsg("failed to write to \"%s\" file", filename)));
+					(errmsg("could not write to file \"%s\": %m", filename)));
 		resetStringInfo(&buf);
 	}
 
@@ -6835,7 +6838,7 @@ AlterSystemSetConfigFile(AlterSystemStmt *altersysstmt)
 	if (Tmpfd < 0)
 		ereport(ERROR,
 				(errcode_for_file_access(),
-				 errmsg("failed to open auto conf temp file \"%s\": %m",
+				 errmsg("could not open file \"%s\": %m",
 						AutoConfTmpFileName)));
 
 	PG_TRY();
@@ -6853,8 +6856,8 @@ AlterSystemSetConfigFile(AlterSystemStmt *altersysstmt)
 				infile = AllocateFile(AutoConfFileName, "r");
 				if (infile == NULL)
 					ereport(ERROR,
-						  (errmsg("failed to open auto conf file \"%s\": %m",
-								  AutoConfFileName)));
+							(errmsg("could not open file \"%s\": %m",
+									AutoConfFileName)));
 
 				/* parse it */
 				ParseConfigFp(infile, AutoConfFileName, 0, LOG, &head, &tail);
