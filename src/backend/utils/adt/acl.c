@@ -115,6 +115,7 @@ static Oid	convert_type_name(text *typename);
 static AclMode convert_type_priv_string(text *priv_type_text);
 static AclMode convert_role_priv_string(text *priv_type_text);
 static AclResult pg_role_aclcheck(Oid role_oid, Oid roleid, AclMode mode);
+static RoleAttr convert_role_attr_string(text *attr_type_text);
 
 static void RoleMembershipCacheCallback(Datum arg, int cacheid, uint32 hashvalue);
 
@@ -576,6 +577,7 @@ aclitemin(PG_FUNCTION_ARGS)
 
 	PG_RETURN_ACLITEM_P(aip);
 }
+
 
 /*
  * aclitemout
@@ -4602,6 +4604,52 @@ pg_role_aclcheck(Oid role_oid, Oid roleid, AclMode mode)
 	return ACLCHECK_NO_PRIV;
 }
 
+/*
+ * has_role_attribute_id
+ *		Check the named role attribute on a role by given role oid.
+ */
+Datum
+has_role_attribute_id(PG_FUNCTION_ARGS)
+{
+	Oid			roleoid = PG_GETARG_OID(0);
+	text	   *attr_type_text = PG_GETARG_TEXT_P(1);
+	RoleAttr	attribute;
+
+	attribute = convert_role_attr_string(attr_type_text);
+
+	PG_RETURN_BOOL(role_has_attribute(roleoid, attribute));
+}
+
+/*
+ * convert_role_attr_string
+ *		Convert text string to RoleAttr value.
+ */
+static RoleAttr
+convert_role_attr_string(text *attr_type_text)
+{
+	char	   *attr_type = text_to_cstring(attr_type_text);
+
+	if (pg_strcasecmp(attr_type, "SUPERUSER") == 0)
+		return ROLE_ATTR_SUPERUSER;
+	else if (pg_strcasecmp(attr_type, "INHERIT") == 0)
+		return ROLE_ATTR_INHERIT;
+	else if (pg_strcasecmp(attr_type, "CREATEROLE") == 0)
+		return ROLE_ATTR_CREATEROLE;
+	else if (pg_strcasecmp(attr_type, "CREATEDB") == 0)
+		return ROLE_ATTR_CREATEDB;
+	else if (pg_strcasecmp(attr_type, "CATUPDATE") == 0)
+		return ROLE_ATTR_CATUPDATE;
+	else if (pg_strcasecmp(attr_type, "CANLOGIN") == 0)
+		return ROLE_ATTR_CANLOGIN;
+	else if (pg_strcasecmp(attr_type, "REPLICATION") == 0)
+		return ROLE_ATTR_REPLICATION;
+	else if (pg_strcasecmp(attr_type, "BYPASSRLS") == 0)
+		return ROLE_ATTR_BYPASSRLS;
+	else
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_PARAMETER_VALUE),
+				 errmsg("unrecognized role attribute: \"%s\"", attr_type)));
+}
 
 /*
  * initialization function (called by InitPostgres)
