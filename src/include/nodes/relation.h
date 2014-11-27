@@ -100,7 +100,7 @@ typedef struct PlannerGlobal
 
 	bool		transientPlan;	/* redo plan when TransactionXmin changes? */
 
-	bool		has_rls;		/* row-security is applied? */
+	bool		hasRowSecurity;	/* row security applied? */
 
 } PlannerGlobal;
 

@@ -248,7 +248,7 @@ static char *myFormatType(const char *typname, int32 typmod);
 static void getBlobs(Archive *fout);
 static void dumpBlob(Archive *fout, BlobInfo *binfo);
 static int	dumpBlobs(Archive *fout, void *arg);
-static void dumpRowSecurity(Archive *fout, RowSecurityInfo *rsinfo);
+static void dumpPolicy(Archive *fout, PolicyInfo *polinfo);
 static void dumpDatabase(Archive *AH);
 static void dumpEncoding(Archive *AH);
 static void dumpStdStrings(Archive *AH);
@@ -2770,23 +2770,25 @@ dumpBlobs(Archive *fout, void *arg)
 }
 
 /*
- * getRowSecurity
- *    get information about every row-security policy on a dumpable table.
+ * getPolicies
+ *	  get information about policies on a dumpable table.
  */
 void
-getRowSecurity(Archive *fout, TableInfo tblinfo[], int numTables)
+getPolicies(Archive *fout, TableInfo tblinfo[], int numTables)
 {
-	PQExpBuffer		query;
-	PGresult	   *res;
-	RowSecurityInfo *rsinfo;
-	int				i_oid;
-	int				i_tableoid;
-	int				i_rsecpolname;
-	int				i_rseccmd;
-	int				i_rsecroles;
-	int				i_rsecqual;
-	int				i_rsecwithcheck;
-	int				i, j, ntups;
+	PQExpBuffer query;
+	PGresult   *res;
+	PolicyInfo *polinfo;
+	int			i_oid;
+	int			i_tableoid;
+	int			i_polname;
+	int			i_polcmd;
+	int			i_polroles;
+	int			i_polqual;
+	int			i_polwithcheck;
+	int			i,
+				j,
+				ntups;
 
 	if (fout->remoteVersion < 90500)
 		return;
@@ -2797,19 +2799,19 @@ getRowSecurity(Archive *fout, TableInfo tblinfo[], int numTables)
 	{
 		TableInfo *tbinfo = &tblinfo[i];
 
-		/* Ignore row-security on tables not to be dumped */
+		/* Ignore row security on tables not to be dumped */
 		if (!tbinfo->dobj.dump)
 			continue;
 
 		if (g_verbose)
-			write_msg(NULL, "reading row-security enabled for table \"%s\".\"%s\"\n",
+			write_msg(NULL, "reading row security enabled for table \"%s\".\"%s\"\n",
 					  tbinfo->dobj.namespace->dobj.name,
 					  tbinfo->dobj.name);
 
 		/*
-		 * Get row-security enabled information for the table.
-		 * We represent RLS enabled on a table by creating RowSecurityInfo
-		 * object with an empty policy.
+		 * Get row security enabled information for the table. We represent
+		 * RLS enabled on a table by creating PolicyInfo object with an
+		 * empty policy.
 		 */
 		if (tbinfo->rowsec)
 		{
@@ -2817,23 +2819,23 @@ getRowSecurity(Archive *fout, TableInfo tblinfo[], int numTables)
 			 * Note: use tableoid 0 so that this object won't be mistaken for
 			 * something that pg_depend entries apply to.
 			 */
-			rsinfo = pg_malloc(sizeof(RowSecurityInfo));
-			rsinfo->dobj.objType = DO_ROW_SECURITY;
-			rsinfo->dobj.catId.tableoid = 0;
-			rsinfo->dobj.catId.oid = tbinfo->dobj.catId.oid;
-			AssignDumpId(&rsinfo->dobj);
-			rsinfo->dobj.namespace = tbinfo->dobj.namespace;
-			rsinfo->dobj.name = pg_strdup(tbinfo->dobj.name);
-			rsinfo->rstable = tbinfo;
-			rsinfo->rsecpolname = NULL;
-			rsinfo->rseccmd = NULL;
-			rsinfo->rsecroles = NULL;
-			rsinfo->rsecqual = NULL;
-			rsinfo->rsecwithcheck = NULL;
+			polinfo = pg_malloc(sizeof(PolicyInfo));
+			polinfo->dobj.objType = DO_POLICY;
+			polinfo->dobj.catId.tableoid = 0;
+			polinfo->dobj.catId.oid = tbinfo->dobj.catId.oid;
+			AssignDumpId(&polinfo->dobj);
+			polinfo->dobj.namespace = tbinfo->dobj.namespace;
+			polinfo->dobj.name = pg_strdup(tbinfo->dobj.name);
+			polinfo->poltable = tbinfo;
+			polinfo->polname = NULL;
+			polinfo->polcmd = NULL;
+			polinfo->polroles = NULL;
+			polinfo->polqual = NULL;
+			polinfo->polwithcheck = NULL;
 		}
 
 		if (g_verbose)
-			write_msg(NULL, "reading row-security policies for table \"%s\".\"%s\"\n",
+			write_msg(NULL, "reading policies for table \"%s\".\"%s\"\n",
 					  tbinfo->dobj.namespace->dobj.name,
 					  tbinfo->dobj.name);
 
@@ -2846,13 +2848,13 @@ getRowSecurity(Archive *fout, TableInfo tblinfo[], int numTables)
 
 		/* Get the policies for the table. */
 		appendPQExpBuffer(query,
-						  "SELECT oid, tableoid, s.rsecpolname, s.rseccmd, "
-						  "CASE WHEN s.rsecroles = '{0}' THEN 'PUBLIC' ELSE "
-						  "   array_to_string(ARRAY(SELECT rolname from pg_roles WHERE oid = ANY(s.rsecroles)), ', ') END AS rsecroles, "
-						  "pg_get_expr(s.rsecqual, s.rsecrelid) AS rsecqual, "
-						  "pg_get_expr(s.rsecwithcheck, s.rsecrelid) AS rsecwithcheck "
-						  "FROM pg_catalog.pg_rowsecurity s "
-						  "WHERE rsecrelid = '%u'",
+						  "SELECT oid, tableoid, pol.polname, pol.polcmd, "
+						  "CASE WHEN pol.polroles = '{0}' THEN 'PUBLIC' ELSE "
+						  "   array_to_string(ARRAY(SELECT rolname from pg_roles WHERE oid = ANY(pol.polroles)), ', ') END AS polroles, "
+						  "pg_get_expr(pol.polqual, pol.polrelid) AS polqual, "
+						  "pg_get_expr(pol.polwithcheck, pol.polrelid) AS polwithcheck "
+						  "FROM pg_catalog.pg_policy pol "
+						  "WHERE polrelid = '%u'",
 						  tbinfo->dobj.catId.oid);
 		res = ExecuteSqlQuery(fout, query->data, PGRES_TUPLES_OK);
 
@@ -2871,45 +2873,44 @@ getRowSecurity(Archive *fout, TableInfo tblinfo[], int numTables)
 
 		i_oid = PQfnumber(res, "oid");
 		i_tableoid = PQfnumber(res, "tableoid");
-		i_rsecpolname = PQfnumber(res, "rsecpolname");
-		i_rseccmd = PQfnumber(res, "rseccmd");
-		i_rsecroles = PQfnumber(res, "rsecroles");
-		i_rsecqual = PQfnumber(res, "rsecqual");
-		i_rsecwithcheck = PQfnumber(res, "rsecwithcheck");
+		i_polname = PQfnumber(res, "polname");
+		i_polcmd = PQfnumber(res, "polcmd");
+		i_polroles = PQfnumber(res, "polroles");
+		i_polqual = PQfnumber(res, "polqual");
+		i_polwithcheck = PQfnumber(res, "polwithcheck");
 
-		rsinfo = pg_malloc(ntups * sizeof(RowSecurityInfo));
+		polinfo = pg_malloc(ntups * sizeof(PolicyInfo));
 
 		for (j = 0; j < ntups; j++)
 		{
-			rsinfo[j].dobj.objType = DO_ROW_SECURITY;
-			rsinfo[j].dobj.catId.tableoid =
+			polinfo[j].dobj.objType = DO_POLICY;
+			polinfo[j].dobj.catId.tableoid =
 				atooid(PQgetvalue(res, j, i_tableoid));
-			rsinfo[j].dobj.catId.oid = atooid(PQgetvalue(res, j, i_oid));
-			AssignDumpId(&rsinfo[j].dobj);
-			rsinfo[j].dobj.namespace = tbinfo->dobj.namespace;
-			rsinfo[j].rstable = tbinfo;
-			rsinfo[j].rsecpolname = pg_strdup(PQgetvalue(res, j,
-														 i_rsecpolname));
+			polinfo[j].dobj.catId.oid = atooid(PQgetvalue(res, j, i_oid));
+			AssignDumpId(&polinfo[j].dobj);
+			polinfo[j].dobj.namespace = tbinfo->dobj.namespace;
+			polinfo[j].poltable = tbinfo;
+			polinfo[j].polname = pg_strdup(PQgetvalue(res, j, i_polname));
 
-			rsinfo[j].dobj.name = pg_strdup(rsinfo[j].rsecpolname);
+			polinfo[j].dobj.name = pg_strdup(polinfo[j].polname);
 
-			if (PQgetisnull(res, j, i_rseccmd))
-				rsinfo[j].rseccmd = NULL;
+			if (PQgetisnull(res, j, i_polcmd))
+				polinfo[j].polcmd = NULL;
 			else
-				rsinfo[j].rseccmd = pg_strdup(PQgetvalue(res, j, i_rseccmd));
+				polinfo[j].polcmd = pg_strdup(PQgetvalue(res, j, i_polcmd));
 
-			rsinfo[j].rsecroles = pg_strdup(PQgetvalue(res, j, i_rsecroles));
+			polinfo[j].polroles = pg_strdup(PQgetvalue(res, j, i_polroles));
 
-			if (PQgetisnull(res, j, i_rsecqual))
-				rsinfo[j].rsecqual = NULL;
+			if (PQgetisnull(res, j, i_polqual))
+				polinfo[j].polqual = NULL;
 			else
-				rsinfo[j].rsecqual = pg_strdup(PQgetvalue(res, j, i_rsecqual));
+				polinfo[j].polqual = pg_strdup(PQgetvalue(res, j, i_polqual));
 
-			if (PQgetisnull(res, j, i_rsecwithcheck))
-				rsinfo[j].rsecwithcheck = NULL;
+			if (PQgetisnull(res, j, i_polwithcheck))
+				polinfo[j].polwithcheck = NULL;
 			else
-				rsinfo[j].rsecwithcheck
-					= pg_strdup(PQgetvalue(res, j, i_rsecwithcheck));
+				polinfo[j].polwithcheck
+					= pg_strdup(PQgetvalue(res, j, i_polwithcheck));
 		}
 		PQclear(res);
 	}
@@ -2917,13 +2918,13 @@ getRowSecurity(Archive *fout, TableInfo tblinfo[], int numTables)
 }
 
 /*
- * dumpRowSecurity
- *    dump the definition of the given row-security policy
+ * dumpPolicy
+ *	  dump the definition of the given policy
  */
 static void
-dumpRowSecurity(Archive *fout, RowSecurityInfo *rsinfo)
+dumpPolicy(Archive *fout, PolicyInfo *polinfo)
 {
-	TableInfo  *tbinfo = rsinfo->rstable;
+	TableInfo  *tbinfo = polinfo->poltable;
 	PQExpBuffer query;
 	PQExpBuffer delqry;
 	const char *cmd;
@@ -2932,23 +2933,23 @@ dumpRowSecurity(Archive *fout, RowSecurityInfo *rsinfo)
 		return;
 
 	/*
-	 * If rsecpolname is NULL, then this record is just indicating that ROW
-	 * LEVEL SECURITY is enabled for the table.
-	 * Dump as ALTER TABLE <table> ENABLE ROW LEVEL SECURITY.
+	 * If polname is NULL, then this record is just indicating that ROW
+	 * LEVEL SECURITY is enabled for the table. Dump as ALTER TABLE <table>
+	 * ENABLE ROW LEVEL SECURITY.
 	 */
-	if (rsinfo->rsecpolname == NULL)
+	if (polinfo->polname == NULL)
 	{
 		query = createPQExpBuffer();
 
 		appendPQExpBuffer(query, "ALTER TABLE %s ENABLE ROW LEVEL SECURITY;",
-						  fmtId(rsinfo->dobj.name));
+						  fmtId(polinfo->dobj.name));
 
-		ArchiveEntry(fout, rsinfo->dobj.catId, rsinfo->dobj.dumpId,
-					 rsinfo->dobj.name,
-					 rsinfo->dobj.namespace->dobj.name,
+		ArchiveEntry(fout, polinfo->dobj.catId, polinfo->dobj.dumpId,
+					 polinfo->dobj.name,
+					 polinfo->dobj.namespace->dobj.name,
 					 NULL,
 					 tbinfo->rolname, false,
-					 "ROW SECURITY", SECTION_NONE,
+					 "ROW SECURITY", SECTION_POST_DATA,
 					 query->data, "", NULL,
 					 NULL, 0,
 					 NULL, NULL);
@@ -2957,19 +2958,19 @@ dumpRowSecurity(Archive *fout, RowSecurityInfo *rsinfo)
 		return;
 	}
 
-	if (!rsinfo->rseccmd)
+	if (!polinfo->polcmd)
 		cmd = "ALL";
-	else if (strcmp(rsinfo->rseccmd, "r") == 0)
+	else if (strcmp(polinfo->polcmd, "r") == 0)
 		cmd = "SELECT";
-	else if (strcmp(rsinfo->rseccmd, "a") == 0)
+	else if (strcmp(polinfo->polcmd, "a") == 0)
 		cmd = "INSERT";
-	else if (strcmp(rsinfo->rseccmd, "w") == 0)
+	else if (strcmp(polinfo->polcmd, "w") == 0)
 		cmd = "UPDATE";
-	else if (strcmp(rsinfo->rseccmd, "d") == 0)
+	else if (strcmp(polinfo->polcmd, "d") == 0)
 		cmd = "DELETE";
 	else
 	{
-		write_msg(NULL, "unexpected command type: '%s'\n", rsinfo->rseccmd);
+		write_msg(NULL, "unexpected command type: '%s'\n", polinfo->polcmd);
 		exit_nicely(1);
 	}
 
@@ -2977,28 +2978,28 @@ dumpRowSecurity(Archive *fout, RowSecurityInfo *rsinfo)
 	delqry = createPQExpBuffer();
 
 	appendPQExpBuffer(query, "CREATE POLICY %s ON %s FOR %s",
-					  rsinfo->rsecpolname, fmtId(tbinfo->dobj.name), cmd);
+					  polinfo->polname, fmtId(tbinfo->dobj.name), cmd);
 
-	if (rsinfo->rsecroles != NULL)
-		appendPQExpBuffer(query, " TO %s", rsinfo->rsecroles);
+	if (polinfo->polroles != NULL)
+		appendPQExpBuffer(query, " TO %s", polinfo->polroles);
 
-	if (rsinfo->rsecqual != NULL)
-		appendPQExpBuffer(query, " USING %s", rsinfo->rsecqual);
+	if (polinfo->polqual != NULL)
+		appendPQExpBuffer(query, " USING %s", polinfo->polqual);
 
-	if (rsinfo->rsecwithcheck != NULL)
-		appendPQExpBuffer(query, " WITH CHECK %s", rsinfo->rsecwithcheck);
+	if (polinfo->polwithcheck != NULL)
+		appendPQExpBuffer(query, " WITH CHECK %s", polinfo->polwithcheck);
 
 	appendPQExpBuffer(query, ";\n");
 
 	appendPQExpBuffer(delqry, "DROP POLICY %s ON %s;\n",
-					  rsinfo->rsecpolname, fmtId(tbinfo->dobj.name));
+					  polinfo->polname, fmtId(tbinfo->dobj.name));
 
-	ArchiveEntry(fout, rsinfo->dobj.catId, rsinfo->dobj.dumpId,
-				 rsinfo->dobj.name,
-				 rsinfo->dobj.namespace->dobj.name,
+	ArchiveEntry(fout, polinfo->dobj.catId, polinfo->dobj.dumpId,
+				 polinfo->dobj.name,
+				 polinfo->dobj.namespace->dobj.name,
 				 NULL,
 				 tbinfo->rolname, false,
-				 "ROW SECURITY", SECTION_POST_DATA,
+				 "POLICY", SECTION_POST_DATA,
 				 query->data, delqry->data, NULL,
 				 NULL, 0,
 				 NULL, NULL);
@@ -8229,8 +8230,8 @@ dumpDumpableObject(Archive *fout, DumpableObject *dobj)
 						 NULL, 0,
 						 dumpBlobs, NULL);
 			break;
-		case DO_ROW_SECURITY:
-			dumpRowSecurity(fout, (RowSecurityInfo *) dobj);
+		case DO_POLICY:
+			dumpPolicy(fout, (PolicyInfo *) dobj);
 			break;
 		case DO_PRE_DATA_BOUNDARY:
 		case DO_POST_DATA_BOUNDARY:
@@ -15628,7 +15629,7 @@ addBoundaryDependencies(DumpableObject **dobjs, int numObjs,
 			case DO_TRIGGER:
 			case DO_EVENT_TRIGGER:
 			case DO_DEFAULT_ACL:
-			case DO_ROW_SECURITY:
+			case DO_POLICY:
 				/* Post-data objects: must come after the post-data boundary */
 				addObjectDependency(dobj, postDataBound->dumpId);
 				break;

@@ -857,15 +857,15 @@ static bool
 equalPolicy(RowSecurityPolicy *policy1, RowSecurityPolicy *policy2)
 {
 	int			i;
-	Oid        *r1,
-	Oid        *r2;
+	Oid		   *r1;
+	Oid		   *r2;
 
 	if (policy1 != NULL)
 	{
 		if (policy2 == NULL)
 			return false;
 
-		if (policy1->rsecid != policy2->rsecid)
+		if (policy1->policy_id != policy2->policy_id)
 			return false;
 		if (policy1->cmd != policy2->cmd)
 			return false;
@@ -3433,7 +3433,7 @@ RelationCacheInitializePhase3(void)
 		 * they are not preserved in the cache.  Note that we can never NOT
 		 * have a policy while relrowsecurity is true,
 		 * RelationBuildRowSecurity will create a single default-deny policy
-		 * if there is no policy defined in pg_rowsecurity.
+		 * if there is no policy defined in pg_policy.
 		 */
 		if (relation->rd_rel->relrowsecurity && relation->rd_rsdesc == NULL)
 		{
