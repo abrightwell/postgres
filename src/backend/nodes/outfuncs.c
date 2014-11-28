@@ -184,15 +184,13 @@ _outList(StringInfo str, const List *node)
 static void
 _outBitmapset(StringInfo str, const Bitmapset *bms)
 {
-	Bitmapset  *tmpset;
 	int			x;
 
 	appendStringInfoChar(str, '(');
 	appendStringInfoChar(str, 'b');
-	tmpset = bms_copy(bms);
-	while ((x = bms_first_member(tmpset)) >= 0)
+	x = -1;
+	while ((x = bms_next_member(bms, x)) >= 0)
 		appendStringInfo(str, " %d", x);
-	bms_free(tmpset);
 	appendStringInfoChar(str, ')');
 }
 
@@ -569,10 +567,14 @@ _outCustomScan(StringInfo str, const CustomScan *node)
 	WRITE_NODE_TYPE("CUSTOMSCAN");
 
 	_outScanInfo(str, (const Scan *) node);
+
 	WRITE_UINT_FIELD(flags);
-	appendStringInfo(str, " :methods");
+	WRITE_NODE_FIELD(custom_exprs);
+	WRITE_NODE_FIELD(custom_private);
+	appendStringInfoString(str, " :methods ");
 	_outToken(str, node->methods->CustomName);
-	node->methods->TextOutCustomScan(str, node);
+	if (node->methods->TextOutCustomScan)
+		node->methods->TextOutCustomScan(str, node);
 }
 
 static void
@@ -1600,11 +1602,15 @@ static void
 _outCustomPath(StringInfo str, const CustomPath *node)
 {
 	WRITE_NODE_TYPE("CUSTOMPATH");
+
 	_outPathInfo(str, (const Path *) node);
+
 	WRITE_UINT_FIELD(flags);
-	appendStringInfo(str, " :methods");
+	WRITE_NODE_FIELD(custom_private);
+	appendStringInfoString(str, " :methods ");
 	_outToken(str, node->methods->CustomName);
-	node->methods->TextOutCustomPath(str, node);
+	if (node->methods->TextOutCustomPath)
+		node->methods->TextOutCustomPath(str, node);
 }
 
 static void
