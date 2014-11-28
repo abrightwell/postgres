@@ -200,6 +200,7 @@ typedef enum AclObjectKind
 	MAX_ACL_KIND				/* MUST BE LAST */
 } AclObjectKind;
 
+typedef uint64 RoleAttr;		/* a bitmask for role attribute bits */
 
 /*
  * routines used internally

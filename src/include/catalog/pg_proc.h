@@ -2679,6 +2679,9 @@ DESCR("current user privilege on any column by rel oid");
 DATA(insert OID = 6000 (  has_role_attribute		   PGNSP PGUID 12 10 0 0 0 f f f f t f s 2 0 16 "26 25" _null_ _null_ _null_ _null_ has_role_attribute_id _null_ _null_ _null_));
 DESCR("user role attribute by user oid");
 
+DATA(insert OID = 6001 (  get_all_role_attributes	   PGNSP PGUID 12 10 0 0 0 f f f f t f s 1 0 1009 "20" _null_ _null_ _null_ _null_ get_all_role_attributes_rolattr _null_ _null_ _null_));
+DESCR("convert rolattr to string array");
+
 DATA(insert OID = 1928 (  pg_stat_get_numscans			PGNSP PGUID 12 1 0 0 0 f f f f t f s 1 0 20 "26" _null_ _null_ _null_ _null_ pg_stat_get_numscans _null_ _null_ _null_ ));
 DESCR("statistics: number of scans done for table/index");
 DATA(insert OID = 1929 (  pg_stat_get_tuples_returned	PGNSP PGUID 12 1 0 0 0 f f f f t f s 1 0 20 "26" _null_ _null_ _null_ _null_ pg_stat_get_tuples_returned _null_ _null_ _null_ ));

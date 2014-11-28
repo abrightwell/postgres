@@ -22,6 +22,7 @@
 
 #include "access/htup_details.h"
 #include "catalog/pg_authid.h"
+#include "utils/acl.h"
 #include "utils/inval.h"
 #include "utils/syscache.h"
 #include "miscadmin.h"

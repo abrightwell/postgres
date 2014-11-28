@@ -4621,6 +4621,53 @@ has_role_attribute_id(PG_FUNCTION_ARGS)
 }
 
 /*
+ * get_all_role_attributes_attr
+ *		Convert a RoleAttr representation of role attributes into an array of
+ *		corresponding text values.
+ *
+ * The first and only argument is a RoleAttr (int64) representation of the
+ * role attributes.
+ */
+Datum
+get_all_role_attributes_rolattr(PG_FUNCTION_ARGS)
+{
+	RoleAttr		attributes = PG_GETARG_INT64(0);
+	List		   *attribute_list = NIL;
+	ListCell	   *attribute;
+	Datum		   *temp_array;
+	ArrayType	   *result;
+	int				num_attributes;
+	int				i = 0;
+
+	if ((attributes & ROLE_ATTR_SUPERUSER) > 0)
+		attribute_list = lappend(attribute_list, "Superuser");
+	if ((attributes & ROLE_ATTR_INHERIT) > 0)
+		attribute_list = lappend(attribute_list, "Inherit");
+	if ((attributes & ROLE_ATTR_CREATEROLE) > 0)
+		attribute_list = lappend(attribute_list, "Create Role");
+	if ((attributes & ROLE_ATTR_CREATEDB) > 0)
+		attribute_list = lappend(attribute_list, "Create DB");
+	if ((attributes & ROLE_ATTR_CATUPDATE) > 0)
+		attribute_list = lappend(attribute_list, "Catalog Update");
+	if ((attributes & ROLE_ATTR_CANLOGIN) > 0)
+		attribute_list = lappend(attribute_list, "Login");
+	if ((attributes & ROLE_ATTR_REPLICATION) > 0)
+		attribute_list = lappend(attribute_list, "Replication");
+	if ((attributes & ROLE_ATTR_BYPASSRLS) > 0)
+		attribute_list = lappend(attribute_list, "Bypass RLS");
+
+	num_attributes = list_length(attribute_list);
+	temp_array = (Datum *) palloc(num_attributes * sizeof(Datum));
+
+	foreach(attribute, attribute_list)
+		temp_array[i++] = CStringGetTextDatum(lfirst(attribute));
+
+	result = construct_array(temp_array, num_attributes, TEXTOID, -1, false, 'i');
+
+	PG_RETURN_ARRAYTYPE_P(result);
+}
+
+/*
  * convert_role_attr_string
  *		Convert text string to RoleAttr value.
  */

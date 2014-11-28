@@ -75,13 +75,33 @@ typedef FormData_pg_authid *Form_pg_authid;
 #define Anum_pg_authid_rolvaliduntil	5
 
 /* ----------------
+ * Role attributes are encoded so that we can OR them together in a bitmask.
+ * The present representation of RoleAttr (defined in acl.h) limits us to 64
+ * distinct rights.
+ * ----------------
+ */
+#define ROLE_ATTR_SUPERUSER		(1<<0)
+#define ROLE_ATTR_INHERIT		(1<<1)
+#define ROLE_ATTR_CREATEROLE	(1<<2)
+#define ROLE_ATTR_CREATEDB		(1<<3)
+#define ROLE_ATTR_CATUPDATE		(1<<4)
+#define ROLE_ATTR_CANLOGIN		(1<<5)
+#define ROLE_ATTR_REPLICATION	(1<<6)
+#define ROLE_ATTR_BYPASSRLS		(1<<7)
+#define N_ROLE_ATTRIBUTES		8		/* 1 plus the last 1<<x */
+#define ROLE_ATTR_NONE			0
+#define ROLE_ATTR_ALL			255		/* All currently available attributes. */
+
+/* ----------------
  *		initial contents of pg_authid
  *
  * The uppercase quantities will be replaced at initdb time with
  * user choices.
+ *
+ * PGROLATTRALL is substituted by genbki.pl to use the value of ROLE_ATTR_ALL.
  * ----------------
  */
-DATA(insert OID = 10 ( "POSTGRES" 255 -1 _null_ _null_));
+DATA(insert OID = 10 ( "POSTGRES" PGROLATTRALL -1 _null_ _null_));
 
 #define BOOTSTRAP_SUPERUSERID 10
 
