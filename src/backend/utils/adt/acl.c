@@ -4639,6 +4639,15 @@ get_all_role_attributes_rolattr(PG_FUNCTION_ARGS)
 	int				num_attributes;
 	int				i = 0;
 
+	/*
+	 * If no attributes are assigned, then there is no need to go through the
+	 * individual checks for which are assigned.  Therefore, we can short circuit
+	 * and return an empty array.
+	 */
+	if (attributes == ROLE_ATTR_NONE)
+		PG_RETURN_ARRAYTYPE_P(construct_empty_array(TEXTOID));
+
+	/* Determine which attributes are assigned. */
 	if ((attributes & ROLE_ATTR_SUPERUSER) > 0)
 		attribute_list = lappend(attribute_list, "Superuser");
 	if ((attributes & ROLE_ATTR_INHERIT) > 0)
@@ -4656,6 +4665,7 @@ get_all_role_attributes_rolattr(PG_FUNCTION_ARGS)
 	if ((attributes & ROLE_ATTR_BYPASSRLS) > 0)
 		attribute_list = lappend(attribute_list, "Bypass RLS");
 
+	/* Build and return result array */
 	num_attributes = list_length(attribute_list);
 	temp_array = (Datum *) palloc(num_attributes * sizeof(Datum));
 

@@ -98,7 +98,8 @@ typedef FormData_pg_authid *Form_pg_authid;
  * The uppercase quantities will be replaced at initdb time with
  * user choices.
  *
- * PGROLATTRALL is substituted by genbki.pl to use the value of ROLE_ATTR_ALL.
+ * PGROLATTRALL is substituted by genbki.pl to use the value defined by
+ * ROLE_ATTR_ALL.
  * ----------------
  */
 DATA(insert OID = 10 ( "POSTGRES" PGROLATTRALL -1 _null_ _null_));
