@@ -78,24 +78,6 @@ typedef uint32 AclMode;			/* a bitmask of privilege bits */
 /* Currently, SELECT ... FOR [KEY] UPDATE/SHARE requires UPDATE privileges */
 #define ACL_SELECT_FOR_UPDATE	ACL_UPDATE
 
-/*
- * Role attributes are encoded so that we can OR them together in a bitmask.
- * The present representation of RoleAttr limits us to 64 distinct rights.
- *
- * Caution: changing these codes breaks stored RoleAttrs, hence forces initdb.
- */
-typedef uint64 RoleAttr;		/* a bitmask for role attribute bits */
-
-#define ROLE_ATTR_SUPERUSER		(1<<0)
-#define ROLE_ATTR_INHERIT		(1<<1)
-#define ROLE_ATTR_CREATEROLE	(1<<2)
-#define ROLE_ATTR_CREATEDB		(1<<3)
-#define ROLE_ATTR_CATUPDATE		(1<<4)
-#define ROLE_ATTR_CANLOGIN		(1<<5)
-#define ROLE_ATTR_REPLICATION	(1<<6)
-#define ROLE_ATTR_BYPASSRLS		(1<<7)
-#define N_ROLE_ATTRIBUTES		8
-#define ROLE_ATTR_NONE			0
 
 /*****************************************************************************
  *	Query Tree
