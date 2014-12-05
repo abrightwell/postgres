@@ -330,7 +330,7 @@ extern bool pg_extension_ownercheck(Oid ext_oid, Oid roleid);
 
 /* role attribute check routines */
 extern bool has_role_attribute(Oid roleid, RoleAttr attribute);
-extern bool check_role_attribute(Oid roleid, RoleAttr attribute);
 extern bool have_role_attribute(RoleAttr attribute);
+extern bool check_role_attribute(Oid roleid, RoleAttr attribute);
 
 #endif   /* ACL_H */

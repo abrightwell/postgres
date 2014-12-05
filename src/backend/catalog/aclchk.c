@@ -5041,7 +5041,7 @@ pg_extension_ownercheck(Oid ext_oid, Oid roleid)
  * Note: Use this function for role attribute permission checking as it accounts
  * for superuser status.  It will always return true for roles with superuser
  * privileges unless the attribute being checked is CATUPDATE (superusers are not
- * allowed to bypass permissions related to CATUPDATE).
+ * allowed to bypass CATUPDATE permissions).
  */
 bool
 has_role_attribute(Oid roleid, RoleAttr attribute)
@@ -5057,8 +5057,8 @@ has_role_attribute(Oid roleid, RoleAttr attribute)
 
 /*
  * have_role_attribute
- *   Convenience function for checking the attributes of the role id returned
- *   by GetUserId().
+ *   Convenience function for checking if the role id returned by GetUserId() has
+ *   been assigned a specific role attribute.
  *
  * attribute - the attribute to check.
  */
