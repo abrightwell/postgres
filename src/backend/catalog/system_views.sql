@@ -9,14 +9,14 @@
 CREATE VIEW pg_roles AS
     SELECT
         rolname,
-        has_role_attribute(pg_authid.oid, 'SUPERUSER') AS rolsuper,
-        has_role_attribute(pg_authid.oid, 'INHERIT') AS rolinherit,
-        has_role_attribute(pg_authid.oid, 'CREATEROLE') AS rolcreaterole,
-        has_role_attribute(pg_authid.oid, 'CREATEDB') AS rolcreatedb,
-        has_role_attribute(pg_authid.oid, 'CATUPDATE') AS rolcatupdate,
-        has_role_attribute(pg_authid.oid, 'CANLOGIN') AS rolcanlogin,
-        has_role_attribute(pg_authid.oid, 'REPLICATION') AS rolreplication,
-        has_role_attribute(pg_authid.oid, 'BYPASSRLS') AS rolbypassrls,
+        pg_check_role_attribute(pg_authid.oid, 'SUPERUSER') AS rolsuper,
+        pg_check_role_attribute(pg_authid.oid, 'INHERIT') AS rolinherit,
+        pg_check_role_attribute(pg_authid.oid, 'CREATEROLE') AS rolcreaterole,
+        pg_check_role_attribute(pg_authid.oid, 'CREATEDB') AS rolcreatedb,
+        pg_check_role_attribute(pg_authid.oid, 'CATUPDATE') AS rolcatupdate,
+        pg_check_role_attribute(pg_authid.oid, 'CANLOGIN') AS rolcanlogin,
+        pg_check_role_attribute(pg_authid.oid, 'REPLICATION') AS rolreplication,
+        pg_check_role_attribute(pg_authid.oid, 'BYPASSRLS') AS rolbypassrls,
         rolconnlimit,
         '********'::text as rolpassword,
         rolvaliduntil,
@@ -29,16 +29,16 @@ CREATE VIEW pg_shadow AS
     SELECT
         rolname AS usename,
         pg_authid.oid AS usesysid,
-        has_role_attribute(pg_authid.oid, 'CREATEDB') AS usecreatedb,
-        has_role_attribute(pg_authid.oid, 'SUPERUSER') AS usesuper,
-        has_role_attribute(pg_authid.oid, 'CATUPDATE') AS usecatupd,
-        has_role_attribute(pg_authid.oid, 'REPLICATION') AS userepl,
+        pg_check_role_attribute(pg_authid.oid, 'CREATEDB') AS usecreatedb,
+        pg_check_role_attribute(pg_authid.oid, 'SUPERUSER') AS usesuper,
+        pg_check_role_attribute(pg_authid.oid, 'CATUPDATE') AS usecatupd,
+        pg_check_role_attribute(pg_authid.oid, 'REPLICATION') AS userepl,
         rolpassword AS passwd,
         rolvaliduntil::abstime AS valuntil,
         setconfig AS useconfig
     FROM pg_authid LEFT JOIN pg_db_role_setting s
     ON (pg_authid.oid = setrole AND setdatabase = 0)
-    WHERE has_role_attribute(pg_authid.oid, 'CANLOGIN');
+    WHERE pg_check_role_attribute(pg_authid.oid, 'CANLOGIN');
 
 REVOKE ALL on pg_shadow FROM public;
 
@@ -48,7 +48,7 @@ CREATE VIEW pg_group AS
         oid AS grosysid,
         ARRAY(SELECT member FROM pg_auth_members WHERE roleid = oid) AS grolist
     FROM pg_authid
-    WHERE NOT has_role_attribute(pg_authid.oid, 'CANLOGIN');
+    WHERE NOT pg_check_role_attribute(pg_authid.oid, 'CANLOGIN');
 
 CREATE VIEW pg_user AS
     SELECT

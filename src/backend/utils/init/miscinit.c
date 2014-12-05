@@ -330,24 +330,6 @@ SetUserIdAndContext(Oid userid, bool sec_def_context)
 
 
 /*
- * Check whether specified role has explicit REPLICATION privilege
- */
-bool
-has_rolreplication(Oid roleid)
-{
-	RoleAttr	attributes;
-	HeapTuple	utup;
-
-	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
-	if (HeapTupleIsValid(utup))
-	{
-		attributes = ((Form_pg_authid) GETSTRUCT(utup))->rolattr;
-		ReleaseSysCache(utup);
-	}
-	return ((attributes & ROLE_ATTR_REPLICATION) > 0);
-}
-
-/*
  * Initialize user identity during normal backend startup
  */
 void
@@ -376,7 +358,7 @@ InitializeSessionUserId(const char *rolename)
 	roleid = HeapTupleGetOid(roleTup);
 
 	AuthenticatedUserId = roleid;
-	AuthenticatedUserIsSuperuser = ((rform->rolattr & ROLE_ATTR_SUPERUSER) > 0);
+	AuthenticatedUserIsSuperuser = (rform->rolattr & ROLE_ATTR_SUPERUSER);
 
 	/* This sets OuterUserId/CurrentUserId too */
 	SetSessionUserId(roleid, AuthenticatedUserIsSuperuser);
@@ -395,7 +377,7 @@ InitializeSessionUserId(const char *rolename)
 		/*
 		 * Is role allowed to login at all?
 		 */
-		if (!((rform->rolattr & ROLE_ATTR_CANLOGIN) > 0))
+		if (!(rform->rolattr & ROLE_ATTR_CANLOGIN))
 			ereport(FATAL,
 					(errcode(ERRCODE_INVALID_AUTHORIZATION_SPECIFICATION),
 					 errmsg("role \"%s\" is not permitted to log in",

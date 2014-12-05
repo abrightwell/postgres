@@ -74,7 +74,7 @@ superuser_arg(Oid roleid)
 	if (HeapTupleIsValid(rtup))
 	{
 		attributes = ((Form_pg_authid) GETSTRUCT(rtup))->rolattr;
-		result = ((attributes & ROLE_ATTR_SUPERUSER) > 0);
+		result = (attributes & ROLE_ATTR_SUPERUSER);
 		ReleaseSysCache(rtup);
 	}
 	else

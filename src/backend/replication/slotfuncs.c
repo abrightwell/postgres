@@ -17,16 +17,18 @@
 #include "miscadmin.h"
 
 #include "access/htup_details.h"
+#include "catalog/pg_authid.h"
 #include "replication/slot.h"
 #include "replication/logical.h"
 #include "replication/logicalfuncs.h"
+#include "utils/acl.h"
 #include "utils/builtins.h"
 #include "utils/pg_lsn.h"
 
 static void
 check_permissions(void)
 {
-	if (!superuser() && !has_rolreplication(GetUserId()))
+	if (!superuser() && !check_role_attribute(GetUserId(), ROLE_ATTR_REPLICATION))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 (errmsg("must be superuser or replication role to use replication slots"))));

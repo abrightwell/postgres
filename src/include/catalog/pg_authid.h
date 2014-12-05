@@ -22,7 +22,6 @@
 #define PG_AUTHID_H
 
 #include "catalog/genbki.h"
-#include "nodes/parsenodes.h"
 
 /*
  * The CATALOG definition has to refer to the type of rolvaliduntil as
@@ -90,7 +89,18 @@ typedef FormData_pg_authid *Form_pg_authid;
 #define ROLE_ATTR_BYPASSRLS		(1<<7)
 #define N_ROLE_ATTRIBUTES		8		/* 1 plus the last 1<<x */
 #define ROLE_ATTR_NONE			0
-#define ROLE_ATTR_ALL			255		/* All currently available attributes. */
+
+/* ----------------
+ * All currently available attributes.
+ *
+ * Note: This value is currently used by genbki.pl.  Unfortunately, we have to
+ * hard code this value as we cannot use an approach like (1 << N_ROLE_ATTRIBUTES) - 1
+ * as genbki.pl simply uses the literal value associated with the #define symbol
+ * which causes an incorrect substitution. Therefore, whenever new role attributes
+ * are added this value MUST be changed as well.
+ * ----------------
+ */
+#define ROLE_ATTR_ALL          255 /* or (1 << N_ROLE_ATTRIBUTES) - 1 */
 
 /* ----------------
  *		initial contents of pg_authid

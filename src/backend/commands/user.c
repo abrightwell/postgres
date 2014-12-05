@@ -56,19 +56,6 @@ static void DelRoleMems(const char *rolename, Oid roleid,
 			bool admin_opt);
 
 
-/* Check if current user has createrole privileges */
-static bool
-have_createrole_privilege(void)
-{
-	return has_createrole_privilege(GetUserId());
-}
-
-static RoleAttr
-set_role_attribute(RoleAttr attributes, RoleAttr attribute)
-{
-	return ((attributes & ~(0xFFFFFFFFFFFFFFFF)) | attribute);
-}
-
 /*
  * CREATE ROLE
  */
@@ -86,8 +73,8 @@ CreateRole(CreateRoleStmt *stmt)
 	char	   *password = NULL;	/* user password */
 	bool		encrypt_password = Password_encryption; /* encrypt password? */
 	char		encrypted_password[MD5_PASSWD_LEN + 1];
-	bool		issuper = false;		/* Make the user a superuser? */
-	bool		inherit = true;			/* Auto inherit privileges? */
+	bool		issuper = false;	/* Make the user a superuser? */
+	bool		inherit = true;	/* Auto inherit privileges? */
 	bool		createrole = false;		/* Can this user create roles? */
 	bool		createdb = false;		/* Can the user create databases? */
 	bool		canlogin = false;		/* Can this user login? */
@@ -313,7 +300,7 @@ CreateRole(CreateRoleStmt *stmt)
 	}
 	else
 	{
-		if (!have_createrole_privilege())
+		if (!has_role_attribute(GetUserId(), ROLE_ATTR_CREATEROLE))
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 					 errmsg("permission denied to create role")));
@@ -682,28 +669,28 @@ AlterRole(AlterRoleStmt *stmt)
 
 	attributes = ((Form_pg_authid) GETSTRUCT(tuple))->rolattr;
 
-	if (((attributes & ROLE_ATTR_SUPERUSER) > 0) || issuper >= 0)
+	if ((attributes & ROLE_ATTR_SUPERUSER) || issuper >= 0)
 	{
 		if (!superuser())
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 					 errmsg("must be superuser to alter superusers")));
 	}
-	else if (((attributes & ROLE_ATTR_REPLICATION) > 0) || isreplication >= 0)
+	else if ((attributes & ROLE_ATTR_REPLICATION) || isreplication >= 0)
 	{
 		if (!superuser())
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 					 errmsg("must be superuser to alter replication users")));
 	}
-	else if (((attributes & ROLE_ATTR_BYPASSRLS) > 0) || bypassrls >= 0)
+	else if ((attributes & ROLE_ATTR_BYPASSRLS) || bypassrls >= 0)
 	{
 		if (!superuser())
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 					 errmsg("must be superuser to change bypassrls attribute")));
 	}
-	else if (!have_createrole_privilege())
+	else if (!has_role_attribute(GetUserId(), ROLE_ATTR_CREATEROLE))
 	{
 		if (!(inherit < 0 &&
 			  createrole < 0 &&
@@ -764,51 +751,50 @@ AlterRole(AlterRoleStmt *stmt)
 	 */
 	if (issuper >= 0)
 	{
-		attributes = set_role_attribute(attributes,
-							(issuper > 0) ? (ROLE_ATTR_SUPERUSER | ROLE_ATTR_CATUPDATE) :
-							~(ROLE_ATTR_SUPERUSER | ROLE_ATTR_CATUPDATE));
+		attributes = (issuper > 0) ? attributes | (ROLE_ATTR_SUPERUSER | ROLE_ATTR_CATUPDATE)
+								   : attributes & ~(ROLE_ATTR_SUPERUSER | ROLE_ATTR_CATUPDATE);
 		new_record_repl[Anum_pg_authid_rolattr - 1] = true;
 	}
 
 	if (inherit >= 0)
 	{
-		attributes = set_role_attribute(attributes,
-							(inherit > 0) ? ROLE_ATTR_INHERIT : ~(ROLE_ATTR_INHERIT));
+		attributes = (inherit > 0) ? attributes | ROLE_ATTR_INHERIT
+								   : attributes & ~(ROLE_ATTR_INHERIT);
 		new_record_repl[Anum_pg_authid_rolattr - 1] = true;
 	}
 
 	if (createrole >= 0)
 	{
-		attributes = set_role_attribute(attributes,
-							(createrole > 0) ? ROLE_ATTR_CREATEROLE : ~(ROLE_ATTR_CREATEROLE));
+		attributes = (createrole > 0) ? attributes | ROLE_ATTR_CREATEROLE
+									  : attributes & ~(ROLE_ATTR_CREATEROLE);
 		new_record_repl[Anum_pg_authid_rolattr - 1] = true;
 	}
 
 	if (createdb >= 0)
 	{
-		attributes = set_role_attribute(attributes,
-							(createdb > 0) ? ROLE_ATTR_CREATEDB : ~(ROLE_ATTR_CREATEDB));
+		attributes = (createdb > 0) ? attributes | ROLE_ATTR_CREATEDB
+									: attributes & ~(ROLE_ATTR_CREATEDB);
 		new_record_repl[Anum_pg_authid_rolattr - 1] = true;
 	}
 
 	if (canlogin >= 0)
 	{
-		attributes = set_role_attribute(attributes,
-							(canlogin > 0) ? ROLE_ATTR_CANLOGIN : ~(ROLE_ATTR_CANLOGIN));
+		attributes = (canlogin > 0) ? attributes | ROLE_ATTR_CANLOGIN
+									: attributes & ~(ROLE_ATTR_CANLOGIN);
 		new_record_repl[Anum_pg_authid_rolattr - 1] = true;
 	}
 
 	if (isreplication >= 0)
 	{
-		attributes = set_role_attribute(attributes,
-							(isreplication > 0) ? ROLE_ATTR_REPLICATION : ~(ROLE_ATTR_REPLICATION));
+		attributes = (isreplication > 0) ? attributes | ROLE_ATTR_REPLICATION
+										 : attributes & ~(ROLE_ATTR_REPLICATION);
 		new_record_repl[Anum_pg_authid_rolattr - 1] = true;
 	}
 
 	if (bypassrls >= 0)
 	{
-		attributes = set_role_attribute(attributes,
-							(bypassrls > 0) ? ROLE_ATTR_BYPASSRLS : ~(ROLE_ATTR_BYPASSRLS));
+		attributes = (bypassrls > 0) ? attributes | ROLE_ATTR_BYPASSRLS
+										 : attributes & ~(ROLE_ATTR_BYPASSRLS);
 		new_record_repl[Anum_pg_authid_rolattr - 1] = true;
 	}
 
@@ -922,7 +908,7 @@ AlterRoleSet(AlterRoleSetStmt *stmt)
 		 * createrole, or just want to change your own settings
 		 */
 		attributes = ((Form_pg_authid) GETSTRUCT(roletuple))->rolattr;
-		if ((attributes & ROLE_ATTR_SUPERUSER) > 0)
+		if (attributes & ROLE_ATTR_SUPERUSER)
 		{
 			if (!superuser())
 				ereport(ERROR,
@@ -931,7 +917,7 @@ AlterRoleSet(AlterRoleSetStmt *stmt)
 		}
 		else
 		{
-			if (!have_createrole_privilege() &&
+			if (!has_role_attribute(GetUserId(), ROLE_ATTR_CREATEROLE) &&
 				HeapTupleGetOid(roletuple) != GetUserId())
 				ereport(ERROR,
 						(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
@@ -984,7 +970,7 @@ DropRole(DropRoleStmt *stmt)
 				pg_auth_members_rel;
 	ListCell   *item;
 
-	if (!have_createrole_privilege())
+	if (!has_role_attribute(GetUserId(), ROLE_ATTR_CREATEROLE))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("permission denied to drop role")));
@@ -1048,7 +1034,7 @@ DropRole(DropRoleStmt *stmt)
 		 * scenario where you accidentally drop the last superuser.
 		 */
 		attributes = ((Form_pg_authid) GETSTRUCT(tuple))->rolattr;
-		if (((attributes & ROLE_ATTR_SUPERUSER) > 0) && !superuser())
+		if ((attributes & ROLE_ATTR_SUPERUSER) && !superuser())
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 					 errmsg("must be superuser to drop superusers")));
@@ -1209,7 +1195,7 @@ RenameRole(const char *oldname, const char *newname)
 	 * createrole is enough privilege unless you want to mess with a superuser
 	 */
 	attributes = ((Form_pg_authid) GETSTRUCT(oldtuple))->rolattr;
-	if ((attributes & ROLE_ATTR_SUPERUSER) > 0)
+	if (attributes & ROLE_ATTR_SUPERUSER)
 	{
 		if (!superuser())
 			ereport(ERROR,
@@ -1218,7 +1204,7 @@ RenameRole(const char *oldname, const char *newname)
 	}
 	else
 	{
-		if (!have_createrole_privilege())
+		if (!has_role_attribute(GetUserId(), ROLE_ATTR_CREATEROLE))
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 					 errmsg("permission denied to rename role")));
@@ -1445,7 +1431,7 @@ AddRoleMems(const char *rolename, Oid roleid,
 	}
 	else
 	{
-		if (!have_createrole_privilege() &&
+		if (!has_role_attribute(GetUserId(), ROLE_ATTR_CREATEROLE) &&
 			!is_admin_of_role(grantorId, roleid))
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
@@ -1591,7 +1577,7 @@ DelRoleMems(const char *rolename, Oid roleid,
 	}
 	else
 	{
-		if (!have_createrole_privilege() &&
+		if (!has_role_attribute(GetUserId(), ROLE_ATTR_CREATEROLE) &&
 			!is_admin_of_role(GetUserId(), roleid))
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),

@@ -327,8 +327,9 @@ extern bool pg_foreign_data_wrapper_ownercheck(Oid srv_oid, Oid roleid);
 extern bool pg_foreign_server_ownercheck(Oid srv_oid, Oid roleid);
 extern bool pg_event_trigger_ownercheck(Oid et_oid, Oid roleid);
 extern bool pg_extension_ownercheck(Oid ext_oid, Oid roleid);
-extern bool has_createrole_privilege(Oid roleid);
-extern bool has_bypassrls_privilege(Oid roleid);
-extern bool role_has_attribute(Oid roleid, RoleAttr capability);
+
+/* role attribute check routines */
+extern bool has_role_attribute(Oid roleid, RoleAttr attribute);
+extern bool check_role_attribute(Oid roleid, RoleAttr attribute);
 
 #endif   /* ACL_H */

@@ -3610,7 +3610,7 @@ pg_class_aclmask(Oid table_oid, Oid roleid,
 	if ((mask & (ACL_INSERT | ACL_UPDATE | ACL_DELETE | ACL_TRUNCATE | ACL_USAGE)) &&
 		IsSystemClass(table_oid, classForm) &&
 		classForm->relkind != RELKIND_VIEW &&
-		!role_has_attribute(roleid, ROLE_ATTR_CATUPDATE) &&
+		!has_role_attribute(roleid, ROLE_ATTR_CATUPDATE) &&
 		!allowSystemTableMods)
 	{
 #ifdef ACLDEBUG
@@ -5031,10 +5031,36 @@ pg_extension_ownercheck(Oid ext_oid, Oid roleid)
 }
 
 /*
- * Check whether the specified role has a specific role attribute.
+ * has_role_attribute
+ *   Check if the role has the specified role has a specific role attribute.
+ *   This function will always return true for roles with superuser privileges
+ *   unless the attribute being checked is CATUPDATE.
+ *
+ * roleid - the oid of the role to check.
+ * attribute - the attribute to check.
  */
 bool
-role_has_attribute(Oid roleid, RoleAttr attribute)
+has_role_attribute(Oid roleid, RoleAttr attribute)
+{
+	/*
+	 * Superusers bypass all permission checking except in the case of CATUPDATE.
+	 */
+	if (!(attribute & ROLE_ATTR_CATUPDATE) && superuser_arg(roleid))
+		return true;
+
+	return check_role_attribute(roleid, attribute);
+}
+
+/*
+ * check_role_attribute
+ *   Check if the role with the specified id has been assigned a specific
+ *   role attribute.  This function does not allow any superuser bypass.
+ *
+ * roleid - the oid of the role to check.
+ * attribute - the attribute to check.
+ */
+bool
+check_role_attribute(Oid roleid, RoleAttr attribute)
 {
 	RoleAttr	attributes;
 	HeapTuple	tuple;
@@ -5049,41 +5075,7 @@ role_has_attribute(Oid roleid, RoleAttr attribute)
 	attributes = ((Form_pg_authid) GETSTRUCT(tuple))->rolattr;
 	ReleaseSysCache(tuple);
 
-	return ((attributes & attribute) > 0);
-}
-
-/*
- * Check whether specified role has CREATEROLE privilege (or is a superuser)
- *
- * Note: roles do not have owners per se; instead we use this test in
- * places where an ownership-like permissions test is needed for a role.
- * Be sure to apply it to the role trying to do the operation, not the
- * role being operated on!	Also note that this generally should not be
- * considered enough privilege if the target role is a superuser.
- * (We don't handle that consideration here because we want to give a
- * separate error message for such cases, so the caller has to deal with it.)
- */
-bool
-has_createrole_privilege(Oid roleid)
-{
-	/* Superusers bypass all permission checking. */
-	if (superuser_arg(roleid))
-		return true;
-
-	return role_has_attribute(roleid, ROLE_ATTR_CREATEROLE);
-}
-
-/*
- * Check whether specified role has BYPASSRLS privilege.
- */
-bool
-has_bypassrls_privilege(Oid roleid)
-{
-	/* Superusers bypass all permission checking. */
-	if (superuser_arg(roleid))
-		return true;
-
-	return role_has_attribute(roleid, ROLE_ATTR_BYPASSRLS);
+	return (attributes & attribute);
 }
 
 /*

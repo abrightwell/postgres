@@ -802,7 +802,7 @@ check_session_authorization(char **newval, void **extra, GucSource source)
 
 	roleid = HeapTupleGetOid(roleTup);
 	attributes = ((Form_pg_authid) GETSTRUCT(roleTup))->rolattr;
-	is_superuser = ((attributes & ROLE_ATTR_SUPERUSER) > 0);
+	is_superuser = (attributes & ROLE_ATTR_SUPERUSER);
 
 	ReleaseSysCache(roleTup);
 
@@ -876,7 +876,7 @@ check_role(char **newval, void **extra, GucSource source)
 
 		roleid = HeapTupleGetOid(roleTup);
 		attributes = ((Form_pg_authid) GETSTRUCT(roleTup))->rolattr;
-		is_superuser = ((attributes & ROLE_ATTR_SUPERUSER) > 0);
+		is_superuser = (attributes & ROLE_ATTR_SUPERUSER);
 
 		ReleaseSysCache(roleTup);
 

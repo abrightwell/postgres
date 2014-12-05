@@ -23,12 +23,14 @@
 
 #include "access/xlog_internal.h"
 
+#include "catalog/pg_authid.h"
 #include "catalog/pg_type.h"
 
 #include "nodes/makefuncs.h"
 
 #include "mb/pg_wchar.h"
 
+#include "utils/acl.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
 #include "utils/inval.h"
@@ -205,7 +207,7 @@ XLogRead(char *buf, TimeLineID tli, XLogRecPtr startptr, Size count)
 static void
 check_permissions(void)
 {
-	if (!superuser() && !has_rolreplication(GetUserId()))
+	if (!superuser() && !check_role_attribute(GetUserId(), ROLE_ATTR_REPLICATION))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 (errmsg("must be superuser or replication role to use replication slots"))));

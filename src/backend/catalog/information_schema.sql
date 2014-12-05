@@ -2885,7 +2885,7 @@ CREATE VIEW user_mapping_options AS
            CAST(CASE WHEN (umuser <> 0 AND authorization_identifier = current_user)
                        OR (umuser = 0 AND pg_has_role(srvowner, 'USAGE'))
                        OR (
-                            SELECT has_role_attribute(pg_authid.oid, 'SUPERUSER') AS rolsuper
+                            SELECT pg_check_role_attribute(pg_authid.oid, 'SUPERUSER') AS rolsuper
                             FROM pg_authid
                             WHERE rolname = current_user
                           )

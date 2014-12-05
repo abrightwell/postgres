@@ -36,6 +36,7 @@
 #include "access/heapam.h"
 #include "access/htup_details.h"
 #include "access/sysattr.h"
+#include "catalog/pg_authid.h"
 #include "catalog/pg_class.h"
 #include "catalog/pg_inherits_fn.h"
 #include "catalog/pg_policy.h"
@@ -521,7 +522,7 @@ check_enable_rls(Oid relid, Oid checkAsUser)
 	 */
 	if (!checkAsUser && row_security == ROW_SECURITY_OFF)
 	{
-		if (has_bypassrls_privilege(user_id))
+		if (has_role_attribute(user_id, ROLE_ATTR_BYPASSRLS))
 			/* OK to bypass */
 			return RLS_NONE_ENV;
 		else

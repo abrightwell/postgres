@@ -22,11 +22,13 @@
 #include "access/xlog_internal.h"
 #include "access/xlogutils.h"
 #include "catalog/catalog.h"
+#include "catalog/pg_authid.h"
 #include "catalog/pg_type.h"
 #include "funcapi.h"
 #include "miscadmin.h"
 #include "replication/walreceiver.h"
 #include "storage/smgr.h"
+#include "utils/acl.h"
 #include "utils/builtins.h"
 #include "utils/numeric.h"
 #include "utils/guc.h"
@@ -54,7 +56,7 @@ pg_start_backup(PG_FUNCTION_ARGS)
 
 	backupidstr = text_to_cstring(backupid);
 
-	if (!superuser() && !has_rolreplication(GetUserId()))
+	if (!superuser() && !check_role_attribute(GetUserId(), ROLE_ATTR_REPLICATION))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 		   errmsg("must be superuser or replication role to run a backup")));
@@ -82,7 +84,7 @@ pg_stop_backup(PG_FUNCTION_ARGS)
 {
 	XLogRecPtr	stoppoint;
 
-	if (!superuser() && !has_rolreplication(GetUserId()))
+	if (!superuser() && !check_role_attribute(GetUserId(), ROLE_ATTR_REPLICATION))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 		 (errmsg("must be superuser or replication role to run a backup"))));

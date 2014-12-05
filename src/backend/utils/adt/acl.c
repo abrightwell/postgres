@@ -578,7 +578,6 @@ aclitemin(PG_FUNCTION_ARGS)
 	PG_RETURN_ACLITEM_P(aip);
 }
 
-
 /*
  * aclitemout
  *		Allocates storage for, and fills in, a new null-delimited string
@@ -4605,11 +4604,15 @@ pg_role_aclcheck(Oid role_oid, Oid roleid, AclMode mode)
 }
 
 /*
- * has_role_attribute_id
- *		Check the named role attribute on a role by given role oid.
+ * pg_has_role_attribute_id_attr
+ *		Check that the role with the given oid has the given named role
+ *		attribute.
+ *
+ * Note: This function applies superuser checks.  Therefore, if the provided
+ * role is a superuser, then the result will always be true.
  */
 Datum
-has_role_attribute_id(PG_FUNCTION_ARGS)
+pg_has_role_attribute_id_attr(PG_FUNCTION_ARGS)
 {
 	Oid			roleoid = PG_GETARG_OID(0);
 	text	   *attr_type_text = PG_GETARG_TEXT_P(1);
@@ -4617,11 +4620,77 @@ has_role_attribute_id(PG_FUNCTION_ARGS)
 
 	attribute = convert_role_attr_string(attr_type_text);
 
-	PG_RETURN_BOOL(role_has_attribute(roleoid, attribute));
+	PG_RETURN_BOOL(has_role_attribute(roleoid, attribute));
 }
 
 /*
- * get_all_role_attributes_attr
+ * pg_has_role_attribute_name_attr
+ *		Check that the named role has the given named role attribute.
+ *
+ * Note: This function applies superuser checks.  Therefore, if the provided
+ * role is a superuser, then the result will always be true.
+ */
+Datum
+pg_has_role_attribute_name_attr(PG_FUNCTION_ARGS)
+{
+	Name		rolename = PG_GETARG_NAME(0);
+	text	   *attr_type_text = PG_GETARG_TEXT_P(1);
+	Oid			roleoid;
+	RoleAttr	attribute;
+
+	roleoid = get_role_oid(NameStr(*rolename), false);
+	attribute = convert_role_attr_string(attr_type_text);
+
+	PG_RETURN_BOOL(has_role_attribute(roleoid, attribute));
+}
+
+/*
+ * pg_check_role_attribute_id_attr
+ *		Check that the role with the given oid has the given named role
+ *		attribute.
+ *
+ * Note: This function is different from 'pg_has_role_attribute_id_attr' in that
+ * it does *not* apply any superuser checks.  Therefore, this function will
+ * always return the set value of the attribute, despite the superuser-ness of
+ * the provided role.
+ */
+Datum
+pg_check_role_attribute_id_attr(PG_FUNCTION_ARGS)
+{
+	Oid			roleoid = PG_GETARG_OID(0);
+	text	   *attr_type_text = PG_GETARG_TEXT_P(1);
+	RoleAttr	attribute;
+
+	attribute = convert_role_attr_string(attr_type_text);
+
+	PG_RETURN_BOOL(check_role_attribute(roleoid, attribute));
+}
+
+/*
+ * pg_check_role_attribute_name_attr
+ *		Check that the named role has the given named role attribute.
+ *
+ * Note: This function is different from 'pg_has_role_attribute_name_attr' in
+ * that it does *not* apply any superuser checks.  Therefore, this function will
+ * always return the set value of the attribute, despite the superuser-ness of
+ * the provided role.
+ */
+Datum
+pg_check_role_attribute_name_attr(PG_FUNCTION_ARGS)
+{
+	Name		rolename = PG_GETARG_NAME(0);
+	text	   *attr_type_text = PG_GETARG_TEXT_P(1);
+	Oid			roleoid;
+	RoleAttr	attribute;
+
+	roleoid = get_role_oid(NameStr(*rolename), false);
+	attribute = convert_role_attr_string(attr_type_text);
+
+	PG_RETURN_BOOL(check_role_attribute(roleoid, attribute));
+}
+
+/*
+ * pg_all_role_attributes_attrs
  *		Convert a RoleAttr representation of role attributes into an array of
  *		corresponding text values.
  *
@@ -4629,14 +4698,11 @@ has_role_attribute_id(PG_FUNCTION_ARGS)
  * role attributes.
  */
 Datum
-get_all_role_attributes_rolattr(PG_FUNCTION_ARGS)
+pg_all_role_attributes_attrs(PG_FUNCTION_ARGS)
 {
 	RoleAttr		attributes = PG_GETARG_INT64(0);
-	List		   *attribute_list = NIL;
-	ListCell	   *attribute;
 	Datum		   *temp_array;
 	ArrayType	   *result;
-	int				num_attributes;
 	int				i = 0;
 
 	/*
@@ -4647,32 +4713,27 @@ get_all_role_attributes_rolattr(PG_FUNCTION_ARGS)
 	if (attributes == ROLE_ATTR_NONE)
 		PG_RETURN_ARRAYTYPE_P(construct_empty_array(TEXTOID));
 
+	temp_array = (Datum *) palloc(N_ROLE_ATTRIBUTES * sizeof(Datum));
+
 	/* Determine which attributes are assigned. */
-	if ((attributes & ROLE_ATTR_SUPERUSER) > 0)
-		attribute_list = lappend(attribute_list, "Superuser");
-	if ((attributes & ROLE_ATTR_INHERIT) > 0)
-		attribute_list = lappend(attribute_list, "Inherit");
-	if ((attributes & ROLE_ATTR_CREATEROLE) > 0)
-		attribute_list = lappend(attribute_list, "Create Role");
-	if ((attributes & ROLE_ATTR_CREATEDB) > 0)
-		attribute_list = lappend(attribute_list, "Create DB");
-	if ((attributes & ROLE_ATTR_CATUPDATE) > 0)
-		attribute_list = lappend(attribute_list, "Catalog Update");
-	if ((attributes & ROLE_ATTR_CANLOGIN) > 0)
-		attribute_list = lappend(attribute_list, "Login");
-	if ((attributes & ROLE_ATTR_REPLICATION) > 0)
-		attribute_list = lappend(attribute_list, "Replication");
-	if ((attributes & ROLE_ATTR_BYPASSRLS) > 0)
-		attribute_list = lappend(attribute_list, "Bypass RLS");
+	if (attributes & ROLE_ATTR_SUPERUSER)
+		temp_array[i++] = CStringGetTextDatum("Superuser");
+	if (attributes & ROLE_ATTR_INHERIT)
+		temp_array[i++] = CStringGetTextDatum("Inherit");
+	if (attributes & ROLE_ATTR_CREATEROLE)
+		temp_array[i++] = CStringGetTextDatum("Create Role");
+	if (attributes & ROLE_ATTR_CREATEDB)
+		temp_array[i++] = CStringGetTextDatum("Create DB");
+	if (attributes & ROLE_ATTR_CATUPDATE)
+		temp_array[i++] = CStringGetTextDatum("Catalog Update");
+	if (attributes & ROLE_ATTR_CANLOGIN)
+		temp_array[i++] = CStringGetTextDatum("Login");
+	if (attributes & ROLE_ATTR_REPLICATION)
+		temp_array[i++] = CStringGetTextDatum("Replication");
+	if (attributes & ROLE_ATTR_BYPASSRLS)
+		temp_array[i++] = CStringGetTextDatum("Bypass RLS");
 
-	/* Build and return result array */
-	num_attributes = list_length(attribute_list);
-	temp_array = (Datum *) palloc(num_attributes * sizeof(Datum));
-
-	foreach(attribute, attribute_list)
-		temp_array[i++] = CStringGetTextDatum(lfirst(attribute));
-
-	result = construct_array(temp_array, num_attributes, TEXTOID, -1, false, 'i');
+	result = construct_array(temp_array, i, TEXTOID, -1, false, 'i');
 
 	PG_RETURN_ARRAYTYPE_P(result);
 }
@@ -4739,23 +4800,6 @@ RoleMembershipCacheCallback(Datum arg, int cacheid, uint32 hashvalue)
 }
 
 
-/* Check if specified role has rolinherit set */
-static bool
-has_rolinherit(Oid roleid)
-{
-	RoleAttr	attributes;
-	HeapTuple	utup;
-
-	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
-	if (HeapTupleIsValid(utup))
-	{
-		attributes = ((Form_pg_authid) GETSTRUCT(utup))->rolattr;
-		ReleaseSysCache(utup);
-	}
-	return ((attributes & ROLE_ATTR_INHERIT) > 0);
-}
-
-
 /*
  * Get a list of roles that the specified roleid has the privileges of
  *
@@ -4802,7 +4846,7 @@ roles_has_privs_of(Oid roleid)
 		int			i;
 
 		/* Ignore non-inheriting roles */
-		if (!has_rolinherit(memberid))
+		if (!has_role_attribute(memberid, ROLE_ATTR_INHERIT))
 			continue;
 
 		/* Find roles that memberid is directly a member of */

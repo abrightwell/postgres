@@ -33,6 +33,7 @@
 #include "access/htup_details.h"
 #include "access/sysattr.h"
 #include "access/xact.h"
+#include "catalog/pg_authid.h"
 #include "catalog/pg_collation.h"
 #include "catalog/pg_constraint.h"
 #include "catalog/pg_operator.h"
@@ -43,6 +44,7 @@
 #include "parser/parse_coerce.h"
 #include "parser/parse_relation.h"
 #include "miscadmin.h"
+#include "utils/acl.h"
 #include "utils/builtins.h"
 #include "utils/fmgroids.h"
 #include "utils/guc.h"
@@ -2308,7 +2310,7 @@ RI_Initial_Check(Trigger *trigger, Relation fk_rel, Relation pk_rel)
 	 * bypassrls right or is the table owner of the table(s) involved which
 	 * have RLS enabled.
 	 */
-	if (!has_bypassrls_privilege(GetUserId()) &&
+	if (!has_role_attribute(GetUserId(), ROLE_ATTR_BYPASSRLS) &&
 		((pk_rel->rd_rel->relrowsecurity &&
 		  !pg_class_ownercheck(pkrte->relid, GetUserId())) ||
 		 (fk_rel->rd_rel->relrowsecurity &&
