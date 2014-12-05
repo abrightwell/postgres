@@ -5052,6 +5052,19 @@ has_role_attribute(Oid roleid, RoleAttr attribute)
 }
 
 /*
+ * have_role_attribute
+ *   Convenience function for checking the attributes of the role id returned
+ *   by GetUserId().
+ *
+ * attribute - the attribute to check.
+ */
+bool
+have_role_attribute(RoleAttr attribute)
+{
+	return has_role_attribute(GetUserId(), attribute);
+}
+
+/*
  * check_role_attribute
  *   Check if the role with the specified id has been assigned a specific
  *   role attribute.  This function does not allow any superuser bypass.

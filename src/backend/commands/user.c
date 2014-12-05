@@ -300,7 +300,7 @@ CreateRole(CreateRoleStmt *stmt)
 	}
 	else
 	{
-		if (!has_role_attribute(GetUserId(), ROLE_ATTR_CREATEROLE))
+		if (!have_role_attribute(ROLE_ATTR_CREATEROLE))
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 					 errmsg("permission denied to create role")));
@@ -690,7 +690,7 @@ AlterRole(AlterRoleStmt *stmt)
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 					 errmsg("must be superuser to change bypassrls attribute")));
 	}
-	else if (!has_role_attribute(GetUserId(), ROLE_ATTR_CREATEROLE))
+	else if (!have_role_attribute(ROLE_ATTR_CREATEROLE))
 	{
 		if (!(inherit < 0 &&
 			  createrole < 0 &&
@@ -917,7 +917,7 @@ AlterRoleSet(AlterRoleSetStmt *stmt)
 		}
 		else
 		{
-			if (!has_role_attribute(GetUserId(), ROLE_ATTR_CREATEROLE) &&
+			if (!have_role_attribute(ROLE_ATTR_CREATEROLE) &&
 				HeapTupleGetOid(roletuple) != GetUserId())
 				ereport(ERROR,
 						(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
@@ -970,7 +970,7 @@ DropRole(DropRoleStmt *stmt)
 				pg_auth_members_rel;
 	ListCell   *item;
 
-	if (!has_role_attribute(GetUserId(), ROLE_ATTR_CREATEROLE))
+	if (!have_role_attribute(ROLE_ATTR_CREATEROLE))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("permission denied to drop role")));
@@ -1204,7 +1204,7 @@ RenameRole(const char *oldname, const char *newname)
 	}
 	else
 	{
-		if (!has_role_attribute(GetUserId(), ROLE_ATTR_CREATEROLE))
+		if (!have_role_attribute(ROLE_ATTR_CREATEROLE))
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 					 errmsg("permission denied to rename role")));
@@ -1431,7 +1431,7 @@ AddRoleMems(const char *rolename, Oid roleid,
 	}
 	else
 	{
-		if (!has_role_attribute(GetUserId(), ROLE_ATTR_CREATEROLE) &&
+		if (!have_role_attribute(ROLE_ATTR_CREATEROLE) &&
 			!is_admin_of_role(grantorId, roleid))
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
@@ -1577,7 +1577,7 @@ DelRoleMems(const char *rolename, Oid roleid,
 	}
 	else
 	{
-		if (!has_role_attribute(GetUserId(), ROLE_ATTR_CREATEROLE) &&
+		if (!have_role_attribute(ROLE_ATTR_CREATEROLE) &&
 			!is_admin_of_role(GetUserId(), roleid))
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),

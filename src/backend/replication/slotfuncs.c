@@ -28,7 +28,7 @@
 static void
 check_permissions(void)
 {
-	if (!superuser() && !check_role_attribute(GetUserId(), ROLE_ATTR_REPLICATION))
+	if (!have_role_attribute(ROLE_ATTR_REPLICATION))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 (errmsg("must be superuser or replication role to use replication slots"))));

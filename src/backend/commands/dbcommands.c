@@ -290,7 +290,7 @@ createdb(const CreatedbStmt *stmt)
 	 * "giveaway" attacks.  Note that a superuser will always have both of
 	 * these privileges a fortiori.
 	 */
-	if (!has_role_attribute(GetUserId(), ROLE_ATTR_CREATEDB))
+	if (!have_role_attribute(ROLE_ATTR_CREATEDB))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("permission denied to create database")));
@@ -964,7 +964,7 @@ RenameDatabase(const char *oldname, const char *newname)
 					   oldname);
 
 	/* must have createdb rights */
-	if (!has_role_attribute(GetUserId(), ROLE_ATTR_CREATEDB))
+	if (!have_role_attribute(ROLE_ATTR_CREATEDB))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("permission denied to rename database")));
@@ -1622,7 +1622,7 @@ AlterDatabaseOwner(const char *dbname, Oid newOwnerId)
 		 * databases.  Because superusers will always have this right, we need
 		 * no special case for them.
 		 */
-		if (!has_role_attribute(GetUserId(), ROLE_ATTR_CREATEDB))
+		if (!have_role_attribute(ROLE_ATTR_CREATEDB))
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				   errmsg("permission denied to change owner of database")));
