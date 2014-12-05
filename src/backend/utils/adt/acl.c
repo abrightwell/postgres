@@ -4604,7 +4604,7 @@ pg_role_aclcheck(Oid role_oid, Oid roleid, AclMode mode)
 }
 
 /*
- * pg_has_role_attribute_id_attr
+ * pg_has_role_attribute_id
  *		Check that the role with the given oid has the given named role
  *		attribute.
  *
@@ -4612,7 +4612,7 @@ pg_role_aclcheck(Oid role_oid, Oid roleid, AclMode mode)
  * role is a superuser, then the result will always be true.
  */
 Datum
-pg_has_role_attribute_id_attr(PG_FUNCTION_ARGS)
+pg_has_role_attribute_id(PG_FUNCTION_ARGS)
 {
 	Oid			roleoid = PG_GETARG_OID(0);
 	text	   *attr_type_text = PG_GETARG_TEXT_P(1);
@@ -4624,14 +4624,14 @@ pg_has_role_attribute_id_attr(PG_FUNCTION_ARGS)
 }
 
 /*
- * pg_has_role_attribute_name_attr
+ * pg_has_role_attribute_name
  *		Check that the named role has the given named role attribute.
  *
  * Note: This function applies superuser checks.  Therefore, if the provided
  * role is a superuser, then the result will always be true.
  */
 Datum
-pg_has_role_attribute_name_attr(PG_FUNCTION_ARGS)
+pg_has_role_attribute_name(PG_FUNCTION_ARGS)
 {
 	Name		rolename = PG_GETARG_NAME(0);
 	text	   *attr_type_text = PG_GETARG_TEXT_P(1);
@@ -4645,7 +4645,7 @@ pg_has_role_attribute_name_attr(PG_FUNCTION_ARGS)
 }
 
 /*
- * pg_check_role_attribute_id_attr
+ * pg_check_role_attribute_id
  *		Check that the role with the given oid has the given named role
  *		attribute.
  *
@@ -4655,7 +4655,7 @@ pg_has_role_attribute_name_attr(PG_FUNCTION_ARGS)
  * the provided role.
  */
 Datum
-pg_check_role_attribute_id_attr(PG_FUNCTION_ARGS)
+pg_check_role_attribute_id(PG_FUNCTION_ARGS)
 {
 	Oid			roleoid = PG_GETARG_OID(0);
 	text	   *attr_type_text = PG_GETARG_TEXT_P(1);
@@ -4667,7 +4667,7 @@ pg_check_role_attribute_id_attr(PG_FUNCTION_ARGS)
 }
 
 /*
- * pg_check_role_attribute_name_attr
+ * pg_check_role_attribute_name
  *		Check that the named role has the given named role attribute.
  *
  * Note: This function is different from 'pg_has_role_attribute_name_attr' in
@@ -4676,7 +4676,7 @@ pg_check_role_attribute_id_attr(PG_FUNCTION_ARGS)
  * the provided role.
  */
 Datum
-pg_check_role_attribute_name_attr(PG_FUNCTION_ARGS)
+pg_check_role_attribute_name(PG_FUNCTION_ARGS)
 {
 	Name		rolename = PG_GETARG_NAME(0);
 	text	   *attr_type_text = PG_GETARG_TEXT_P(1);
@@ -4690,7 +4690,7 @@ pg_check_role_attribute_name_attr(PG_FUNCTION_ARGS)
 }
 
 /*
- * pg_all_role_attributes_attrs
+ * pg_all_role_attributes
  *		Convert a RoleAttr representation of role attributes into an array of
  *		corresponding text values.
  *
@@ -4698,7 +4698,7 @@ pg_check_role_attribute_name_attr(PG_FUNCTION_ARGS)
  * role attributes.
  */
 Datum
-pg_all_role_attributes_attrs(PG_FUNCTION_ARGS)
+pg_all_role_attributes(PG_FUNCTION_ARGS)
 {
 	RoleAttr		attributes = PG_GETARG_INT64(0);
 	Datum		   *temp_array;
