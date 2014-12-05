@@ -74,7 +74,7 @@ CreateRole(CreateRoleStmt *stmt)
 	bool		encrypt_password = Password_encryption; /* encrypt password? */
 	char		encrypted_password[MD5_PASSWD_LEN + 1];
 	bool		issuper = false;	/* Make the user a superuser? */
-	bool		inherit = true;	/* Auto inherit privileges? */
+	bool		inherit = true; /* Auto inherit privileges? */
 	bool		createrole = false;		/* Can this user create roles? */
 	bool		createdb = false;		/* Can the user create databases? */
 	bool		canlogin = false;		/* Can this user login? */

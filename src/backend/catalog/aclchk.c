@@ -5032,12 +5032,16 @@ pg_extension_ownercheck(Oid ext_oid, Oid roleid)
 
 /*
  * has_role_attribute
- *   Check if the role has the specified role has a specific role attribute.
- *   This function will always return true for roles with superuser privileges
- *   unless the attribute being checked is CATUPDATE.
+ *   Check if the role with the specified id has been assigned a specific role
+ *   attribute.
  *
  * roleid - the oid of the role to check.
  * attribute - the attribute to check.
+ *
+ * Note: Use this function for role attribute permission checking as it accounts
+ * for superuser status.  It will always return true for roles with superuser
+ * privileges unless the attribute being checked is CATUPDATE (superusers are not
+ * allowed to bypass permissions related to CATUPDATE).
  */
 bool
 has_role_attribute(Oid roleid, RoleAttr attribute)
@@ -5066,11 +5070,15 @@ have_role_attribute(RoleAttr attribute)
 
 /*
  * check_role_attribute
- *   Check if the role with the specified id has been assigned a specific
- *   role attribute.  This function does not allow any superuser bypass.
+ *   Check if the role with the specified id has been assigned a specific role
+ *   attribute.
  *
  * roleid - the oid of the role to check.
  * attribute - the attribute to check.
+ *
+ * Note: This function should only be used for checking the value of an individual
+ * attribute in the rolattr bitmap and should *not* be used for permission checking.
+ * For the purposes of permission checking use 'has_role_attribute' instead.
  */
 bool
 check_role_attribute(Oid roleid, RoleAttr attribute)

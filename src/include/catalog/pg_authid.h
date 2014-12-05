@@ -100,7 +100,7 @@ typedef FormData_pg_authid *Form_pg_authid;
  * are added this value MUST be changed as well.
  * ----------------
  */
-#define ROLE_ATTR_ALL          255 /* or (1 << N_ROLE_ATTRIBUTES) - 1 */
+#define ROLE_ATTR_ALL          255 /* equals (1 << N_ROLE_ATTRIBUTES) - 1 */
 
 /* ----------------
  *		initial contents of pg_authid
