@@ -4690,6 +4690,23 @@ pg_check_role_attribute_name(PG_FUNCTION_ARGS)
 }
 
 /*
+ * pg_check_role_attribute_attrs
+ *		Check that the named attribute is enabled in the given RoleAttr
+ *		representation of role attributes.
+ */
+Datum
+pg_check_role_attribute_attrs(PG_FUNCTION_ARGS)
+{
+	RoleAttr	attributes = PG_GETARG_INT64(0);
+	text	   *attr_type_text = PG_GETARG_TEXT_P(1);
+	RoleAttr	attribute;
+
+	attribute = convert_role_attr_string(attr_type_text);
+
+	PG_RETURN_BOOL(attributes & attribute);
+}
+
+/*
  * pg_all_role_attributes
  *		Convert a RoleAttr representation of role attributes into an array of
  *		corresponding text values.

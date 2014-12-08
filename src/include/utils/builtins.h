@@ -110,6 +110,7 @@ extern Datum pg_has_role_attribute_id(PG_FUNCTION_ARGS);
 extern Datum pg_has_role_attribute_name(PG_FUNCTION_ARGS);
 extern Datum pg_check_role_attribute_id(PG_FUNCTION_ARGS);
 extern Datum pg_check_role_attribute_name(PG_FUNCTION_ARGS);
+extern Datum pg_check_role_attribute_attrs(PG_FUNCTION_ARGS);
 extern Datum pg_all_role_attributes(PG_FUNCTION_ARGS);
 
 /* bool.c */
