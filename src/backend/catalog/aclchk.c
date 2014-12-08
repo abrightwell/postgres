@@ -5042,6 +5042,14 @@ pg_extension_ownercheck(Oid ext_oid, Oid roleid)
  * for superuser status.  It will always return true for roles with superuser
  * privileges unless the attribute being checked is CATUPDATE (superusers are not
  * allowed to bypass CATUPDATE permissions).
+ *
+ * Note: roles do not have owners per se; instead we use this test in
+ * places where an ownership-like permissions test is needed for a role.
+ * Be sure to apply it to the role trying to do the operation, not the
+ * role being operated on!  Also note that this generally should not be
+ * considered enough privilege if the target role is a superuser.
+ * (We don't handle that consideration here because we want to give a
+ * separate error message for such cases, so the caller has to deal with it.)
  */
 bool
 has_role_attribute(Oid roleid, RoleAttr attribute)

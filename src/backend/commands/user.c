@@ -512,7 +512,7 @@ AlterRole(AlterRoleStmt *stmt)
 	DefElem    *dvalidUntil = NULL;
 	DefElem    *dbypassRLS = NULL;
 	Oid			roleid;
-	RoleAttr attributes;
+	RoleAttr	attributes;
 
 	/* Extract options from the statement node tree */
 	foreach(option, stmt->options)
