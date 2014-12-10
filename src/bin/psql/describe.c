@@ -775,7 +775,7 @@ permissionsList(const char *pattern)
 						  "  ), E'\\n') AS \"%s\"",
 						  gettext_noop("Column privileges"));
 
-	if (pset.sversion >= 90500)
+	if (pset.sversion >= 90400)
 		appendPQExpBuffer(&buf,
 						  ",\n  pg_catalog.array_to_string(ARRAY(\n"
 						  "    SELECT rsecpolname\n"
@@ -1221,7 +1221,7 @@ describeOneTableDetails(const char *schemaname,
 	initPQExpBuffer(&tmpbuf);
 
 	/* Get general table info */
-	if (pset.sversion >= 90500)
+	if (pset.sversion >= 90400)
 	{
 		printfPQExpBuffer(&buf,
 			  "SELECT c.relchecks, c.relkind, c.relhasindex, c.relhasrules, "
@@ -1994,11 +1994,11 @@ describeOneTableDetails(const char *schemaname,
 		}
 
 
-		if (pset.sversion >= 90500)
+		if (pset.sversion >= 90400)
 			appendPQExpBuffer(&buf,
 				",\n pg_catalog.pg_get_expr(rs.rsecqual, c.oid) as \"%s\"",
 				gettext_noop("Row-security"));
-	if (verbose && pset.sversion >= 90500)
+	if (verbose && pset.sversion >= 90400)
 		appendPQExpBuffer(&buf,
 			 "\n     LEFT JOIN pg_rowsecurity rs ON rs.rsecrelid = c.oid");
 
@@ -2635,7 +2635,7 @@ describeRoles(const char *pattern, bool verbose)
 			appendPQExpBufferStr(&buf, "\n, r.rolreplication");
 		}
 
-		if (pset.sversion >= 90500)
+		if (pset.sversion >= 90400)
 		{
 			appendPQExpBufferStr(&buf, "\n, r.rolbypassrls");
 		}
