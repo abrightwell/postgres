@@ -404,7 +404,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 %type <boolean> copy_from opt_program
 
 %type <ival>	opt_column event cursor_options opt_hold opt_set_data
-%type <objtype>	reindex_type drop_type comment_type security_label_type
+%type <objtype>	drop_type comment_type security_label_type
 
 %type <node>	fetch_args limit_clause select_limit_value
 				offset_clause select_offset_value
@@ -3401,9 +3401,23 @@ CreateAsStmt:
 					ctas->into = $4;
 					ctas->relkind = OBJECT_TABLE;
 					ctas->is_select_into = false;
+					ctas->if_not_exists = false;
 					/* cram additional flags into the IntoClause */
 					$4->rel->relpersistence = $2;
 					$4->skipData = !($7);
+					$$ = (Node *) ctas;
+				}
+		| CREATE OptTemp TABLE IF_P NOT EXISTS create_as_target AS SelectStmt opt_with_data
+				{
+					CreateTableAsStmt *ctas = makeNode(CreateTableAsStmt);
+					ctas->query = $9;
+					ctas->into = $7;
+					ctas->relkind = OBJECT_TABLE;
+					ctas->is_select_into = false;
+					ctas->if_not_exists = true;
+					/* cram additional flags into the IntoClause */
+					$7->rel->relpersistence = $2;
+					$7->skipData = !($10);
 					$$ = (Node *) ctas;
 				}
 		;
@@ -3444,9 +3458,23 @@ CreateMatViewStmt:
 					ctas->into = $5;
 					ctas->relkind = OBJECT_MATVIEW;
 					ctas->is_select_into = false;
+					ctas->if_not_exists = false;
 					/* cram additional flags into the IntoClause */
 					$5->rel->relpersistence = $2;
 					$5->skipData = !($8);
+					$$ = (Node *) ctas;
+				}
+		| CREATE OptNoLog MATERIALIZED VIEW IF_P NOT EXISTS create_mv_target AS SelectStmt opt_with_data
+				{
+					CreateTableAsStmt *ctas = makeNode(CreateTableAsStmt);
+					ctas->query = $10;
+					ctas->into = $8;
+					ctas->relkind = OBJECT_MATVIEW;
+					ctas->is_select_into = false;
+					ctas->if_not_exists = true;
+					/* cram additional flags into the IntoClause */
+					$8->rel->relpersistence = $2;
+					$8->skipData = !($11);
 					$$ = (Node *) ctas;
 				}
 		;
@@ -7198,39 +7226,46 @@ opt_if_exists: IF_P EXISTS						{ $$ = TRUE; }
  *****************************************************************************/
 
 ReindexStmt:
-			REINDEX reindex_type qualified_name opt_force
+			REINDEX INDEX qualified_name opt_force
 				{
 					ReindexStmt *n = makeNode(ReindexStmt);
-					n->kind = $2;
+					n->kind = REINDEX_OBJECT_INDEX;
 					n->relation = $3;
 					n->name = NULL;
+					$$ = (Node *)n;
+				}
+			| REINDEX TABLE qualified_name opt_force
+				{
+					ReindexStmt *n = makeNode(ReindexStmt);
+					n->kind = REINDEX_OBJECT_TABLE;
+					n->relation = $3;
+					n->name = NULL;
+					$$ = (Node *)n;
+				}
+			| REINDEX SCHEMA name opt_force
+				{
+					ReindexStmt *n = makeNode(ReindexStmt);
+					n->kind = REINDEX_OBJECT_SCHEMA;
+					n->name = $3;
+					n->relation = NULL;
 					$$ = (Node *)n;
 				}
 			| REINDEX SYSTEM_P name opt_force
 				{
 					ReindexStmt *n = makeNode(ReindexStmt);
-					n->kind = OBJECT_DATABASE;
+					n->kind = REINDEX_OBJECT_SYSTEM;
 					n->name = $3;
 					n->relation = NULL;
-					n->do_system = true;
-					n->do_user = false;
 					$$ = (Node *)n;
 				}
 			| REINDEX DATABASE name opt_force
 				{
 					ReindexStmt *n = makeNode(ReindexStmt);
-					n->kind = OBJECT_DATABASE;
+					n->kind = REINDEX_OBJECT_DATABASE;
 					n->name = $3;
 					n->relation = NULL;
-					n->do_system = true;
-					n->do_user = true;
 					$$ = (Node *)n;
 				}
-		;
-
-reindex_type:
-			INDEX									{ $$ = OBJECT_INDEX; }
-			| TABLE									{ $$ = OBJECT_TABLE; }
 		;
 
 opt_force:	FORCE									{  $$ = TRUE; }
