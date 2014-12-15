@@ -15254,19 +15254,19 @@ SELECT rolname, pg_all_role_attributes(rolattr) AS attributes FROM pg_authid;
 </programlisting>
    </para>
 
-   <para>
-    <xref linkend="functions-info-schema-table"> shows functions that
-    determine whether a certain object is <firstterm>visible</> in the
-    current schema search path.
-    For example, a table is said to be visible if its
-    containing schema is in the search path and no table of the same
-    name appears earlier in the search path.  This is equivalent to the
-    statement that the table can be referenced by name without explicit
-    schema qualification.  To list the names of all visible tables:
+  <para>
+   <xref linkend="functions-info-schema-table"> shows functions that
+   determine whether a certain object is <firstterm>visible</> in the
+   current schema search path.
+   For example, a table is said to be visible if its
+   containing schema is in the search path and no table of the same
+   name appears earlier in the search path.  This is equivalent to the
+   statement that the table can be referenced by name without explicit
+   schema qualification.  To list the names of all visible tables:
 <programlisting>
 SELECT relname FROM pg_class WHERE pg_table_is_visible(oid);
 </programlisting>
-   </para>
+  </para>
 
    <indexterm>
     <primary>search path</primary>
