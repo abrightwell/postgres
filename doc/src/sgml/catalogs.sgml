@@ -1432,6 +1432,82 @@
    </tgroup>
   </table>
 
+  <table id="catalog-rolattr-bitmap-table">
+   <title><structfield>rolattr</> bitmap positions</title>
+
+   <tgroup cols="3">
+    <thead>
+     <row>
+      <entry>Position</entry>
+      <entry>Attribute</entry>
+      <entry>Description</entry>
+     </row>
+    </thead>
+
+    <tbody>
+     <row>
+      <entry><literal>0</literal></entry>
+      <entry>Superuser</entry>
+      <entry>Role has superuser privileges</entry>
+     </row>
+
+     <row>
+      <entry><literal>1</literal></entry>
+      <entry>Inherit</entry>
+      <entry>Role automatically inherits privileges of roles it is a member of</entry>
+     </row>
+
+     <row>
+      <entry><literal>2</literal></entry>
+      <entry>Create Role</entry>
+      <entry>Role can create more roles</entry>
+     </row>
+
+     <row>
+      <entry><literal>3</literal></entry>
+      <entry>Create DB</entry>
+      <entry>Role can create databases</entry>
+     </row>
+
+     <row>
+      <entry><literal>4</literal></entry>
+      <entry>Catalog Update</entry>
+      <entry>
+       Role can update system catalogs directly.  (Even a superuser cannot do this unless this column is true)
+      </entry>
+     </row>
+
+     <row>
+      <entry><literal>5</literal></entry>
+      <entry>Can Login</entry>
+      <entry>
+       Role can log in. That is, this role can be given as the initial session authorization identifier
+      </entry>
+     </row>
+
+     <row>
+      <entry><literal>6</literal></entry>
+      <entry>Replication</entry>
+      <entry>
+       Role is a replication role. That is, this role can initiate streaming
+       replication (see <xref linkend="streaming-replication">) and set/unset
+       the system backup mode using <function>pg_start_backup</> and
+       <function>pg_stop_backup</>
+      </entry>
+     </row>
+
+     <row>
+      <entry><literal>7</literal></entry>
+      <entry>By-pass Row Level Security</entry>
+      <entry>
+       Role can by-pass row level security policies when <literal>row_security</> is set <literal>off</>
+      </entry>
+     </row>
+
+    </tbody>
+   </tgroup>
+  </table>
+
  </sect1>
 
 

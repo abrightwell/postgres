@@ -15139,18 +15139,10 @@ SELECT rolname, pg_has_role_attribute(oid, 'INHERIT') AS rolinherit FROM pg_role
    <para>
     <function>pg_check_role_attribute</function> check the attribute value given
     to a role.  The role can be specified by name and by OID.  The attribute is
-    specified by a text string which must evaluate to one of the following
-    role attributes:
-    <literal>SUPERUSER</literal>,
-    <literal>INHERIT</literal>,
-    <literal>CREATEROLE</literal>,
-    <literal>CREATEDB</literal>,
-    <literal>CATUPDATE</literal>,
-    <literal>CANLOGIN</literal>,
-    <literal>REPLICATION</literal>, or
-    <literal>BYPASSRLS</literal>.
-    A third variant of this function allows for a bitmap representation
-    (<literal>bigint</literal>) of attributes to be given instead of a role.
+    specified by a text string which must evaluate to a valid role attribute (see
+    <function>pg_has_role_attribute</function>).  A third variant of this function
+    allows for a bitmap representation (<literal>bigint</literal>) of attributes
+    to be given instead of a role.
     Example:
 <programlisting>
 SELECT pg_check_role_attribute('joe', 'SUPERUSER');
