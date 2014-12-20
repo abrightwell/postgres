@@ -26,7 +26,6 @@
 #include "catalog/acldefs.h"
 #include "utils/lockwaitpolicy.h"
 
-
 /* Possible sources of a Query */
 typedef enum QuerySource
 {
