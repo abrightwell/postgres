@@ -5096,7 +5096,7 @@ check_role_attribute(Oid roleid, RoleAttr attribute)
 	HeapTuple	tuple;
 
 	/* ROLE_ATTR_NONE (zero) is not a valid attribute */
-	Assert(attribute != ROLE_ATTR_NONE)
+	Assert(attribute != ROLE_ATTR_NONE);
 
 	/* Check that only one bit is set in 'attribute' */
 	Assert(!(attribute & (attribute - 1)));
