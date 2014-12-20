@@ -15190,8 +15190,8 @@ SELECT has_function_privilege('joeuser', 'myfunc(int, text)', 'execute');
     <literal>CATUPDATE</literal>,
     <literal>CANLOGIN</literal>,
     <literal>REPLICATION</literal>, or
-    <literal>BYPASSRLS</literal>.
-    Example:
+    <literal>BYPASSRLS</literal>. See <xref linkend="sql-createrole"> for more
+    information. For example:
 <programlisting>
 SELECT pg_has_role_attribute('joe', 'SUPERUSER');
  pg_has_role_attribute 
@@ -15214,8 +15214,7 @@ SELECT rolname, pg_has_role_attribute(oid, 'INHERIT') AS rolinherit FROM pg_role
     specified by a text string which must evaluate to a valid role attribute (see
     <function>pg_has_role_attribute</function>).  A third variant of this function
     allows for a bitmap representation (<literal>bigint</literal>) of attributes
-    to be given instead of a role.
-    Example:
+    to be given instead of a role. For example:
 <programlisting>
 SELECT pg_check_role_attribute('joe', 'SUPERUSER');
  pg_check_role_attribute 

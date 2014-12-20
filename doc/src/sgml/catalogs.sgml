@@ -1394,7 +1394,8 @@
       <entry><structfield>rolattr</structfield></entry>
       <entry><type>bigint</type></entry>
       <entry>
-       Role attributes; see <xref linkend="sql-createrole"> for details
+       Role attributes; see <xref linkend="catalog-rolattr-bitmap-table"> and
+       <xref linkend="sql-createrole"> for details
       </entry>
      </row>
 
@@ -1433,75 +1434,89 @@
   </table>
 
   <table id="catalog-rolattr-bitmap-table">
-   <title><structfield>rolattr</> bitmap positions</title>
+   <title>Attributes in <structfield>rolattr</></title>
 
-   <tgroup cols="3">
+   <tgroup cols="4">
     <thead>
      <row>
-      <entry>Position</entry>
       <entry>Attribute</entry>
+      <entry>CREATE ROLE Clause</entry>
       <entry>Description</entry>
+      <entry>Position</entry>
      </row>
     </thead>
 
     <tbody>
      <row>
-      <entry><literal>0</literal></entry>
       <entry>Superuser</entry>
+      <entry>SUPERUSER</entry>
       <entry>Role has superuser privileges</entry>
+      <entry><literal>0</literal></entry>
      </row>
 
      <row>
-      <entry><literal>1</literal></entry>
       <entry>Inherit</entry>
-      <entry>Role automatically inherits privileges of roles it is a member of</entry>
+      <entry>INHERIT</entry>
+      <entry>
+       Role automatically inherits privileges of roles it is a member of
+      </entry>
+      <entry><literal>1</literal></entry>
      </row>
 
      <row>
-      <entry><literal>2</literal></entry>
       <entry>Create Role</entry>
+      <entry>CREATEROLE</entry>
       <entry>Role can create more roles</entry>
+      <entry><literal>2</literal></entry>
      </row>
 
      <row>
-      <entry><literal>3</literal></entry>
       <entry>Create DB</entry>
+      <entry>CREATEDB</entry>
       <entry>Role can create databases</entry>
+      <entry><literal>3</literal></entry>
      </row>
 
      <row>
-      <entry><literal>4</literal></entry>
       <entry>Catalog Update</entry>
+      <entry>CATUPDATE</entry>
       <entry>
-       Role can update system catalogs directly.  (Even a superuser cannot do this unless this column is true)
+       Role can update system catalogs directly.  (Even a superuser cannot do
+       this unless this column is true)
       </entry>
+      <entry><literal>4</literal></entry>
      </row>
 
      <row>
-      <entry><literal>5</literal></entry>
       <entry>Can Login</entry>
+      <entry>LOGIN</entry>
       <entry>
-       Role can log in. That is, this role can be given as the initial session authorization identifier
+       Role can log in. That is, this role can be given as the initial
+       session authorization identifier
       </entry>
+      <entry><literal>5</literal></entry>
      </row>
 
      <row>
-      <entry><literal>6</literal></entry>
       <entry>Replication</entry>
+      <entry>REPLICATION</entry>
       <entry>
        Role is a replication role. That is, this role can initiate streaming
        replication (see <xref linkend="streaming-replication">) and set/unset
        the system backup mode using <function>pg_start_backup</> and
        <function>pg_stop_backup</>
       </entry>
+      <entry><literal>6</literal></entry>
      </row>
 
      <row>
-      <entry><literal>7</literal></entry>
-      <entry>By-pass Row Level Security</entry>
+      <entry>Bypass Row Level Security</entry>
+      <entry>BYPASSRLS</entry>
       <entry>
-       Role can by-pass row level security policies when <literal>row_security</> is set <literal>off</>
+       Role can bypass row level security policies when <literal>row_security</>
+       is set <literal>off</>
       </entry>
+      <entry><literal>7</literal></entry>
      </row>
 
     </tbody>
