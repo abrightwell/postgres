@@ -5055,7 +5055,7 @@ bool
 has_role_attribute(Oid roleid, RoleAttr attribute)
 {
 	/*
-	 * Superusers bypass all permission checking except in the case of CATUPDATE.
+	 * Superusers bypass all permission checking except in the case of CATUPDATE
 	 */
 	if (!(attribute & ROLE_ATTR_CATUPDATE) && superuser_arg(roleid))
 		return true;
@@ -5065,8 +5065,8 @@ has_role_attribute(Oid roleid, RoleAttr attribute)
 
 /*
  * have_role_attribute
- *   Convenience function for checking if the role id returned by GetUserId() has
- *   been assigned a specific role attribute.
+ *   Convenience function for checking if the role id returned by GetUserId()
+ *   has been assigned a specific role attribute.
  *
  * attribute - the attribute to check.
  */
@@ -5084,15 +5084,22 @@ have_role_attribute(RoleAttr attribute)
  * roleid - the oid of the role to check.
  * attribute - the attribute to check.
  *
- * Note: This function should only be used for checking the value of an individual
- * attribute in the rolattr bitmap and should *not* be used for permission checking.
- * For the purposes of permission checking use 'has_role_attribute' instead.
+ * Note: This function should only be used for checking the value of an
+ * individual attribute in the rolattr bitmap and should *not* be used for
+ * permission checking. For the purposes of permission checking use
+ * 'has_role_attribute' instead.
  */
 bool
 check_role_attribute(Oid roleid, RoleAttr attribute)
 {
 	RoleAttr	attributes;
 	HeapTuple	tuple;
+
+	/* ROLE_ATTR_NONE (zero) is not a valid attribute */
+	Assert(attribute != ROLE_ATTR_NONE)
+
+	/* Check that only one bit is set in 'attribute' */
+	Assert(!(attribute & (attribute - 1)));
 
 	tuple = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
 
