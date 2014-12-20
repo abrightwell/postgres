@@ -36,6 +36,7 @@
 #include "miscadmin.h"
 #include "pg_trace.h"
 #include "replication/slot.h"
+#include "storage/barrier.h"
 #include "storage/ipc.h"
 #include "storage/predicate.h"
 #include "storage/proc.h"
@@ -167,10 +168,9 @@ init_lwlock_stats(void)
 	MemSet(&ctl, 0, sizeof(ctl));
 	ctl.keysize = sizeof(lwlock_stats_key);
 	ctl.entrysize = sizeof(lwlock_stats);
-	ctl.hash = tag_hash;
 	ctl.hcxt = lwlock_stats_cxt;
 	lwlock_stats_htab = hash_create("lwlock stats", 16384, &ctl,
-									HASH_ELEM | HASH_FUNCTION | HASH_CONTEXT);
+									HASH_ELEM | HASH_BLOBS | HASH_CONTEXT);
 	if (!exit_registered)
 	{
 		on_shmem_exit(print_lwlock_stats, 0);
@@ -1134,6 +1134,8 @@ LWLockUpdateVar(LWLock *lock, uint64 *valptr, uint64 val)
 		proc = head;
 		head = proc->lwWaitLink;
 		proc->lwWaitLink = NULL;
+		/* check comment in LWLockRelease() about this barrier */
+		pg_write_barrier();
 		proc->lwWaiting = false;
 		PGSemaphoreUnlock(&proc->sem);
 	}
@@ -1254,6 +1256,17 @@ LWLockRelease(LWLock *lock)
 		proc = head;
 		head = proc->lwWaitLink;
 		proc->lwWaitLink = NULL;
+		/*
+		 * Guarantee that lwWaiting being unset only becomes visible once the
+		 * unlink from the link has completed. Otherwise the target backend
+		 * could be woken up for other reason and enqueue for a new lock - if
+		 * that happens before the list unlink happens, the list would end up
+		 * being corrupted.
+		 *
+		 * The barrier pairs with the SpinLockAcquire() when enqueing for
+		 * another lock.
+		 */
+		pg_write_barrier();
 		proc->lwWaiting = false;
 		PGSemaphoreUnlock(&proc->sem);
 	}
