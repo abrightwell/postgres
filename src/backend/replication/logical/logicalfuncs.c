@@ -17,19 +17,13 @@
 
 #include <unistd.h>
 
+#include "access/xlog_internal.h"
+#include "catalog/pg_type.h"
 #include "fmgr.h"
 #include "funcapi.h"
-#include "miscadmin.h"
-
-#include "access/xlog_internal.h"
-
-#include "catalog/pg_authid.h"
-#include "catalog/pg_type.h"
-
-#include "nodes/makefuncs.h"
-
 #include "mb/pg_wchar.h"
-
+#include "miscadmin.h"
+#include "nodes/makefuncs.h"
 #include "utils/acl.h"
 #include "utils/array.h"
 #include "utils/builtins.h"
@@ -38,11 +32,9 @@
 #include "utils/pg_lsn.h"
 #include "utils/resowner.h"
 #include "utils/lsyscache.h"
-
 #include "replication/decode.h"
 #include "replication/logical.h"
 #include "replication/logicalfuncs.h"
-
 #include "storage/fd.h"
 
 /* private date for writing out data */

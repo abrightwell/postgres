@@ -36,7 +36,6 @@
 #include "access/heapam.h"
 #include "access/htup_details.h"
 #include "access/sysattr.h"
-#include "catalog/pg_authid.h"
 #include "catalog/pg_class.h"
 #include "catalog/pg_inherits_fn.h"
 #include "catalog/pg_policy.h"

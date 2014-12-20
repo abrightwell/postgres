@@ -21,6 +21,7 @@
 #ifndef PG_AUTHID_H
 #define PG_AUTHID_H
 
+#include "catalog/acldefs.h"
 #include "catalog/genbki.h"
 
 /*
@@ -73,34 +74,6 @@ typedef FormData_pg_authid *Form_pg_authid;
 #define Anum_pg_authid_rolpassword		4
 #define Anum_pg_authid_rolvaliduntil	5
 
-/* ----------------
- * Role attributes are encoded so that we can OR them together in a bitmask.
- * The present representation of RoleAttr (defined in acl.h) limits us to 64
- * distinct rights.
- * ----------------
- */
-#define ROLE_ATTR_SUPERUSER		(1<<0)
-#define ROLE_ATTR_INHERIT		(1<<1)
-#define ROLE_ATTR_CREATEROLE	(1<<2)
-#define ROLE_ATTR_CREATEDB		(1<<3)
-#define ROLE_ATTR_CATUPDATE		(1<<4)
-#define ROLE_ATTR_CANLOGIN		(1<<5)
-#define ROLE_ATTR_REPLICATION	(1<<6)
-#define ROLE_ATTR_BYPASSRLS		(1<<7)
-#define N_ROLE_ATTRIBUTES		8		/* 1 plus the last 1<<x */
-#define ROLE_ATTR_NONE			0
-
-/* ----------------
- * All currently available attributes.
- *
- * Note: This value is currently used by genbki.pl.  Unfortunately, we have to
- * hard code this value as we cannot use an approach like (1 << N_ROLE_ATTRIBUTES) - 1
- * as genbki.pl simply uses the literal value associated with the #define symbol
- * which causes an incorrect substitution. Therefore, whenever new role attributes
- * are added this value MUST be changed as well.
- * ----------------
- */
-#define ROLE_ATTR_ALL          255 /* equals (1 << N_ROLE_ATTRIBUTES) - 1 */
 
 /* ----------------
  *		initial contents of pg_authid

@@ -17,7 +17,6 @@
 #include "miscadmin.h"
 
 #include "access/htup_details.h"
-#include "catalog/pg_authid.h"
 #include "replication/slot.h"
 #include "replication/logical.h"
 #include "replication/logicalfuncs.h"

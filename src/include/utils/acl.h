@@ -30,13 +30,6 @@
 
 
 /*
- * typedef AclMode is declared in parsenodes.h, also the individual privilege
- * bit meanings are defined there
- */
-
-#define ACL_ID_PUBLIC	0		/* placeholder for id in a PUBLIC acl item */
-
-/*
  * AclItem
  *
  * Note: must be same size on all platforms, because the size is hardcoded
@@ -200,7 +193,6 @@ typedef enum AclObjectKind
 	MAX_ACL_KIND				/* MUST BE LAST */
 } AclObjectKind;
 
-typedef uint64 RoleAttr;		/* a bitmask for role attribute bits */
 
 /*
  * routines used internally

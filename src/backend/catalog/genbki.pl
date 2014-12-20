@@ -91,7 +91,7 @@ my $BOOTSTRAP_SUPERUSERID =
 my $PG_CATALOG_NAMESPACE =
   find_defined_symbol('pg_namespace.h', 'PG_CATALOG_NAMESPACE');
 my $ROLE_ATTR_ALL =
-  find_defined_symbol('pg_authid.h', 'ROLE_ATTR_ALL');
+  find_defined_symbol('acldefs.h', 'ROLE_ATTR_ALL');
 
 # Read all the input header files into internal data structures
 my $catalogs = Catalog::Catalogs(@input_files);

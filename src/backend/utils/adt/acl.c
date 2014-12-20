@@ -4723,9 +4723,7 @@ pg_all_role_attributes(PG_FUNCTION_ARGS)
 	int				i = 0;
 
 	/*
-	 * If no attributes are assigned, then there is no need to go through the
-	 * individual checks for which are assigned.  Therefore, we can short circuit
-	 * and return an empty array.
+	 * Short-circuit the case for no attributes assigned.
 	 */
 	if (attributes == ROLE_ATTR_NONE)
 		PG_RETURN_ARRAYTYPE_P(construct_empty_array(TEXTOID));
@@ -4734,21 +4732,21 @@ pg_all_role_attributes(PG_FUNCTION_ARGS)
 
 	/* Determine which attributes are assigned. */
 	if (attributes & ROLE_ATTR_SUPERUSER)
-		temp_array[i++] = CStringGetTextDatum("Superuser");
+		temp_array[i++] = CStringGetTextDatum(_("Superuser"));
 	if (attributes & ROLE_ATTR_INHERIT)
-		temp_array[i++] = CStringGetTextDatum("Inherit");
+		temp_array[i++] = CStringGetTextDatum(_("Inherit"));
 	if (attributes & ROLE_ATTR_CREATEROLE)
-		temp_array[i++] = CStringGetTextDatum("Create Role");
+		temp_array[i++] = CStringGetTextDatum(_("Create Role"));
 	if (attributes & ROLE_ATTR_CREATEDB)
-		temp_array[i++] = CStringGetTextDatum("Create DB");
+		temp_array[i++] = CStringGetTextDatum(_("Create DB"));
 	if (attributes & ROLE_ATTR_CATUPDATE)
-		temp_array[i++] = CStringGetTextDatum("Catalog Update");
+		temp_array[i++] = CStringGetTextDatum(_("Catalog Update"));
 	if (attributes & ROLE_ATTR_CANLOGIN)
-		temp_array[i++] = CStringGetTextDatum("Login");
+		temp_array[i++] = CStringGetTextDatum(_("Login"));
 	if (attributes & ROLE_ATTR_REPLICATION)
-		temp_array[i++] = CStringGetTextDatum("Replication");
+		temp_array[i++] = CStringGetTextDatum(_("Replication"));
 	if (attributes & ROLE_ATTR_BYPASSRLS)
-		temp_array[i++] = CStringGetTextDatum("Bypass RLS");
+		temp_array[i++] = CStringGetTextDatum(_("Bypass RLS"));
 
 	result = construct_array(temp_array, i, TEXTOID, -1, false, 'i');
 

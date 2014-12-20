@@ -73,14 +73,7 @@ CreateRole(CreateRoleStmt *stmt)
 	char	   *password = NULL;	/* user password */
 	bool		encrypt_password = Password_encryption; /* encrypt password? */
 	char		encrypted_password[MD5_PASSWD_LEN + 1];
-	bool		issuper = false;	/* Make the user a superuser? */
-	bool		inherit = true; /* Auto inherit privileges? */
-	bool		createrole = false;		/* Can this user create roles? */
-	bool		createdb = false;		/* Can the user create databases? */
-	bool		canlogin = false;		/* Can this user login? */
-	bool		isreplication = false;	/* Is this a replication role? */
-	bool		bypassrls = false;		/* Is this a row security enabled role? */
-	RoleAttr	attributes = ROLE_ATTR_NONE;	/* role attributes, initialized to none. */
+	RoleAttr	attributes;
 	int			connlimit = -1; /* maximum connections allowed */
 	List	   *addroleto = NIL;	/* roles to make this a member of */
 	List	   *rolemembers = NIL;		/* roles to be members of this role */
@@ -102,13 +95,17 @@ CreateRole(CreateRoleStmt *stmt)
 	DefElem    *dvalidUntil = NULL;
 	DefElem    *dbypassRLS = NULL;
 
-	/* The defaults can vary depending on the original statement type */
+	/*
+	 * Every role has INHERIT by default, and CANLOGIN depends on the statement
+	 * type.
+	 */
+	attributes = ROLE_ATTR_INHERIT;
 	switch (stmt->stmt_type)
 	{
 		case ROLESTMT_ROLE:
 			break;
 		case ROLESTMT_USER:
-			canlogin = true;
+			attributes |= ROLE_ATTR_CANLOGIN;
 			/* may eventually want inherit to default to false here */
 			break;
 		case ROLESTMT_GROUP:
@@ -243,21 +240,74 @@ CreateRole(CreateRoleStmt *stmt)
 	if (dpassword && dpassword->arg)
 		password = strVal(dpassword->arg);
 
-	/* Role Attributes */
+	/* Set up role attributes and check permissions to set each of them */
 	if (dissuper)
-		issuper = intVal(dissuper->arg) != 0;
+	{
+		if (intVal(dissuper->arg) != 0)
+		{
+			if (!superuser())
+				ereport(ERROR,
+						(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+						 errmsg("must be superuser to create superusers")));
+			attributes |= ROLE_ATTR_SUPERUSER;
+		}
+		else
+			attributes &= ~ROLE_ATTR_SUPERUSER;
+	}
 	if (dinherit)
-		inherit = intVal(dinherit->arg) != 0;
+	{
+		if (intVal(dinherit->arg) != 0)
+			attributes |= ROLE_ATTR_INHERIT;
+		else
+			attributes &= ~ROLE_ATTR_INHERIT;
+	}
 	if (dcreaterole)
-		createrole = intVal(dcreaterole->arg) != 0;
+	{
+		if (intVal(dcreaterole->arg) != 0)
+			attributes |= ROLE_ATTR_CREATEROLE;
+		else
+			attributes &= ~ROLE_ATTR_CREATEROLE;
+	}
 	if (dcreatedb)
-		createdb = intVal(dcreatedb->arg) != 0;
+	{
+		if (intVal(dcreatedb->arg) != 0)
+			attributes |= ROLE_ATTR_CREATEDB;
+		else
+			attributes &= ~ROLE_ATTR_CREATEDB;
+	}
 	if (dcanlogin)
-		canlogin = intVal(dcanlogin->arg) != 0;
+	{
+		if (intVal(dcanlogin->arg) != 0)
+			attributes |= ROLE_ATTR_CANLOGIN;
+		else
+			attributes &= ~ROLE_ATTR_CANLOGIN;
+	}
 	if (disreplication)
-		isreplication = intVal(disreplication->arg) != 0;
+	{
+		if (intVal(disreplication->arg) != 0)
+		{
+			if (!superuser())
+				ereport(ERROR,
+						(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+						 errmsg("must be superuser to create replication users")));
+			attributes |= ROLE_ATTR_REPLICATION;
+		}
+		else
+			attributes &= ~ROLE_ATTR_REPLICATION;
+	}
 	if (dbypassRLS)
-		bypassrls = intVal(dbypassRLS->arg) != 0;
+	{
+		if (intVal(dbypassRLS->arg) != 0)
+		{
+			if (!superuser())
+				ereport(ERROR,
+						(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+						 errmsg("must be superuser to change bypassrls attribute")));
+			attributes |= ROLE_ATTR_BYPASSRLS;
+		}
+		else
+			attributes &= ~ROLE_ATTR_BYPASSRLS;
+	}
 
 	if (dconnlimit)
 	{
@@ -276,35 +326,11 @@ CreateRole(CreateRoleStmt *stmt)
 	if (dvalidUntil)
 		validUntil = strVal(dvalidUntil->arg);
 
-	/* Check some permissions first */
-	if (issuper)
-	{
-		if (!superuser())
-			ereport(ERROR,
-					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-					 errmsg("must be superuser to create superusers")));
-	}
-	else if (isreplication)
-	{
-		if (!superuser())
-			ereport(ERROR,
-					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				   errmsg("must be superuser to create replication users")));
-	}
-	else if (bypassrls)
-	{
-		if (!superuser())
-			ereport(ERROR,
-					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-					 errmsg("must be superuser to change bypassrls attribute.")));
-	}
-	else
-	{
-		if (!have_role_attribute(ROLE_ATTR_CREATEROLE))
-			ereport(ERROR,
-					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-					 errmsg("permission denied to create role")));
-	}
+	/* Check permissions */
+	if (!have_role_attribute(ROLE_ATTR_CREATEROLE))
+		ereport(ERROR,
+				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
+				 errmsg("permission denied to create role")));
 
 	if (strcmp(stmt->role, "public") == 0 ||
 		strcmp(stmt->role, "none") == 0)
@@ -350,22 +376,6 @@ CreateRole(CreateRoleStmt *stmt)
 			   isMD5(password) ? PASSWORD_TYPE_MD5 : PASSWORD_TYPE_PLAINTEXT,
 								validUntil_datum,
 								validUntil_null);
-
-	/* Set all role attributes */
-	if (issuper)
-		attributes |= ROLE_ATTR_SUPERUSER;
-	if (inherit)
-		attributes |= ROLE_ATTR_INHERIT;
-	if (createrole)
-		attributes |= ROLE_ATTR_CREATEROLE;
-	if (createdb)
-		attributes |= ROLE_ATTR_CREATEDB;
-	if (canlogin)
-		attributes |= ROLE_ATTR_CANLOGIN;
-	if (isreplication)
-		attributes |= ROLE_ATTR_REPLICATION;
-	if (bypassrls)
-		attributes |= ROLE_ATTR_BYPASSRLS;
 
 	/*
 	 * Build a tuple to insert
@@ -663,8 +673,8 @@ AlterRole(AlterRoleStmt *stmt)
 	roleid = HeapTupleGetOid(tuple);
 
 	/*
-	 * To mess with a superuser you gotta be superuser; else you need
-	 * createrole, or just want to change your own password
+	 * To mess with a superuser or a replication user you gotta be superuser;
+	 * else you need createrole, or just want to change your own password
 	 */
 
 	attributes = ((Form_pg_authid) GETSTRUCT(tuple))->rolattr;
@@ -751,50 +761,64 @@ AlterRole(AlterRoleStmt *stmt)
 	 */
 	if (issuper >= 0)
 	{
-		attributes = (issuper > 0) ? attributes | (ROLE_ATTR_SUPERUSER | ROLE_ATTR_CATUPDATE)
-								   : attributes & ~(ROLE_ATTR_SUPERUSER | ROLE_ATTR_CATUPDATE);
+		if (issuper > 0)
+			attributes |= ROLE_ATTR_SUPERUSER | ROLE_ATTR_CATUPDATE;
+		else
+			attributes &= ~(ROLE_ATTR_SUPERUSER | ROLE_ATTR_CATUPDATE);
 		new_record_repl[Anum_pg_authid_rolattr - 1] = true;
 	}
 
 	if (inherit >= 0)
 	{
-		attributes = (inherit > 0) ? attributes | ROLE_ATTR_INHERIT
-								   : attributes & ~(ROLE_ATTR_INHERIT);
+		if (inherit > 0)
+			attributes |= ROLE_ATTR_INHERIT;
+		else
+			attributes &= ~ROLE_ATTR_INHERIT;
 		new_record_repl[Anum_pg_authid_rolattr - 1] = true;
 	}
 
 	if (createrole >= 0)
 	{
-		attributes = (createrole > 0) ? attributes | ROLE_ATTR_CREATEROLE
-									  : attributes & ~(ROLE_ATTR_CREATEROLE);
+		if (createrole > 0)
+			attributes |= ROLE_ATTR_CREATEROLE;
+		else
+			attributes &= ~ROLE_ATTR_CREATEROLE;
 		new_record_repl[Anum_pg_authid_rolattr - 1] = true;
 	}
 
 	if (createdb >= 0)
 	{
-		attributes = (createdb > 0) ? attributes | ROLE_ATTR_CREATEDB
-									: attributes & ~(ROLE_ATTR_CREATEDB);
+		if (createdb > 0)
+			attributes |= ROLE_ATTR_CREATEDB;
+		else
+			attributes &= ~ROLE_ATTR_CREATEDB;
 		new_record_repl[Anum_pg_authid_rolattr - 1] = true;
 	}
 
 	if (canlogin >= 0)
 	{
-		attributes = (canlogin > 0) ? attributes | ROLE_ATTR_CANLOGIN
-									: attributes & ~(ROLE_ATTR_CANLOGIN);
+		if (canlogin > 0)
+			attributes |= ROLE_ATTR_CANLOGIN;
+		else
+			attributes &= ~ROLE_ATTR_CANLOGIN;
 		new_record_repl[Anum_pg_authid_rolattr - 1] = true;
 	}
 
 	if (isreplication >= 0)
 	{
-		attributes = (isreplication > 0) ? attributes | ROLE_ATTR_REPLICATION
-										 : attributes & ~(ROLE_ATTR_REPLICATION);
+		if (isreplication > 0)
+			attributes |= ROLE_ATTR_REPLICATION;
+		else
+			attributes &= ~ROLE_ATTR_REPLICATION;
 		new_record_repl[Anum_pg_authid_rolattr - 1] = true;
 	}
 
 	if (bypassrls >= 0)
 	{
-		attributes = (bypassrls > 0) ? attributes | ROLE_ATTR_BYPASSRLS
-										 : attributes & ~(ROLE_ATTR_BYPASSRLS);
+		if (bypassrls > 0)
+			attributes |= ROLE_ATTR_BYPASSRLS;
+		else
+			attributes &= ~ROLE_ATTR_BYPASSRLS;
 		new_record_repl[Anum_pg_authid_rolattr - 1] = true;
 	}
 
