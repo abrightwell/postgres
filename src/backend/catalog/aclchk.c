@@ -143,6 +143,7 @@ static AclMode restrict_and_check_grant(bool is_grant, AclMode avail_goptions,
 						 AttrNumber att_number, const char *colname);
 static AclMode pg_aclmask(AclObjectKind objkind, Oid table_oid, AttrNumber attnum,
 		   Oid roleid, AclMode mask, AclMaskHow how);
+static bool has_catupdate_privilege(Oid roleid);
 
 
 #ifdef ACLDEBUG
@@ -3425,7 +3426,7 @@ aclcheck_error_type(AclResult aclerr, Oid typeOid)
 
 /* Check if given user has rolcatupdate privilege according to pg_authid */
 static bool
-has_rolcatupdate(Oid roleid)
+has_catupdate_privilege(Oid roleid)
 {
 	bool		rolcatupdate;
 	HeapTuple	tuple;
@@ -3630,7 +3631,7 @@ pg_class_aclmask(Oid table_oid, Oid roleid,
 	if ((mask & (ACL_INSERT | ACL_UPDATE | ACL_DELETE | ACL_TRUNCATE | ACL_USAGE)) &&
 		IsSystemClass(table_oid, classForm) &&
 		classForm->relkind != RELKIND_VIEW &&
-		!has_rolcatupdate(roleid) &&
+		!has_catupdate_privilege(roleid) &&
 		!allowSystemTableMods)
 	{
 #ifdef ACLDEBUG
@@ -5080,6 +5081,31 @@ has_createrole_privilege(Oid roleid)
 	return result;
 }
 
+/*
+ * Check whether specified role has REPLICATION privilege (or is a superuser)
+ */
+bool
+has_replication_privilege(Oid roleid)
+{
+	bool		result = false;
+	HeapTuple	utup;
+
+	/* Superusers bypass all permission checking. */
+	if (superuser_arg(roleid))
+		return true;
+
+	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
+	if (HeapTupleIsValid(utup))
+	{
+		result = ((Form_pg_authid) GETSTRUCT(utup))->rolreplication;
+		ReleaseSysCache(utup);
+	}
+	return result;
+}
+
+/*
+ * Check whether specified role has BYPASSRLS privilege (or is a superuser)
+ */
 bool
 has_bypassrls_privilege(Oid roleid)
 {
@@ -5094,6 +5120,95 @@ has_bypassrls_privilege(Oid roleid)
 	if (HeapTupleIsValid(utup))
 	{
 		result = ((Form_pg_authid) GETSTRUCT(utup))->rolbypassrls;
+		ReleaseSysCache(utup);
+	}
+	return result;
+}
+
+/*
+ * Check whether specified role has BACKUP privilege (or is a superuser)
+ */
+bool
+has_backup_privilege(Oid roleid)
+{
+	bool		result = false;
+	HeapTuple	utup;
+
+	/* Superusers bypass all permission checking. */
+	if (superuser_arg(roleid))
+		return true;
+
+	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
+	if (HeapTupleIsValid(utup))
+	{
+		result = ((Form_pg_authid) GETSTRUCT(utup))->rolbackup;
+		ReleaseSysCache(utup);
+	}
+
+	return result;
+}
+
+/*
+ * Check whether specified role has LOGROTATE privilege (or is a superuser)
+ */
+bool
+has_logrotate_privilege(Oid roleid)
+{
+	bool		result = false;
+	HeapTuple	utup;
+
+	/* Superusers bypass all permission checking. */
+	if (superuser_arg(roleid))
+		return true;
+
+	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
+	if (HeapTupleIsValid(utup))
+	{
+		result = ((Form_pg_authid) GETSTRUCT(utup))->rollogrotate;
+		ReleaseSysCache(utup);
+	}
+	return result;
+}
+
+/*
+ * Check whether specified role has MONITOR privilege (or is a superuser)
+ */
+bool
+has_monitor_privilege(Oid roleid)
+{
+	bool		result = false;
+	HeapTuple	utup;
+
+	/* Superusers bypass all permission checking. */
+	if (superuser_arg(roleid))
+		return true;
+
+	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
+	if (HeapTupleIsValid(utup))
+	{
+		result = ((Form_pg_authid) GETSTRUCT(utup))->rolmonitor;
+		ReleaseSysCache(utup);
+	}
+	return result;
+}
+
+/*
+ * Check whether specified role has PROCSIGNAL privilege (or is a superuser)
+ */
+bool
+has_procsignal_privilege(Oid roleid)
+{
+	bool		result = false;
+	HeapTuple	utup;
+
+	/* Superusers bypass all permission checking. */
+	if (superuser_arg(roleid))
+		return true;
+
+	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
+	if (HeapTupleIsValid(utup))
+	{
+		result = ((Form_pg_authid) GETSTRUCT(utup))->rolprocsignal;
 		ReleaseSysCache(utup);
 	}
 	return result;
