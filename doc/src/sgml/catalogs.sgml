@@ -1416,15 +1416,6 @@
      </row>
 
      <row>
-      <entry><structfield>rolcatupdate</structfield></entry>
-      <entry><type>bool</type></entry>
-      <entry>
-       Role can update system catalogs directly.  (Even a superuser cannot do
-       this unless this column is true)
-      </entry>
-     </row>
-
-     <row>
       <entry><structfield>rolcanlogin</structfield></entry>
       <entry><type>bool</type></entry>
       <entry>
@@ -8476,16 +8467,6 @@ SELECT * FROM pg_locks pl LEFT JOIN pg_prepared_xacts ppx
       <entry><type>bool</type></entry>
       <entry></entry>
       <entry>Role can create databases</entry>
-     </row>
-
-     <row>
-      <entry><structfield>rolcatupdate</structfield></entry>
-      <entry><type>bool</type></entry>
-      <entry></entry>
-      <entry>
-       Role can update system catalogs directly.  (Even a superuser cannot do
-       this unless this column is true)
-      </entry>
      </row>
 
      <row>
