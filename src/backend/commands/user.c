@@ -80,9 +80,9 @@ CreateRole(CreateRoleStmt *stmt)
 	bool		isreplication = false;	/* Is this a replication role? */
 	bool		bypassrls = false;		/* Is this a row security enabled role? */
 	bool		backup = false;
-	bool		logrotate = false;
+	bool		log = false;
 	bool		monitor = false;
-	bool		procsignal = false;
+	bool		signal = false;
 	int			connlimit = -1; /* maximum connections allowed */
 	List	   *addroleto = NIL;	/* roles to make this a member of */
 	List	   *rolemembers = NIL;		/* roles to be members of this role */
@@ -104,9 +104,9 @@ CreateRole(CreateRoleStmt *stmt)
 	DefElem    *dvalidUntil = NULL;
 	DefElem    *dbypassRLS = NULL;
 	DefElem    *dbackup = NULL;
-	DefElem    *dlogrotate = NULL;
+	DefElem    *dlog = NULL;
 	DefElem    *dmonitor = NULL;
-	DefElem    *dprocsignal = NULL;
+	DefElem    *dsignal = NULL;
 
 	/* The defaults can vary depending on the original statement type */
 	switch (stmt->stmt_type)
@@ -249,13 +249,13 @@ CreateRole(CreateRoleStmt *stmt)
 						 errmsg("conflicting or redundant options")));
 			dbackup = defel;
 		}
-		else if (strcmp(defel->defname, "logrotate") == 0)
+		else if (strcmp(defel->defname, "log") == 0)
 		{
-			if (dlogrotate)
+			if (dlog)
 				ereport(ERROR,
 						(errcode(ERRCODE_SYNTAX_ERROR),
 						 errmsg("conflicting or redundant options")));
-			dlogrotate = defel;
+			dlog = defel;
 		}
 		else if (strcmp(defel->defname, "monitor") == 0)
 		{
@@ -265,13 +265,13 @@ CreateRole(CreateRoleStmt *stmt)
 						 errmsg("conflicting or redundant options")));
 			dmonitor = defel;
 		}
-		else if (strcmp(defel->defname, "procsignal") == 0)
+		else if (strcmp(defel->defname, "signal") == 0)
 		{
-			if (dprocsignal)
+			if (dsignal)
 				ereport(ERROR,
 						(errcode(ERRCODE_SYNTAX_ERROR),
 						 errmsg("conflicting or redundant options")));
-			dprocsignal = defel;
+			dsignal = defel;
 		}
 		else
 			elog(ERROR, "option \"%s\" not recognized",
@@ -312,12 +312,12 @@ CreateRole(CreateRoleStmt *stmt)
 		bypassrls = intVal(dbypassRLS->arg) != 0;
 	if (dbackup)
 		backup = intVal(dbackup->arg) != 0;
-	if (dlogrotate)
-		logrotate = intVal(dlogrotate->arg) != 0;
+	if (dlog)
+		log = intVal(dlog->arg) != 0;
 	if (dmonitor)
 		monitor = intVal(dmonitor->arg) != 0;
-	if (dprocsignal)
-		procsignal = intVal(dprocsignal->arg) != 0;
+	if (dsignal)
+		signal = intVal(dsignal->arg) != 0;
 
 	/* Check some permissions first */
 	if (issuper)
@@ -435,9 +435,9 @@ CreateRole(CreateRoleStmt *stmt)
 
 	new_record[Anum_pg_authid_rolbypassrls - 1] = BoolGetDatum(bypassrls);
 	new_record[Anum_pg_authid_rolbackup - 1] = BoolGetDatum(backup);
-	new_record[Anum_pg_authid_rollogrotate - 1] = BoolGetDatum(logrotate);
+	new_record[Anum_pg_authid_rollog - 1] = BoolGetDatum(log);
 	new_record[Anum_pg_authid_rolmonitor - 1] = BoolGetDatum(monitor);
-	new_record[Anum_pg_authid_rolprocsignal - 1] = BoolGetDatum(procsignal);
+	new_record[Anum_pg_authid_rolsignal - 1] = BoolGetDatum(signal);
 
 	tuple = heap_form_tuple(pg_authid_dsc, new_record, new_record_nulls);
 
@@ -540,9 +540,9 @@ AlterRole(AlterRoleStmt *stmt)
 	bool		validUntil_null;
 	bool		bypassrls = -1;
 	bool		backup = -1;
-	bool		logrotate = -1;
+	bool		log = -1;
 	bool		monitor = -1;
-	bool		procsignal = -1;
+	bool		signal = -1;
 	DefElem    *dpassword = NULL;
 	DefElem    *dissuper = NULL;
 	DefElem    *dinherit = NULL;
@@ -555,9 +555,9 @@ AlterRole(AlterRoleStmt *stmt)
 	DefElem    *dvalidUntil = NULL;
 	DefElem    *dbypassRLS = NULL;
 	DefElem    *dbackup = NULL;
-	DefElem    *dlogrotate = NULL;
+	DefElem    *dlog = NULL;
 	DefElem    *dmonitor = NULL;
-	DefElem    *dprocsignal = NULL;
+	DefElem    *dsignal = NULL;
 	Oid			roleid;
 
 	/* Extract options from the statement node tree */
@@ -668,13 +668,13 @@ AlterRole(AlterRoleStmt *stmt)
 						 errmsg("conflicting or redundant options")));
 			dbackup = defel;
 		}
-		else if (strcmp(defel->defname, "logrotate") == 0)
+		else if (strcmp(defel->defname, "log") == 0)
 		{
-			if (dlogrotate)
+			if (dlog)
 				ereport(ERROR,
 						(errcode(ERRCODE_SYNTAX_ERROR),
 						 errmsg("conflicting or redundant options")));
-			dlogrotate = defel;
+			dlog = defel;
 		}
 		else if (strcmp(defel->defname, "monitor") == 0)
 		{
@@ -684,13 +684,13 @@ AlterRole(AlterRoleStmt *stmt)
 						 errmsg("conflicting or redundant options")));
 			dmonitor = defel;
 		}
-		else if (strcmp(defel->defname, "procsignal") == 0)
+		else if (strcmp(defel->defname, "signal") == 0)
 		{
-			if (dprocsignal)
+			if (dsignal)
 				ereport(ERROR,
 						(errcode(ERRCODE_SYNTAX_ERROR),
 						 errmsg("conflicting or redundant options")));
-			dprocsignal = defel;
+			dsignal = defel;
 		}
 		else
 			elog(ERROR, "option \"%s\" not recognized",
@@ -727,12 +727,12 @@ AlterRole(AlterRoleStmt *stmt)
 		bypassrls = intVal(dbypassRLS->arg);
 	if (dbackup)
 		backup = intVal(dbackup->arg);
-	if (dlogrotate)
-		logrotate = intVal(dlogrotate->arg);
+	if (dlog)
+		log = intVal(dlog->arg);
 	if (dmonitor)
 		monitor = intVal(dmonitor->arg);
-	if (dprocsignal)
-		procsignal = intVal(dprocsignal->arg);
+	if (dsignal)
+		signal = intVal(dsignal->arg);
 
 	/*
 	 * Scan the pg_authid relation to be certain the user exists.
@@ -781,9 +781,9 @@ AlterRole(AlterRoleStmt *stmt)
 			  canlogin < 0 &&
 			  isreplication < 0 &&
 			  backup < 0 &&
-			  logrotate < 0 &&
+			  log < 0 &&
 			  monitor < 0 &&
-			  procsignal < 0 &&
+			  signal < 0 &&
 			  !dconnlimit &&
 			  !rolemembers &&
 			  !validUntil &&
@@ -922,10 +922,10 @@ AlterRole(AlterRoleStmt *stmt)
 		new_record_repl[Anum_pg_authid_rolbackup - 1] = true;
 	}
 
-	if (logrotate >= 0)
+	if (log >= 0)
 	{
-		new_record[Anum_pg_authid_rollogrotate - 1] = BoolGetDatum(logrotate > 0);
-		new_record_repl[Anum_pg_authid_rollogrotate - 1] = true;
+		new_record[Anum_pg_authid_rollog - 1] = BoolGetDatum(log > 0);
+		new_record_repl[Anum_pg_authid_rollog - 1] = true;
 	}
 
 	if (monitor >= 0)
@@ -934,10 +934,10 @@ AlterRole(AlterRoleStmt *stmt)
 		new_record_repl[Anum_pg_authid_rolmonitor - 1] = true;
 	}
 
-	if (procsignal >= 0)
+	if (signal >= 0)
 	{
-		new_record[Anum_pg_authid_rolprocsignal - 1] = BoolGetDatum(procsignal > 0);
-		new_record_repl[Anum_pg_authid_rolprocsignal - 1] = true;
+		new_record[Anum_pg_authid_rolsignal - 1] = BoolGetDatum(signal > 0);
+		new_record_repl[Anum_pg_authid_rolsignal - 1] = true;
 	}
 
 	new_tuple = heap_modify_tuple(tuple, pg_authid_dsc, new_record,

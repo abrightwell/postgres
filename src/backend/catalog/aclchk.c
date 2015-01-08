@@ -5149,10 +5149,10 @@ has_backup_privilege(Oid roleid)
 }
 
 /*
- * Check whether specified role has LOGROTATE privilege (or is a superuser)
+ * Check whether specified role has LOG privilege (or is a superuser)
  */
 bool
-has_logrotate_privilege(Oid roleid)
+has_log_privilege(Oid roleid)
 {
 	bool		result = false;
 	HeapTuple	utup;
@@ -5164,7 +5164,7 @@ has_logrotate_privilege(Oid roleid)
 	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
 	if (HeapTupleIsValid(utup))
 	{
-		result = ((Form_pg_authid) GETSTRUCT(utup))->rollogrotate;
+		result = ((Form_pg_authid) GETSTRUCT(utup))->rollog;
 		ReleaseSysCache(utup);
 	}
 	return result;
@@ -5193,10 +5193,10 @@ has_monitor_privilege(Oid roleid)
 }
 
 /*
- * Check whether specified role has PROCSIGNAL privilege (or is a superuser)
+ * Check whether specified role has SIGNAL privilege (or is a superuser)
  */
 bool
-has_procsignal_privilege(Oid roleid)
+has_signal_privilege(Oid roleid)
 {
 	bool		result = false;
 	HeapTuple	utup;
@@ -5208,7 +5208,7 @@ has_procsignal_privilege(Oid roleid)
 	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
 	if (HeapTupleIsValid(utup))
 	{
-		result = ((Form_pg_authid) GETSTRUCT(utup))->rolprocsignal;
+		result = ((Form_pg_authid) GETSTRUCT(utup))->rolsignal;
 		ReleaseSysCache(utup);
 	}
 	return result;

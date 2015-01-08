@@ -97,7 +97,7 @@ pg_signal_backend(int pid, int sig)
 
 	/*
 	 * BackendPidGetProc returns NULL if the pid isn't valid; but by the time
-	 * we reach kill(), a process for which we get a valid proc here might
+	 * we reach kill(), a process for which we get a valid proc here m:ight
 	 * have terminated on its own.  There's no way to acquire a lock on an
 	 * arbitrary process to prevent that. But since so far all the callers of
 	 * this mechanism involve some request for ending the process anyway, that
@@ -123,10 +123,10 @@ pg_signal_backend(int pid, int sig)
 
 	/*
 	 * If the current user is not a member of the role owning the process and
-	 * does not have the PROCSIGNAL permission, then permission is denied.
+	 * does not have the SIGNAL permission, then permission is denied.
 	 */
 	if (!has_privs_of_role(GetUserId(), proc->roleId)
-		&& !has_procsignal_privilege(GetUserId()))
+		&& !has_signal_privilege(GetUserId()))
 		return SIGNAL_BACKEND_NOPERMISSION;
 
 	/*
@@ -215,10 +215,10 @@ pg_reload_conf(PG_FUNCTION_ARGS)
 Datum
 pg_rotate_logfile(PG_FUNCTION_ARGS)
 {
-	if (!has_logrotate_privilege(GetUserId()))
+	if (!has_log_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser or have logrotate permission to rotate log files")));
+				 errmsg("must be superuser or have log permission to rotate log files")));
 
 	if (!Logging_collector)
 	{

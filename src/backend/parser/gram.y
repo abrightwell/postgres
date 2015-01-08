@@ -981,18 +981,18 @@ AlterOptRoleElem:
 						$$ = makeDefElem("backup", (Node *)makeInteger(TRUE));
 					else if (strcmp($1, "nobackup") == 0)
 						$$ = makeDefElem("backup", (Node *)makeInteger(FALSE));
-					else if (strcmp($1, "logrotate") == 0)
-						$$ = makeDefElem("logrotate", (Node *)makeInteger(TRUE));
-					else if (strcmp($1, "nologrotate") == 0)
-						$$ = makeDefElem("logrotate", (Node *)makeInteger(FALSE));
+					else if (strcmp($1, "log") == 0)
+						$$ = makeDefElem("log", (Node *)makeInteger(TRUE));
+					else if (strcmp($1, "nolog") == 0)
+						$$ = makeDefElem("log", (Node *)makeInteger(FALSE));
 					else if (strcmp($1, "monitor") == 0)
 						$$ = makeDefElem("monitor", (Node *)makeInteger(TRUE));
 					else if (strcmp($1, "nomonitor") == 0)
 						$$ = makeDefElem("monitor", (Node *)makeInteger(FALSE));
-					else if (strcmp($1, "procsignal") == 0)
-						$$ = makeDefElem("procsignal", (Node *)makeInteger(TRUE));
-					else if (strcmp($1, "noprocsignal") == 0)
-						$$ = makeDefElem("procsignal", (Node *)makeInteger(FALSE));
+					else if (strcmp($1, "signal") == 0)
+						$$ = makeDefElem("signal", (Node *)makeInteger(TRUE));
+					else if (strcmp($1, "nosignal") == 0)
+						$$ = makeDefElem("signal", (Node *)makeInteger(FALSE));
 					else
 						ereport(ERROR,
 								(errcode(ERRCODE_SYNTAX_ERROR),
