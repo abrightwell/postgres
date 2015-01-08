@@ -977,6 +977,22 @@ AlterOptRoleElem:
 						 */
 						$$ = makeDefElem("inherit", (Node *)makeInteger(FALSE));
 					}
+					else if (strcmp($1, "backup") == 0)
+						$$ = makeDefElem("backup", (Node *)makeInteger(TRUE));
+					else if (strcmp($1, "nobackup") == 0)
+						$$ = makeDefElem("backup", (Node *)makeInteger(FALSE));
+					else if (strcmp($1, "logrotate") == 0)
+						$$ = makeDefElem("logrotate", (Node *)makeInteger(TRUE));
+					else if (strcmp($1, "nologrotate") == 0)
+						$$ = makeDefElem("logrotate", (Node *)makeInteger(FALSE));
+					else if (strcmp($1, "monitor") == 0)
+						$$ = makeDefElem("monitor", (Node *)makeInteger(TRUE));
+					else if (strcmp($1, "nomonitor") == 0)
+						$$ = makeDefElem("monitor", (Node *)makeInteger(FALSE));
+					else if (strcmp($1, "procsignal") == 0)
+						$$ = makeDefElem("procsignal", (Node *)makeInteger(TRUE));
+					else if (strcmp($1, "noprocsignal") == 0)
+						$$ = makeDefElem("procsignal", (Node *)makeInteger(FALSE));
 					else
 						ereport(ERROR,
 								(errcode(ERRCODE_SYNTAX_ERROR),

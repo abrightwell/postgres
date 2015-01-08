@@ -55,15 +55,6 @@ static void DelRoleMems(const char *rolename, Oid roleid,
 			List *memberNames, List *memberIds,
 			bool admin_opt);
 
-
-/* Check if current user has createrole privileges */
-static bool
-have_createrole_privilege(void)
-{
-	return has_createrole_privilege(GetUserId());
-}
-
-
 /*
  * CREATE ROLE
  */
@@ -88,6 +79,10 @@ CreateRole(CreateRoleStmt *stmt)
 	bool		canlogin = false;		/* Can this user login? */
 	bool		isreplication = false;	/* Is this a replication role? */
 	bool		bypassrls = false;		/* Is this a row security enabled role? */
+	bool		backup = false;
+	bool		logrotate = false;
+	bool		monitor = false;
+	bool		procsignal = false;
 	int			connlimit = -1; /* maximum connections allowed */
 	List	   *addroleto = NIL;	/* roles to make this a member of */
 	List	   *rolemembers = NIL;		/* roles to be members of this role */
@@ -108,6 +103,10 @@ CreateRole(CreateRoleStmt *stmt)
 	DefElem    *dadminmembers = NULL;
 	DefElem    *dvalidUntil = NULL;
 	DefElem    *dbypassRLS = NULL;
+	DefElem    *dbackup = NULL;
+	DefElem    *dlogrotate = NULL;
+	DefElem    *dmonitor = NULL;
+	DefElem    *dprocsignal = NULL;
 
 	/* The defaults can vary depending on the original statement type */
 	switch (stmt->stmt_type)
@@ -242,6 +241,38 @@ CreateRole(CreateRoleStmt *stmt)
 						 errmsg("conflicting or redundant options")));
 			dbypassRLS = defel;
 		}
+		else if (strcmp(defel->defname, "backup") == 0)
+		{
+			if (dbackup)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+			dbackup = defel;
+		}
+		else if (strcmp(defel->defname, "logrotate") == 0)
+		{
+			if (dlogrotate)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+			dlogrotate = defel;
+		}
+		else if (strcmp(defel->defname, "monitor") == 0)
+		{
+			if (dmonitor)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+			dmonitor = defel;
+		}
+		else if (strcmp(defel->defname, "procsignal") == 0)
+		{
+			if (dprocsignal)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+			dprocsignal = defel;
+		}
 		else
 			elog(ERROR, "option \"%s\" not recognized",
 				 defel->defname);
@@ -279,6 +310,14 @@ CreateRole(CreateRoleStmt *stmt)
 		validUntil = strVal(dvalidUntil->arg);
 	if (dbypassRLS)
 		bypassrls = intVal(dbypassRLS->arg) != 0;
+	if (dbackup)
+		backup = intVal(dbackup->arg) != 0;
+	if (dlogrotate)
+		logrotate = intVal(dlogrotate->arg) != 0;
+	if (dmonitor)
+		monitor = intVal(dmonitor->arg) != 0;
+	if (dprocsignal)
+		procsignal = intVal(dprocsignal->arg) != 0;
 
 	/* Check some permissions first */
 	if (issuper)
@@ -304,7 +343,7 @@ CreateRole(CreateRoleStmt *stmt)
 	}
 	else
 	{
-		if (!have_createrole_privilege())
+		if (!has_createrole_privilege(GetUserId()))
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 					 errmsg("permission denied to create role")));
@@ -395,6 +434,10 @@ CreateRole(CreateRoleStmt *stmt)
 	new_record_nulls[Anum_pg_authid_rolvaliduntil - 1] = validUntil_null;
 
 	new_record[Anum_pg_authid_rolbypassrls - 1] = BoolGetDatum(bypassrls);
+	new_record[Anum_pg_authid_rolbackup - 1] = BoolGetDatum(backup);
+	new_record[Anum_pg_authid_rollogrotate - 1] = BoolGetDatum(logrotate);
+	new_record[Anum_pg_authid_rolmonitor - 1] = BoolGetDatum(monitor);
+	new_record[Anum_pg_authid_rolprocsignal - 1] = BoolGetDatum(procsignal);
 
 	tuple = heap_form_tuple(pg_authid_dsc, new_record, new_record_nulls);
 
@@ -496,6 +539,10 @@ AlterRole(AlterRoleStmt *stmt)
 	Datum		validUntil_datum;		/* same, as timestamptz Datum */
 	bool		validUntil_null;
 	bool		bypassrls = -1;
+	bool		backup = -1;
+	bool		logrotate = -1;
+	bool		monitor = -1;
+	bool		procsignal = -1;
 	DefElem    *dpassword = NULL;
 	DefElem    *dissuper = NULL;
 	DefElem    *dinherit = NULL;
@@ -507,6 +554,10 @@ AlterRole(AlterRoleStmt *stmt)
 	DefElem    *drolemembers = NULL;
 	DefElem    *dvalidUntil = NULL;
 	DefElem    *dbypassRLS = NULL;
+	DefElem    *dbackup = NULL;
+	DefElem    *dlogrotate = NULL;
+	DefElem    *dmonitor = NULL;
+	DefElem    *dprocsignal = NULL;
 	Oid			roleid;
 
 	/* Extract options from the statement node tree */
@@ -609,6 +660,38 @@ AlterRole(AlterRoleStmt *stmt)
 						 errmsg("conflicting or redundant options")));
 			dbypassRLS = defel;
 		}
+		else if (strcmp(defel->defname, "backup") == 0)
+		{
+			if (dbackup)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+			dbackup = defel;
+		}
+		else if (strcmp(defel->defname, "logrotate") == 0)
+		{
+			if (dlogrotate)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+			dlogrotate = defel;
+		}
+		else if (strcmp(defel->defname, "monitor") == 0)
+		{
+			if (dmonitor)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+			dmonitor = defel;
+		}
+		else if (strcmp(defel->defname, "procsignal") == 0)
+		{
+			if (dprocsignal)
+				ereport(ERROR,
+						(errcode(ERRCODE_SYNTAX_ERROR),
+						 errmsg("conflicting or redundant options")));
+			dprocsignal = defel;
+		}
 		else
 			elog(ERROR, "option \"%s\" not recognized",
 				 defel->defname);
@@ -642,6 +725,14 @@ AlterRole(AlterRoleStmt *stmt)
 		validUntil = strVal(dvalidUntil->arg);
 	if (dbypassRLS)
 		bypassrls = intVal(dbypassRLS->arg);
+	if (dbackup)
+		backup = intVal(dbackup->arg);
+	if (dlogrotate)
+		logrotate = intVal(dlogrotate->arg);
+	if (dmonitor)
+		monitor = intVal(dmonitor->arg);
+	if (dprocsignal)
+		procsignal = intVal(dprocsignal->arg);
 
 	/*
 	 * Scan the pg_authid relation to be certain the user exists.
@@ -682,13 +773,17 @@ AlterRole(AlterRoleStmt *stmt)
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 					 errmsg("must be superuser to change bypassrls attribute")));
 	}
-	else if (!have_createrole_privilege())
+	else if (!has_createrole_privilege(GetUserId()))
 	{
 		if (!(inherit < 0 &&
 			  createrole < 0 &&
 			  createdb < 0 &&
 			  canlogin < 0 &&
 			  isreplication < 0 &&
+			  backup < 0 &&
+			  logrotate < 0 &&
+			  monitor < 0 &&
+			  procsignal < 0 &&
 			  !dconnlimit &&
 			  !rolemembers &&
 			  !validUntil &&
@@ -821,6 +916,30 @@ AlterRole(AlterRoleStmt *stmt)
 		new_record_repl[Anum_pg_authid_rolbypassrls - 1] = true;
 	}
 
+	if (backup >= 0)
+	{
+		new_record[Anum_pg_authid_rolbackup - 1] = BoolGetDatum(backup > 0);
+		new_record_repl[Anum_pg_authid_rolbackup - 1] = true;
+	}
+
+	if (logrotate >= 0)
+	{
+		new_record[Anum_pg_authid_rollogrotate - 1] = BoolGetDatum(logrotate > 0);
+		new_record_repl[Anum_pg_authid_rollogrotate - 1] = true;
+	}
+
+	if (monitor >= 0)
+	{
+		new_record[Anum_pg_authid_rolmonitor - 1] = BoolGetDatum(monitor > 0);
+		new_record_repl[Anum_pg_authid_rolmonitor - 1] = true;
+	}
+
+	if (procsignal >= 0)
+	{
+		new_record[Anum_pg_authid_rolprocsignal - 1] = BoolGetDatum(procsignal > 0);
+		new_record_repl[Anum_pg_authid_rolprocsignal - 1] = true;
+	}
+
 	new_tuple = heap_modify_tuple(tuple, pg_authid_dsc, new_record,
 								  new_record_nulls, new_record_repl);
 	simple_heap_update(pg_authid_rel, &tuple->t_self, new_tuple);
@@ -898,7 +1017,7 @@ AlterRoleSet(AlterRoleSetStmt *stmt)
 		}
 		else
 		{
-			if (!have_createrole_privilege() &&
+			if (!has_createrole_privilege(GetUserId()) &&
 				HeapTupleGetOid(roletuple) != GetUserId())
 				ereport(ERROR,
 						(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
@@ -951,7 +1070,7 @@ DropRole(DropRoleStmt *stmt)
 				pg_auth_members_rel;
 	ListCell   *item;
 
-	if (!have_createrole_privilege())
+	if (!has_createrole_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 errmsg("permission denied to drop role")));
@@ -1182,7 +1301,7 @@ RenameRole(const char *oldname, const char *newname)
 	}
 	else
 	{
-		if (!have_createrole_privilege())
+		if (!has_createrole_privilege(GetUserId()))
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 					 errmsg("permission denied to rename role")));
@@ -1409,7 +1528,7 @@ AddRoleMems(const char *rolename, Oid roleid,
 	}
 	else
 	{
-		if (!have_createrole_privilege() &&
+		if (!has_createrole_privilege(GetUserId()) &&
 			!is_admin_of_role(grantorId, roleid))
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
@@ -1555,7 +1674,7 @@ DelRoleMems(const char *rolename, Oid roleid,
 	}
 	else
 	{
-		if (!have_createrole_privilege() &&
+		if (!has_createrole_privilege(GetUserId()) &&
 			!is_admin_of_role(GetUserId(), roleid))
 			ereport(ERROR,
 					(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),

@@ -808,46 +808,42 @@ AlterObjectOwner_internal(Relation rel, Oid objectId, Oid new_ownerId)
 		bool	   *nulls;
 		bool	   *replaces;
 
-		/* Superusers can bypass permission checks */
-		if (!superuser())
+		AclObjectKind aclkind = get_object_aclkind(classId);
+
+		/* must be owner */
+		if (!has_privs_of_role(GetUserId(), old_ownerId))
 		{
-			AclObjectKind aclkind = get_object_aclkind(classId);
+			char	   *objname;
+			char		namebuf[NAMEDATALEN];
 
-			/* must be owner */
-			if (!has_privs_of_role(GetUserId(), old_ownerId))
+			if (Anum_name != InvalidAttrNumber)
 			{
-				char	   *objname;
-				char		namebuf[NAMEDATALEN];
-
-				if (Anum_name != InvalidAttrNumber)
-				{
-					datum = heap_getattr(oldtup, Anum_name,
-										 RelationGetDescr(rel), &isnull);
-					Assert(!isnull);
-					objname = NameStr(*DatumGetName(datum));
-				}
-				else
-				{
-					snprintf(namebuf, sizeof(namebuf), "%u",
-							 HeapTupleGetOid(oldtup));
-					objname = namebuf;
-				}
-				aclcheck_error(ACLCHECK_NOT_OWNER, aclkind, objname);
+				datum = heap_getattr(oldtup, Anum_name,
+									 RelationGetDescr(rel), &isnull);
+				Assert(!isnull);
+				objname = NameStr(*DatumGetName(datum));
 			}
-			/* Must be able to become new owner */
-			check_is_member_of_role(GetUserId(), new_ownerId);
-
-			/* New owner must have CREATE privilege on namespace */
-			if (OidIsValid(namespaceId))
+			else
 			{
-				AclResult	aclresult;
-
-				aclresult = pg_namespace_aclcheck(namespaceId, new_ownerId,
-												  ACL_CREATE);
-				if (aclresult != ACLCHECK_OK)
-					aclcheck_error(aclresult, ACL_KIND_NAMESPACE,
-								   get_namespace_name(namespaceId));
+				snprintf(namebuf, sizeof(namebuf), "%u",
+						 HeapTupleGetOid(oldtup));
+				objname = namebuf;
 			}
+			aclcheck_error(ACLCHECK_NOT_OWNER, aclkind, objname);
+		}
+		/* Must be able to become new owner */
+		check_is_member_of_role(GetUserId(), new_ownerId);
+
+		/* New owner must have CREATE privilege on namespace */
+		if (OidIsValid(namespaceId))
+		{
+			AclResult	aclresult;
+
+			aclresult = pg_namespace_aclcheck(namespaceId, new_ownerId,
+											  ACL_CREATE);
+			if (aclresult != ACLCHECK_OK)
+				aclcheck_error(aclresult, ACL_KIND_NAMESPACE,
+							   get_namespace_name(namespaceId));
 		}
 
 		/* Build a modified tuple */

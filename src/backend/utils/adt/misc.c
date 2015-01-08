@@ -37,6 +37,7 @@
 #include "utils/lsyscache.h"
 #include "utils/ruleutils.h"
 #include "tcop/tcopprot.h"
+#include "utils/acl.h"
 #include "utils/builtins.h"
 #include "utils/timestamp.h"
 
@@ -113,7 +114,19 @@ pg_signal_backend(int pid, int sig)
 		return SIGNAL_BACKEND_ERROR;
 	}
 
-	if (!(superuser() || proc->roleId == GetUserId()))
+	/*
+	 * If the current user is not a superuser, then they aren't allowed to
+	 * signal backends which are owned by a superuser.
+	 */
+	if (!superuser() && superuser_arg(proc->roleId))
+		return SIGNAL_BACKEND_NOPERMISSION;
+
+	/*
+	 * If the current user is not a member of the role owning the process and
+	 * does not have the PROCSIGNAL permission, then permission is denied.
+	 */
+	if (!has_privs_of_role(GetUserId(), proc->roleId)
+		&& !has_procsignal_privilege(GetUserId()))
 		return SIGNAL_BACKEND_NOPERMISSION;
 
 	/*
@@ -202,10 +215,10 @@ pg_reload_conf(PG_FUNCTION_ARGS)
 Datum
 pg_rotate_logfile(PG_FUNCTION_ARGS)
 {
-	if (!superuser())
+	if (!has_logrotate_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 (errmsg("must be superuser to rotate log files"))));
+				 errmsg("must be superuser or have logrotate permission to rotate log files")));
 
 	if (!Logging_collector)
 	{

@@ -27,6 +27,7 @@
 #include "miscadmin.h"
 #include "replication/walreceiver.h"
 #include "storage/smgr.h"
+#include "utils/acl.h"
 #include "utils/builtins.h"
 #include "utils/numeric.h"
 #include "utils/guc.h"
@@ -54,10 +55,11 @@ pg_start_backup(PG_FUNCTION_ARGS)
 
 	backupidstr = text_to_cstring(backupid);
 
-	if (!superuser() && !has_rolreplication(GetUserId()))
+	if (!has_replication_privilege(GetUserId())
+		&& !has_backup_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-		   errmsg("must be superuser or replication role to run a backup")));
+				 errmsg("must be superuser, replication role or backup role to run a backup")));
 
 	startpoint = do_pg_start_backup(backupidstr, fast, NULL, NULL);
 
@@ -82,10 +84,11 @@ pg_stop_backup(PG_FUNCTION_ARGS)
 {
 	XLogRecPtr	stoppoint;
 
-	if (!superuser() && !has_rolreplication(GetUserId()))
+	if (!has_replication_privilege(GetUserId())
+		&& !has_backup_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-		 (errmsg("must be superuser or replication role to run a backup"))));
+				 errmsg("must be superuser, replication role or backup role to run a backup")));
 
 	stoppoint = do_pg_stop_backup(NULL, true, NULL);
 
@@ -100,10 +103,10 @@ pg_switch_xlog(PG_FUNCTION_ARGS)
 {
 	XLogRecPtr	switchpoint;
 
-	if (!superuser())
+	if (!has_backup_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-			 (errmsg("must be superuser to switch transaction log files"))));
+				 errmsg("must be superuser or backup role to switch transaction log files")));
 
 	if (RecoveryInProgress())
 		ereport(ERROR,
@@ -129,10 +132,10 @@ pg_create_restore_point(PG_FUNCTION_ARGS)
 	char	   *restore_name_str;
 	XLogRecPtr	restorepoint;
 
-	if (!superuser())
+	if (!has_backup_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 (errmsg("must be superuser to create a restore point"))));
+				 (errmsg("must be superuser or backup role to create a restore point"))));
 
 	if (RecoveryInProgress())
 		ereport(ERROR,

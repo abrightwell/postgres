@@ -332,30 +332,28 @@ AlterForeignServerOwner_internal(Relation rel, HeapTuple tup, Oid newOwnerId)
 
 	if (form->srvowner != newOwnerId)
 	{
-		/* Superusers can always do it */
-		if (!superuser())
+		Oid			srvId;
+		AclResult	aclresult;
+
+		srvId = HeapTupleGetOid(tup);
+
+		/* Must be owner */
+		if (!pg_foreign_server_ownercheck(srvId, GetUserId()))
+			aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_FOREIGN_SERVER,
+						   NameStr(form->srvname));
+
+		/* Must be able to become new owner */
+		check_is_member_of_role(GetUserId(), newOwnerId);
+
+		/* New owner must have USAGE privilege on foreign-data wrapper */
+		aclresult = pg_foreign_data_wrapper_aclcheck(form->srvfdw, newOwnerId,
+													 ACL_USAGE);
+
+		if (aclresult != ACLCHECK_OK)
 		{
-			Oid			srvId;
-			AclResult	aclresult;
+			ForeignDataWrapper *fdw = GetForeignDataWrapper(form->srvfdw);
 
-			srvId = HeapTupleGetOid(tup);
-
-			/* Must be owner */
-			if (!pg_foreign_server_ownercheck(srvId, GetUserId()))
-				aclcheck_error(ACLCHECK_NOT_OWNER, ACL_KIND_FOREIGN_SERVER,
-							   NameStr(form->srvname));
-
-			/* Must be able to become new owner */
-			check_is_member_of_role(GetUserId(), newOwnerId);
-
-			/* New owner must have USAGE privilege on foreign-data wrapper */
-			aclresult = pg_foreign_data_wrapper_aclcheck(form->srvfdw, newOwnerId, ACL_USAGE);
-			if (aclresult != ACLCHECK_OK)
-			{
-				ForeignDataWrapper *fdw = GetForeignDataWrapper(form->srvfdw);
-
-				aclcheck_error(aclresult, ACL_KIND_FDW, fdw->fdwname);
-			}
+			aclcheck_error(aclresult, ACL_KIND_FDW, fdw->fdwname);
 		}
 
 		form->srvowner = newOwnerId;
