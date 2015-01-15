@@ -143,7 +143,6 @@ static AclMode restrict_and_check_grant(bool is_grant, AclMode avail_goptions,
 						 AttrNumber att_number, const char *colname);
 static AclMode pg_aclmask(AclObjectKind objkind, Oid table_oid, AttrNumber attnum,
 		   Oid roleid, AclMode mask, AclMaskHow how);
-static bool has_catupdate_privilege(Oid roleid);
 
 
 #ifdef ACLDEBUG
@@ -3426,7 +3425,7 @@ aclcheck_error_type(AclResult aclerr, Oid typeOid)
 
 /* Check if given user has rolcatupdate privilege according to pg_authid */
 static bool
-has_catupdate_privilege(Oid roleid)
+has_rolcatupdate(Oid roleid)
 {
 	bool		rolcatupdate;
 	HeapTuple	tuple;
@@ -3631,7 +3630,7 @@ pg_class_aclmask(Oid table_oid, Oid roleid,
 	if ((mask & (ACL_INSERT | ACL_UPDATE | ACL_DELETE | ACL_TRUNCATE | ACL_USAGE)) &&
 		IsSystemClass(table_oid, classForm) &&
 		classForm->relkind != RELKIND_VIEW &&
-		!has_catupdate_privilege(roleid) &&
+		!has_rolcatupdate(roleid) &&
 		!allowSystemTableMods)
 	{
 #ifdef ACLDEBUG
