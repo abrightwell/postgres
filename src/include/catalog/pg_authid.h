@@ -54,6 +54,7 @@ CATALOG(pg_authid,1260) BKI_SHARED_RELATION BKI_ROWTYPE_OID(2842) BKI_SCHEMA_MAC
 	bool		rolreplication; /* role used for streaming replication */
 	bool		rolbypassrls;	/* allowed to bypass row level security? */
 	bool		rolbackup;		/* allowed to peform backup operations? */
+	bool		rolxlogreplay;	/* allowed to control xlog replay */
 	bool		rollog;			/* allowed to rotate log files? */
 	bool		rolmonitor;		/* allowed to view pg_stat_* details? */
 	bool		rolsignal;		/* allowed to signal backed processes? */
@@ -78,7 +79,7 @@ typedef FormData_pg_authid *Form_pg_authid;
  *		compiler constants for pg_authid
  * ----------------
  */
-#define Natts_pg_authid					16
+#define Natts_pg_authid					17
 #define Anum_pg_authid_rolname			1
 #define Anum_pg_authid_rolsuper			2
 #define Anum_pg_authid_rolinherit		3
@@ -89,12 +90,13 @@ typedef FormData_pg_authid *Form_pg_authid;
 #define Anum_pg_authid_rolreplication	8
 #define Anum_pg_authid_rolbypassrls		9
 #define Anum_pg_authid_rolbackup		10
-#define Anum_pg_authid_rollog			11
-#define Anum_pg_authid_rolmonitor		12
-#define Anum_pg_authid_rolsignal		13
-#define Anum_pg_authid_rolconnlimit		14
-#define Anum_pg_authid_rolpassword		15
-#define Anum_pg_authid_rolvaliduntil	16
+#define Anum_pg_authid_rolxlogreplay	11
+#define Anum_pg_authid_rollog			12
+#define Anum_pg_authid_rolmonitor		13
+#define Anum_pg_authid_rolsignal		14
+#define Anum_pg_authid_rolconnlimit		15
+#define Anum_pg_authid_rolpassword		16
+#define Anum_pg_authid_rolvaliduntil	17
 
 /* ----------------
  *		initial contents of pg_authid
@@ -103,7 +105,7 @@ typedef FormData_pg_authid *Form_pg_authid;
  * user choices.
  * ----------------
  */
-DATA(insert OID = 10 ( "POSTGRES" t t t t t t t t t t t t -1 _null_ _null_));
+DATA(insert OID = 10 ( "POSTGRES" t t t t t t t t t t t t t -1 _null_ _null_));
 
 #define BOOTSTRAP_SUPERUSERID 10
 

@@ -981,6 +981,10 @@ AlterOptRoleElem:
 						$$ = makeDefElem("backup", (Node *)makeInteger(TRUE));
 					else if (strcmp($1, "nobackup") == 0)
 						$$ = makeDefElem("backup", (Node *)makeInteger(FALSE));
+					else if (strcmp($1, "xlogreplay") == 0)
+						$$ = makeDefElem("xlogreplay", (Node *)makeInteger(TRUE));
+					else if (strcmp($1, "noxlogreplay") == 0)
+						$$ = makeDefElem("xlogreplay", (Node *)makeInteger(FALSE));
 					else if (strcmp($1, "log") == 0)
 						$$ = makeDefElem("log", (Node *)makeInteger(TRUE));
 					else if (strcmp($1, "nolog") == 0)

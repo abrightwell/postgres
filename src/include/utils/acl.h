@@ -330,6 +330,7 @@ extern bool has_createrole_privilege(Oid roleid);
 extern bool has_bypassrls_privilege(Oid roleid);
 extern bool has_replication_privilege(Oid roleid);
 extern bool has_backup_privilege(Oid roleid);
+extern bool has_xlogreplay_privilege(Oid roleid);
 extern bool has_log_privilege(Oid roleid);
 extern bool has_monitor_privilege(Oid roleid);
 extern bool has_signal_privilege(Oid roleid);

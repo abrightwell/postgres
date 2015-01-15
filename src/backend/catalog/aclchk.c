@@ -5149,6 +5149,29 @@ has_backup_privilege(Oid roleid)
 }
 
 /*
+ * Check whether specified role has XLOGREPLAY privilege (or is a superuser)
+ */
+bool
+has_xlogreplay_privilege(Oid roleid)
+{
+	bool		result = false;
+	HeapTuple	utup;
+
+	/* Superusers bypass all permission checking. */
+	if (superuser_arg(roleid))
+		return true;
+
+	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
+	if (HeapTupleIsValid(utup))
+	{
+		result = ((Form_pg_authid) GETSTRUCT(utup))->rolxlogreplay;
+		ReleaseSysCache(utup);
+	}
+
+	return result;
+}
+
+/*
  * Check whether specified role has LOG privilege (or is a superuser)
  */
 bool
