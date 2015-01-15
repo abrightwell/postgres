@@ -56,10 +56,10 @@ pg_start_backup(PG_FUNCTION_ARGS)
 	backupidstr = text_to_cstring(backupid);
 
 	if (!has_replication_privilege(GetUserId())
-		&& !has_backup_privilege(GetUserId()))
+		&& !has_online_backup_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser, replication role or backup role to run a backup")));
+				 errmsg("must be superuser, replication role or online backup role to run a backup")));
 
 	startpoint = do_pg_start_backup(backupidstr, fast, NULL, NULL);
 
@@ -85,10 +85,10 @@ pg_stop_backup(PG_FUNCTION_ARGS)
 	XLogRecPtr	stoppoint;
 
 	if (!has_replication_privilege(GetUserId())
-		&& !has_backup_privilege(GetUserId()))
+		&& !has_online_backup_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser, replication role or backup role to run a backup")));
+				 errmsg("must be superuser, replication role or online backup role to run a backup")));
 
 	stoppoint = do_pg_stop_backup(NULL, true, NULL);
 
@@ -103,10 +103,10 @@ pg_switch_xlog(PG_FUNCTION_ARGS)
 {
 	XLogRecPtr	switchpoint;
 
-	if (!has_backup_privilege(GetUserId()))
+	if (!has_online_backup_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser or backup role to switch transaction log files")));
+				 errmsg("must be superuser or online backup role to switch transaction log files")));
 
 	if (RecoveryInProgress())
 		ereport(ERROR,
@@ -132,10 +132,10 @@ pg_create_restore_point(PG_FUNCTION_ARGS)
 	char	   *restore_name_str;
 	XLogRecPtr	restorepoint;
 
-	if (!has_backup_privilege(GetUserId()))
+	if (!has_online_backup_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 (errmsg("must be superuser or backup role to create a restore point"))));
+				 (errmsg("must be superuser or online backup role to create a restore point"))));
 
 	if (RecoveryInProgress())
 		ereport(ERROR,
