@@ -164,7 +164,6 @@ SET ROLE regress_test_role;
 ALTER SERVER s1 VERSION '1.1';                              -- ERROR
 ALTER SERVER s1 OWNER TO regress_test_role;                 -- ERROR
 RESET ROLE;
-GRANT USAGE ON FOREIGN DATA WRAPPER foo TO regress_test_role;
 ALTER SERVER s1 OWNER TO regress_test_role;
 GRANT regress_test_role2 TO regress_test_role;
 SET ROLE regress_test_role;
@@ -184,7 +183,6 @@ GRANT USAGE ON FOREIGN DATA WRAPPER foo TO regress_test_indirect;
 SET ROLE regress_test_role;
 ALTER SERVER s1 OWNER TO regress_test_indirect;
 RESET ROLE;
-REVOKE USAGE ON FOREIGN DATA WRAPPER foo FROM regress_test_role;
 DROP ROLE regress_test_indirect;                            -- ERROR
 \des+
 

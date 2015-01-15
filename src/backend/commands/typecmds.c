@@ -3348,20 +3348,24 @@ AlterTypeOwner(List *names, Oid newOwnerId, ObjectType objecttype)
 	 */
 	if (typTup->typowner != newOwnerId)
 	{
-		/* Must be owner of the existing object */
-		if (!pg_type_ownercheck(HeapTupleGetOid(tup), GetUserId()))
-			aclcheck_error_type(ACLCHECK_NOT_OWNER, HeapTupleGetOid(tup));
+		/* Superusers can always do it */
+		if (!superuser())
+		{
+			/* Otherwise, must be owner of the existing object */
+			if (!pg_type_ownercheck(HeapTupleGetOid(tup), GetUserId()))
+				aclcheck_error_type(ACLCHECK_NOT_OWNER, HeapTupleGetOid(tup));
 
-		/* Must be able to become new owner */
-		check_is_member_of_role(GetUserId(), newOwnerId);
+			/* Must be able to become new owner */
+			check_is_member_of_role(GetUserId(), newOwnerId);
 
-		/* New owner must have CREATE privilege on namespace */
-		aclresult = pg_namespace_aclcheck(typTup->typnamespace,
-										  newOwnerId,
-										  ACL_CREATE);
-		if (aclresult != ACLCHECK_OK)
-			aclcheck_error(aclresult, ACL_KIND_NAMESPACE,
-						   get_namespace_name(typTup->typnamespace));
+			/* New owner must have CREATE privilege on namespace */
+			aclresult = pg_namespace_aclcheck(typTup->typnamespace,
+											  newOwnerId,
+											  ACL_CREATE);
+			if (aclresult != ACLCHECK_OK)
+				aclcheck_error(aclresult, ACL_KIND_NAMESPACE,
+							   get_namespace_name(typTup->typnamespace));
+		}
 
 		/*
 		 * If it's a composite type, invoke ATExecChangeOwner so that we fix
