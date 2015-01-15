@@ -5152,7 +5152,7 @@ has_online_backup_privilege(Oid roleid)
  * Check whether specified role has XLOGREPLAY privilege (or is a superuser)
  */
 bool
-has_xlogreplay_privilege(Oid roleid)
+has_xlog_replay_privilege(Oid roleid)
 {
 	bool		result = false;
 	HeapTuple	utup;

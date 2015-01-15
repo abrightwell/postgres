@@ -341,7 +341,7 @@ pg_xlogfile_name(PG_FUNCTION_ARGS)
 Datum
 pg_xlog_replay_pause(PG_FUNCTION_ARGS)
 {
-	if (!has_xlogreplay_privilege(GetUserId()))
+	if (!has_xlog_replay_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 (errmsg("must be superuser or xlogreplay role to control recovery"))));
@@ -363,7 +363,7 @@ pg_xlog_replay_pause(PG_FUNCTION_ARGS)
 Datum
 pg_xlog_replay_resume(PG_FUNCTION_ARGS)
 {
-	if (!has_xlogreplay_privilege(GetUserId()))
+	if (!has_xlog_replay_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
 				 (errmsg("must be superuser or xlogreplay role to control recovery"))));
