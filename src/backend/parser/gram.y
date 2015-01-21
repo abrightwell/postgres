@@ -985,10 +985,10 @@ AlterOptRoleElem:
 						$$ = makeDefElem("xlogreplay", (Node *)makeInteger(TRUE));
 					else if (strcmp($1, "noxlog_replay") == 0)
 						$$ = makeDefElem("xlogreplay", (Node *)makeInteger(FALSE));
-					else if (strcmp($1, "log") == 0)
-						$$ = makeDefElem("log", (Node *)makeInteger(TRUE));
-					else if (strcmp($1, "nolog") == 0)
-						$$ = makeDefElem("log", (Node *)makeInteger(FALSE));
+					else if (strcmp($1, "logfile") == 0)
+						$$ = makeDefElem("logfile", (Node *)makeInteger(TRUE));
+					else if (strcmp($1, "nologfile") == 0)
+						$$ = makeDefElem("logfile", (Node *)makeInteger(FALSE));
 					else if (strcmp($1, "monitor") == 0)
 						$$ = makeDefElem("monitor", (Node *)makeInteger(TRUE));
 					else if (strcmp($1, "nomonitor") == 0)

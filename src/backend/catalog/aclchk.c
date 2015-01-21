@@ -5171,10 +5171,10 @@ has_xlog_replay_privilege(Oid roleid)
 }
 
 /*
- * Check whether specified role has LOG privilege (or is a superuser)
+ * Check whether specified role has LOGFILE privilege (or is a superuser)
  */
 bool
-has_log_privilege(Oid roleid)
+has_logfile_privilege(Oid roleid)
 {
 	bool		result = false;
 	HeapTuple	utup;
@@ -5186,7 +5186,7 @@ has_log_privilege(Oid roleid)
 	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
 	if (HeapTupleIsValid(utup))
 	{
-		result = ((Form_pg_authid) GETSTRUCT(utup))->rollog;
+		result = ((Form_pg_authid) GETSTRUCT(utup))->rollogfile;
 		ReleaseSysCache(utup);
 	}
 	return result;

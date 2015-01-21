@@ -215,10 +215,10 @@ pg_reload_conf(PG_FUNCTION_ARGS)
 Datum
 pg_rotate_logfile(PG_FUNCTION_ARGS)
 {
-	if (!has_log_privilege(GetUserId()))
+	if (!has_logfile_privilege(GetUserId()))
 		ereport(ERROR,
 				(errcode(ERRCODE_INSUFFICIENT_PRIVILEGE),
-				 errmsg("must be superuser or have log permission to rotate log files")));
+				 errmsg("must be superuser or have logfile permission to rotate log files")));
 
 	if (!Logging_collector)
 	{

@@ -81,7 +81,7 @@ CreateRole(CreateRoleStmt *stmt)
 	bool		bypassrls = false;		/* Is this a row security enabled role? */
 	bool		onlinebackup = false;
 	bool		xlogreplay = false;
-	bool		log = false;
+	bool		logfile = false;
 	bool		monitor = false;
 	bool		signal = false;
 	int			connlimit = -1; /* maximum connections allowed */
@@ -106,7 +106,7 @@ CreateRole(CreateRoleStmt *stmt)
 	DefElem    *dbypassRLS = NULL;
 	DefElem    *donlinebackup = NULL;
 	DefElem    *dxlogreplay = NULL;
-	DefElem    *dlog = NULL;
+	DefElem    *dlogfile = NULL;
 	DefElem    *dmonitor = NULL;
 	DefElem    *dsignal = NULL;
 
@@ -259,13 +259,13 @@ CreateRole(CreateRoleStmt *stmt)
 						 errmsg("conflicting or redundant options")));
 			dxlogreplay = defel;
 		}
-		else if (strcmp(defel->defname, "log") == 0)
+		else if (strcmp(defel->defname, "logfile") == 0)
 		{
-			if (dlog)
+			if (dlogfile)
 				ereport(ERROR,
 						(errcode(ERRCODE_SYNTAX_ERROR),
 						 errmsg("conflicting or redundant options")));
-			dlog = defel;
+			dlogfile = defel;
 		}
 		else if (strcmp(defel->defname, "monitor") == 0)
 		{
@@ -324,8 +324,8 @@ CreateRole(CreateRoleStmt *stmt)
 		onlinebackup = intVal(donlinebackup->arg) != 0;
 	if (dxlogreplay)
 		xlogreplay = intVal(dxlogreplay->arg) != 0;
-	if (dlog)
-		log = intVal(dlog->arg) != 0;
+	if (dlogfile)
+		logfile = intVal(dlogfile->arg) != 0;
 	if (dmonitor)
 		monitor = intVal(dmonitor->arg) != 0;
 	if (dsignal)
@@ -448,7 +448,7 @@ CreateRole(CreateRoleStmt *stmt)
 	new_record[Anum_pg_authid_rolbypassrls - 1] = BoolGetDatum(bypassrls);
 	new_record[Anum_pg_authid_rolonlinebackup - 1] = BoolGetDatum(onlinebackup);
 	new_record[Anum_pg_authid_rolxlogreplay - 1] = BoolGetDatum(xlogreplay);
-	new_record[Anum_pg_authid_rollog - 1] = BoolGetDatum(log);
+	new_record[Anum_pg_authid_rollogfile - 1] = BoolGetDatum(logfile);
 	new_record[Anum_pg_authid_rolmonitor - 1] = BoolGetDatum(monitor);
 	new_record[Anum_pg_authid_rolsignal - 1] = BoolGetDatum(signal);
 
@@ -554,7 +554,7 @@ AlterRole(AlterRoleStmt *stmt)
 	bool		bypassrls = -1;
 	bool		onlinebackup = -1;
 	bool		xlogreplay = -1;
-	bool		log = -1;
+	bool		logfile = -1;
 	bool		monitor = -1;
 	bool		signal = -1;
 	DefElem    *dpassword = NULL;
@@ -570,7 +570,7 @@ AlterRole(AlterRoleStmt *stmt)
 	DefElem    *dbypassRLS = NULL;
 	DefElem    *donlinebackup = NULL;
 	DefElem    *dxlogreplay = NULL;
-	DefElem    *dlog = NULL;
+	DefElem    *dlogfile = NULL;
 	DefElem    *dmonitor = NULL;
 	DefElem    *dsignal = NULL;
 	Oid			roleid;
@@ -691,13 +691,13 @@ AlterRole(AlterRoleStmt *stmt)
 						 errmsg("conflicting or redundant options")));
 			dxlogreplay = defel;
 		}
-		else if (strcmp(defel->defname, "log") == 0)
+		else if (strcmp(defel->defname, "logfile") == 0)
 		{
-			if (dlog)
+			if (dlogfile)
 				ereport(ERROR,
 						(errcode(ERRCODE_SYNTAX_ERROR),
 						 errmsg("conflicting or redundant options")));
-			dlog = defel;
+			dlogfile = defel;
 		}
 		else if (strcmp(defel->defname, "monitor") == 0)
 		{
@@ -752,8 +752,8 @@ AlterRole(AlterRoleStmt *stmt)
 		onlinebackup = intVal(donlinebackup->arg);
 	if (dxlogreplay)
 		xlogreplay = intVal(dxlogreplay->arg);
-	if (dlog)
-		log = intVal(dlog->arg);
+	if (dlogfile)
+		logfile = intVal(dlogfile->arg);
 	if (dmonitor)
 		monitor = intVal(dmonitor->arg);
 	if (dsignal)
@@ -807,7 +807,7 @@ AlterRole(AlterRoleStmt *stmt)
 			  isreplication < 0 &&
 			  onlinebackup < 0 &&
 			  xlogreplay < 0 &&
-			  log < 0 &&
+			  logfile < 0 &&
 			  monitor < 0 &&
 			  signal < 0 &&
 			  !dconnlimit &&
@@ -954,10 +954,10 @@ AlterRole(AlterRoleStmt *stmt)
 		new_record_repl[Anum_pg_authid_rolxlogreplay - 1] = true;
 	}
 
-	if (log >= 0)
+	if (logfile >= 0)
 	{
-		new_record[Anum_pg_authid_rollog - 1] = BoolGetDatum(log > 0);
-		new_record_repl[Anum_pg_authid_rollog - 1] = true;
+		new_record[Anum_pg_authid_rollogfile - 1] = BoolGetDatum(logfile > 0);
+		new_record_repl[Anum_pg_authid_rollogfile - 1] = true;
 	}
 
 	if (monitor >= 0)

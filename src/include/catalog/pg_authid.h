@@ -55,7 +55,7 @@ CATALOG(pg_authid,1260) BKI_SHARED_RELATION BKI_ROWTYPE_OID(2842) BKI_SCHEMA_MAC
 	bool		rolbypassrls;	/* allowed to bypass row level security? */
 	bool		rolonlinebackup;/* allowed to peform backup operations? */
 	bool		rolxlogreplay;	/* allowed to control xlog replay */
-	bool		rollog;			/* allowed to rotate log files? */
+	bool		rollogfile;		/* allowed to rotate log files? */
 	bool		rolmonitor;		/* allowed to view pg_stat_* details? */
 	bool		rolsignal;		/* allowed to signal backed processes? */
 	int32		rolconnlimit;	/* max connections allowed (-1=no limit) */
@@ -91,7 +91,7 @@ typedef FormData_pg_authid *Form_pg_authid;
 #define Anum_pg_authid_rolbypassrls		9
 #define Anum_pg_authid_rolonlinebackup	10
 #define Anum_pg_authid_rolxlogreplay	11
-#define Anum_pg_authid_rollog			12
+#define Anum_pg_authid_rollogfile		12
 #define Anum_pg_authid_rolmonitor		13
 #define Anum_pg_authid_rolsignal		14
 #define Anum_pg_authid_rolconnlimit		15
