@@ -5128,7 +5128,7 @@ has_bypassrls_privilege(Oid roleid)
  * Check whether specified role has BACKUP privilege (or is a superuser)
  */
 bool
-has_online_backup_privilege(Oid roleid)
+has_exclbackup_privilege(Oid roleid)
 {
 	bool		result = false;
 	HeapTuple	utup;
@@ -5140,7 +5140,7 @@ has_online_backup_privilege(Oid roleid)
 	utup = SearchSysCache1(AUTHOID, ObjectIdGetDatum(roleid));
 	if (HeapTupleIsValid(utup))
 	{
-		result = ((Form_pg_authid) GETSTRUCT(utup))->rolonlinebackup;
+		result = ((Form_pg_authid) GETSTRUCT(utup))->rolexclbackup;
 		ReleaseSysCache(utup);
 	}
 

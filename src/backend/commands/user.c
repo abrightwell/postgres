@@ -79,7 +79,7 @@ CreateRole(CreateRoleStmt *stmt)
 	bool		canlogin = false;		/* Can this user login? */
 	bool		isreplication = false;	/* Is this a replication role? */
 	bool		bypassrls = false;		/* Is this a row security enabled role? */
-	bool		onlinebackup = false;
+	bool		exclbackup = false;
 	bool		xlogreplay = false;
 	bool		logfile = false;
 	bool		monitor = false;
@@ -104,7 +104,7 @@ CreateRole(CreateRoleStmt *stmt)
 	DefElem    *dadminmembers = NULL;
 	DefElem    *dvalidUntil = NULL;
 	DefElem    *dbypassRLS = NULL;
-	DefElem    *donlinebackup = NULL;
+	DefElem    *dexclbackup = NULL;
 	DefElem    *dxlogreplay = NULL;
 	DefElem    *dlogfile = NULL;
 	DefElem    *dmonitor = NULL;
@@ -243,13 +243,13 @@ CreateRole(CreateRoleStmt *stmt)
 						 errmsg("conflicting or redundant options")));
 			dbypassRLS = defel;
 		}
-		else if (strcmp(defel->defname, "onlinebackup") == 0)
+		else if (strcmp(defel->defname, "exclbackup") == 0)
 		{
-			if (donlinebackup)
+			if (dexclbackup)
 				ereport(ERROR,
 						(errcode(ERRCODE_SYNTAX_ERROR),
 						 errmsg("conflicting or redundant options")));
-			donlinebackup = defel;
+			dexclbackup = defel;
 		}
 		else if (strcmp(defel->defname, "xlogreplay") == 0)
 		{
@@ -320,8 +320,8 @@ CreateRole(CreateRoleStmt *stmt)
 		validUntil = strVal(dvalidUntil->arg);
 	if (dbypassRLS)
 		bypassrls = intVal(dbypassRLS->arg) != 0;
-	if (donlinebackup)
-		onlinebackup = intVal(donlinebackup->arg) != 0;
+	if (dexclbackup)
+		exclbackup = intVal(dexclbackup->arg) != 0;
 	if (dxlogreplay)
 		xlogreplay = intVal(dxlogreplay->arg) != 0;
 	if (dlogfile)
@@ -446,7 +446,7 @@ CreateRole(CreateRoleStmt *stmt)
 	new_record_nulls[Anum_pg_authid_rolvaliduntil - 1] = validUntil_null;
 
 	new_record[Anum_pg_authid_rolbypassrls - 1] = BoolGetDatum(bypassrls);
-	new_record[Anum_pg_authid_rolonlinebackup - 1] = BoolGetDatum(onlinebackup);
+	new_record[Anum_pg_authid_rolexclbackup - 1] = BoolGetDatum(exclbackup);
 	new_record[Anum_pg_authid_rolxlogreplay - 1] = BoolGetDatum(xlogreplay);
 	new_record[Anum_pg_authid_rollogfile - 1] = BoolGetDatum(logfile);
 	new_record[Anum_pg_authid_rolmonitor - 1] = BoolGetDatum(monitor);
@@ -552,7 +552,7 @@ AlterRole(AlterRoleStmt *stmt)
 	Datum		validUntil_datum;		/* same, as timestamptz Datum */
 	bool		validUntil_null;
 	bool		bypassrls = -1;
-	bool		onlinebackup = -1;
+	bool		exclbackup = -1;
 	bool		xlogreplay = -1;
 	bool		logfile = -1;
 	bool		monitor = -1;
@@ -568,7 +568,7 @@ AlterRole(AlterRoleStmt *stmt)
 	DefElem    *drolemembers = NULL;
 	DefElem    *dvalidUntil = NULL;
 	DefElem    *dbypassRLS = NULL;
-	DefElem    *donlinebackup = NULL;
+	DefElem    *dexclbackup = NULL;
 	DefElem    *dxlogreplay = NULL;
 	DefElem    *dlogfile = NULL;
 	DefElem    *dmonitor = NULL;
@@ -675,13 +675,13 @@ AlterRole(AlterRoleStmt *stmt)
 						 errmsg("conflicting or redundant options")));
 			dbypassRLS = defel;
 		}
-		else if (strcmp(defel->defname, "onlinebackup") == 0)
+		else if (strcmp(defel->defname, "exclbackup") == 0)
 		{
-			if (donlinebackup)
+			if (dexclbackup)
 				ereport(ERROR,
 						(errcode(ERRCODE_SYNTAX_ERROR),
 						 errmsg("conflicting or redundant options")));
-			donlinebackup = defel;
+			dexclbackup = defel;
 		}
 		else if (strcmp(defel->defname, "xlogreplay") == 0)
 		{
@@ -748,8 +748,8 @@ AlterRole(AlterRoleStmt *stmt)
 		validUntil = strVal(dvalidUntil->arg);
 	if (dbypassRLS)
 		bypassrls = intVal(dbypassRLS->arg);
-	if (donlinebackup)
-		onlinebackup = intVal(donlinebackup->arg);
+	if (dexclbackup)
+		exclbackup = intVal(dexclbackup->arg);
 	if (dxlogreplay)
 		xlogreplay = intVal(dxlogreplay->arg);
 	if (dlogfile)
@@ -805,7 +805,7 @@ AlterRole(AlterRoleStmt *stmt)
 			  createdb < 0 &&
 			  canlogin < 0 &&
 			  isreplication < 0 &&
-			  onlinebackup < 0 &&
+			  exclbackup < 0 &&
 			  xlogreplay < 0 &&
 			  logfile < 0 &&
 			  monitor < 0 &&
@@ -942,10 +942,10 @@ AlterRole(AlterRoleStmt *stmt)
 		new_record_repl[Anum_pg_authid_rolbypassrls - 1] = true;
 	}
 
-	if (onlinebackup >= 0)
+	if (exclbackup >= 0)
 	{
-		new_record[Anum_pg_authid_rolonlinebackup - 1] = BoolGetDatum(onlinebackup > 0);
-		new_record_repl[Anum_pg_authid_rolonlinebackup - 1] = true;
+		new_record[Anum_pg_authid_rolexclbackup - 1] = BoolGetDatum(exclbackup > 0);
+		new_record_repl[Anum_pg_authid_rolexclbackup - 1] = true;
 	}
 
 	if (xlogreplay >= 0)

@@ -977,10 +977,10 @@ AlterOptRoleElem:
 						 */
 						$$ = makeDefElem("inherit", (Node *)makeInteger(FALSE));
 					}
-					else if (strcmp($1, "online_backup") == 0)
-						$$ = makeDefElem("onlinebackup", (Node *)makeInteger(TRUE));
-					else if (strcmp($1, "noonline_backup") == 0)
-						$$ = makeDefElem("onlinebackup", (Node *)makeInteger(FALSE));
+					else if (strcmp($1, "exclusivebackup") == 0)
+						$$ = makeDefElem("exclbackup", (Node *)makeInteger(TRUE));
+					else if (strcmp($1, "noexclusivebackup") == 0)
+						$$ = makeDefElem("exclbackup", (Node *)makeInteger(FALSE));
 					else if (strcmp($1, "xlog_replay") == 0)
 						$$ = makeDefElem("xlogreplay", (Node *)makeInteger(TRUE));
 					else if (strcmp($1, "noxlog_replay") == 0)
