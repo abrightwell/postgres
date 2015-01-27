@@ -272,8 +272,8 @@ CREATE ROLE <replaceable class="PARAMETER">name</replaceable> [ [ WITH ] <replac
        These clauses determine whether a role is allowed to signal backend
        processes.  A role having the <literal>SIGNAL</literal> attribute will be
        allowed to signal backend processes that it owns and those roles which it
-       is a member.  A backend process owned by a superuser cannot be signaled
-       by a role with this attribute.
+       is a member.  Roles with this attribute cannot singal backend processes
+       that are owned by a superuser.
        If not specified, <literal>NOSIGNAL</literal> is the default.
        </para>
       </listitem>
