@@ -33,6 +33,11 @@ CREATE ROLE <replaceable class="PARAMETER">name</replaceable> [ [ WITH ] <replac
     | LOGIN | NOLOGIN
     | REPLICATION | NOREPLICATION
     | BYPASSRLS | NOBYPASSRLS
+    | EXCLUSIVEBACKUP | NOEXCLUSIVEBACKUP
+    | XLOGREPLAY | NOXLOGREPLAY
+    | LOGFILE | NOLOGFILE
+    | MONITOR | NOMONITOR
+    | SIGNAL | NOSIGNAL
     | CONNECTION LIMIT <replaceable class="PARAMETER">connlimit</replaceable>
     | [ ENCRYPTED | UNENCRYPTED ] PASSWORD '<replaceable class="PARAMETER">password</replaceable>'
     | VALID UNTIL '<replaceable class="PARAMETER">timestamp</replaceable>'
@@ -206,6 +211,70 @@ CREATE ROLE <replaceable class="PARAMETER">name</replaceable> [ [ WITH ] <replac
         dumped out.  If the user running pg_dump does not have appropriate
         permissions, an error will be returned.  The superuser and owner of the
         table being dumped are considered to always have the right to bypass RLS.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry>
+      <term><literal>EXCLUSIVEBACKUP</literal></term>
+      <term><literal>NOEXCLUSIVEBACKUP</literal></term>
+      <listitem>
+       <para>
+       These clauses determine whether a role is allowed to start/stop an
+       on-line exclusive backup.  An on-line exclusive backup is one that is
+       initiated by the low-level base backup api instead of through the
+       replication protocol, see <xref linkend=backup-lowlevel-base-backup>.
+       If not specified, <literal>NOEXCLUSIVEBACKUP</literal> is the default.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry>
+      <term><literal>XLOGREPLAY</literal></term>
+      <term><literal>NOXLOGREPLAY</literal></term>
+      <listitem>
+       <para>
+       These clauses determine whether a role is allowed to pause/resume xlog
+       recovery.
+       If not specified, <literal>NOXLOGREPLAY</literal> is the default.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry>
+      <term><literal>LOGFILE</literal></term>
+      <term><literal>NOLOGFILE</literal></term>
+      <listitem>
+       <para>
+       These clauses determine whether a role is allowed to rotate log files.
+       If not specified, <literal>NOLOGFILE</literal> is the default.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry>
+      <term><literal>MONITOR</literal></term>
+      <term><literal>NOMONITOR</literal></term>
+      <listitem>
+       <para>
+       These clauses determine whether a role is allowed to view details from
+       calling pg_stat_* functions.
+       If not specified, <literal>NOMONITOR</literal> is the default.
+       </para>
+      </listitem>
+     </varlistentry>
+
+     <varlistentry>
+      <term><literal>SIGNAL</literal></term>
+      <term><literal>NOSIGNAL</literal></term>
+      <listitem>
+       <para>
+       These clauses determine whether a role is allowed to signal backend
+       processes.  A role having the <literal>SIGNAL</literal> attribute will be
+       allowed to signal backend processes that it owns and those roles which it
+       is a member.  A backend process owned by a superuser cannot be signaled
+       by a role with this attribute.
+       If not specified, <literal>NOSIGNAL</literal> is the default.
        </para>
       </listitem>
      </varlistentry>

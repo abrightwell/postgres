@@ -1445,6 +1445,42 @@
      </row>
 
      <row>
+      <entry><structfield>rolbypassrls</structfield></entry>
+      <entry><type>bool</type></entry>
+      <entry>Role can bypass row level security</entry>
+     </row>
+
+     <row>
+      <entry><structfield>rolexclbackup</structfield></entry>
+      <entry><type>bool</type></entry>
+      <entry>Role can perform on-line exclusive backup operations</entry>
+     </row>
+
+     <row>
+      <entry><structfield>rolxlogreplay</structfield></entry>
+      <entry><type>bool</type></entry>
+      <entry>Role can control xlog recovery replay operations</entry>
+     </row>
+
+     <row>
+      <entry><structfield>rollogfile</structfield></entry>
+      <entry><type>bool</type></entry>
+      <entry>Role can rotate log files</entry>
+     </row>
+
+     <row>
+      <entry><structfield>rolmonitor</structfield></entry>
+      <entry><type>bool</type></entry>
+      <entry>Role can view pg_stat_* details</entry>
+     </row>
+
+     <row>
+      <entry><structfield>rolsignal</structfield></entry>
+      <entry><type>bool</type></entry>
+      <entry>Role can signal backend processes</entry>
+     </row>
+
+     <row>
       <entry><structfield>rolconnlimit</structfield></entry>
       <entry><type>int4</type></entry>
       <entry>
