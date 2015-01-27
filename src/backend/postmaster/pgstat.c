@@ -3095,7 +3095,7 @@ pgstat_send_archiver(const char *xlog, bool failed)
 	 */
 	pgstat_setheader(&msg.m_hdr, PGSTAT_MTYPE_ARCHIVER);
 	msg.m_failed = failed;
-	strncpy(msg.m_xlog, xlog, sizeof(msg.m_xlog));
+	StrNCpy(msg.m_xlog, xlog, sizeof(msg.m_xlog));
 	msg.m_timestamp = GetCurrentTimestamp();
 	pgstat_send(&msg, sizeof(msg));
 }
@@ -3369,7 +3369,7 @@ PgstatCollectorMain(int argc, char *argv[])
 		 * first water, but until somebody wants to debug exactly what's
 		 * happening there, this is the best we can do.  The two-second
 		 * timeout matches our pre-9.2 behavior, and needs to be short enough
-		 * to not provoke "pgstat wait timeout" complaints from
+		 * to not provoke "using stale statistics" complaints from
 		 * backend_read_statsfile.
 		 */
 		wr = WaitLatchOrSocket(MyLatch,
@@ -4442,7 +4442,9 @@ backend_read_statsfile(void)
 	}
 
 	if (count >= PGSTAT_POLL_LOOP_COUNT)
-		elog(WARNING, "pgstat wait timeout");
+		ereport(LOG,
+				(errmsg("using stale statistics instead of current ones "
+						"because stats collector is not responding")));
 
 	/*
 	 * Autovacuum launcher wants stats about all databases, but a shallow read

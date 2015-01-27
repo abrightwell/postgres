@@ -2476,24 +2476,28 @@ dumpDatabase(Archive *fout, DumpOptions *dopt)
 					dbCatId, 0, dbDumpId);
 	}
 
-	PQclear(res);
-
 	/* Dump shared security label. */
 	if (!dopt->no_security_labels && fout->remoteVersion >= 90200)
 	{
-		PQExpBuffer seclabelQry = createPQExpBuffer();
+		PGresult   *shres;
+		PQExpBuffer seclabelQry;
+
+		seclabelQry = createPQExpBuffer();
 
 		buildShSecLabelQuery(conn, "pg_database", dbCatId.oid, seclabelQry);
-		res = ExecuteSqlQuery(fout, seclabelQry->data, PGRES_TUPLES_OK);
+		shres = ExecuteSqlQuery(fout, seclabelQry->data, PGRES_TUPLES_OK);
 		resetPQExpBuffer(seclabelQry);
-		emitShSecLabels(conn, res, seclabelQry, "DATABASE", datname);
+		emitShSecLabels(conn, shres, seclabelQry, "DATABASE", datname);
 		if (strlen(seclabelQry->data))
 			ArchiveEntry(fout, dbCatId, createDumpId(), datname, NULL, NULL,
 						 dba, false, "SECURITY LABEL", SECTION_NONE,
 						 seclabelQry->data, "", NULL,
 						 &dbDumpId, 1, NULL, NULL);
 		destroyPQExpBuffer(seclabelQry);
+		PQclear(shres);
 	}
+
+	PQclear(res);
 
 	destroyPQExpBuffer(dbQry);
 	destroyPQExpBuffer(delQry);
@@ -2847,9 +2851,9 @@ getPolicies(Archive *fout, TableInfo tblinfo[], int numTables)
 		appendPQExpBuffer(query,
 						  "SELECT oid, tableoid, pol.polname, pol.polcmd, "
 						  "CASE WHEN pol.polroles = '{0}' THEN 'PUBLIC' ELSE "
-						  "   array_to_string(ARRAY(SELECT rolname from pg_roles WHERE oid = ANY(pol.polroles)), ', ') END AS polroles, "
-						  "pg_get_expr(pol.polqual, pol.polrelid) AS polqual, "
-				"pg_get_expr(pol.polwithcheck, pol.polrelid) AS polwithcheck "
+						  "   pg_catalog.array_to_string(ARRAY(SELECT pg_catalog.quote_ident(rolname) from pg_catalog.pg_roles WHERE oid = ANY(pol.polroles)), ', ') END AS polroles, "
+						  "pg_catalog.pg_get_expr(pol.polqual, pol.polrelid) AS polqual, "
+				"pg_catalog.pg_get_expr(pol.polwithcheck, pol.polrelid) AS polwithcheck "
 						  "FROM pg_catalog.pg_policy pol "
 						  "WHERE polrelid = '%u'",
 						  tbinfo->dobj.catId.oid);
@@ -2861,7 +2865,7 @@ getPolicies(Archive *fout, TableInfo tblinfo[], int numTables)
 		{
 			/*
 			 * No explicit policies to handle (only the default-deny policy,
-			 * which is handled as part of the table definition.  Clean up and
+			 * which is handled as part of the table definition).  Clean up and
 			 * return.
 			 */
 			PQclear(res);
@@ -2888,14 +2892,9 @@ getPolicies(Archive *fout, TableInfo tblinfo[], int numTables)
 			polinfo[j].dobj.namespace = tbinfo->dobj.namespace;
 			polinfo[j].poltable = tbinfo;
 			polinfo[j].polname = pg_strdup(PQgetvalue(res, j, i_polname));
-
 			polinfo[j].dobj.name = pg_strdup(polinfo[j].polname);
 
-			if (PQgetisnull(res, j, i_polcmd))
-				polinfo[j].polcmd = NULL;
-			else
-				polinfo[j].polcmd = pg_strdup(PQgetvalue(res, j, i_polcmd));
-
+			polinfo[j].polcmd = pg_strdup(PQgetvalue(res, j, i_polcmd));
 			polinfo[j].polroles = pg_strdup(PQgetvalue(res, j, i_polroles));
 
 			if (PQgetisnull(res, j, i_polqual))
@@ -2955,7 +2954,7 @@ dumpPolicy(Archive *fout, DumpOptions *dopt, PolicyInfo *polinfo)
 		return;
 	}
 
-	if (!polinfo->polcmd)
+	if (strcmp(polinfo->polcmd, "*") == 0)
 		cmd = "ALL";
 	else if (strcmp(polinfo->polcmd, "r") == 0)
 		cmd = "SELECT";
@@ -2967,15 +2966,16 @@ dumpPolicy(Archive *fout, DumpOptions *dopt, PolicyInfo *polinfo)
 		cmd = "DELETE";
 	else
 	{
-		write_msg(NULL, "unexpected command type: '%s'\n", polinfo->polcmd);
+		write_msg(NULL, "unexpected policy command type: \"%s\"\n",
+				  polinfo->polcmd);
 		exit_nicely(1);
 	}
 
 	query = createPQExpBuffer();
 	delqry = createPQExpBuffer();
 
-	appendPQExpBuffer(query, "CREATE POLICY %s ON %s FOR %s",
-					  polinfo->polname, fmtId(tbinfo->dobj.name), cmd);
+	appendPQExpBuffer(query, "CREATE POLICY %s", fmtId(polinfo->polname));
+	appendPQExpBuffer(query, " ON %s FOR %s", fmtId(tbinfo->dobj.name), cmd);
 
 	if (polinfo->polroles != NULL)
 		appendPQExpBuffer(query, " TO %s", polinfo->polroles);
@@ -2988,8 +2988,8 @@ dumpPolicy(Archive *fout, DumpOptions *dopt, PolicyInfo *polinfo)
 
 	appendPQExpBuffer(query, ";\n");
 
-	appendPQExpBuffer(delqry, "DROP POLICY %s ON %s;\n",
-					  polinfo->polname, fmtId(tbinfo->dobj.name));
+	appendPQExpBuffer(delqry, "DROP POLICY %s", fmtId(polinfo->polname));
+	appendPQExpBuffer(delqry, " ON %s;\n", fmtId(tbinfo->dobj.name));
 
 	ArchiveEntry(fout, polinfo->dobj.catId, polinfo->dobj.dumpId,
 				 polinfo->dobj.name,
