@@ -1353,6 +1353,29 @@ pg_matviews| SELECT n.nspname AS schemaname,
      LEFT JOIN pg_namespace n ON ((n.oid = c.relnamespace)))
      LEFT JOIN pg_tablespace t ON ((t.oid = c.reltablespace)))
   WHERE (c.relkind = 'm'::"char");
+pg_policies| SELECT n.nspname AS schemaname,
+    c.relname AS tablename,
+    pol.polname AS policyname,
+        CASE
+            WHEN (pol.polroles = '{0}'::oid[]) THEN (string_to_array('public'::text, ''::text))::name[]
+            ELSE ARRAY( SELECT pg_authid.rolname
+               FROM pg_authid
+              WHERE (pg_authid.oid = ANY (pol.polroles))
+              ORDER BY pg_authid.rolname)
+        END AS roles,
+        CASE pol.polcmd
+            WHEN 'r'::"char" THEN 'SELECT'::text
+            WHEN 'a'::"char" THEN 'INSERT'::text
+            WHEN 'w'::"char" THEN 'UPDATE'::text
+            WHEN 'd'::"char" THEN 'DELETE'::text
+            WHEN '*'::"char" THEN 'ALL'::text
+            ELSE NULL::text
+        END AS cmd,
+    pg_get_expr(pol.polqual, pol.polrelid) AS qual,
+    pg_get_expr(pol.polwithcheck, pol.polrelid) AS with_check
+   FROM ((pg_policy pol
+     JOIN pg_class c ON ((c.oid = pol.polrelid)))
+     LEFT JOIN pg_namespace n ON ((n.oid = c.relnamespace)));
 pg_prepared_statements| SELECT p.name,
     p.statement,
     p.prepare_time,
@@ -1389,6 +1412,7 @@ pg_roles| SELECT pg_authid.rolname,
     pg_authid.rolconnlimit,
     '********'::text AS rolpassword,
     pg_authid.rolvaliduntil,
+    pg_authid.rolbypassrls,
     s.setconfig AS rolconfig,
     pg_authid.oid
    FROM (pg_authid
@@ -1585,6 +1609,7 @@ pg_shadow| SELECT pg_authid.rolname AS usename,
     pg_authid.rolsuper AS usesuper,
     pg_authid.rolcatupdate AS usecatupd,
     pg_authid.rolreplication AS userepl,
+    pg_authid.rolbypassrls AS usebypassrls,
     pg_authid.rolpassword AS passwd,
     (pg_authid.rolvaliduntil)::abstime AS valuntil,
     s.setconfig AS useconfig
@@ -2018,7 +2043,8 @@ pg_tables| SELECT n.nspname AS schemaname,
     t.spcname AS tablespace,
     c.relhasindex AS hasindexes,
     c.relhasrules AS hasrules,
-    c.relhastriggers AS hastriggers
+    c.relhastriggers AS hastriggers,
+    c.relrowsecurity AS rowsecurity
    FROM ((pg_class c
      LEFT JOIN pg_namespace n ON ((n.oid = c.relnamespace)))
      LEFT JOIN pg_tablespace t ON ((t.oid = c.reltablespace)))
@@ -2038,6 +2064,7 @@ pg_user| SELECT pg_shadow.usename,
     pg_shadow.usesuper,
     pg_shadow.usecatupd,
     pg_shadow.userepl,
+    pg_shadow.usebypassrls,
     '********'::text AS passwd,
     pg_shadow.valuntil,
     pg_shadow.useconfig

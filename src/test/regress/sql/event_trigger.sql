@@ -206,3 +206,46 @@ DROP ROLE regression_bob;
 
 DROP EVENT TRIGGER regress_event_trigger_drop_objects;
 DROP EVENT TRIGGER undroppable;
+
+-- test Row Security Event Trigger
+RESET SESSION AUTHORIZATION;
+CREATE TABLE event_trigger_test (a integer, b text);
+
+CREATE OR REPLACE FUNCTION start_command()
+RETURNS event_trigger AS $$
+BEGIN
+RAISE NOTICE '% - ddl_command_start', tg_tag;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION end_command()
+RETURNS event_trigger AS $$
+BEGIN
+RAISE NOTICE '% - ddl_command_end', tg_tag;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION drop_sql_command()
+RETURNS event_trigger AS $$
+BEGIN
+RAISE NOTICE '% - sql_drop', tg_tag;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE EVENT TRIGGER start_rls_command ON ddl_command_start
+    WHEN TAG IN ('CREATE POLICY', 'ALTER POLICY', 'DROP POLICY') EXECUTE PROCEDURE start_command();
+
+CREATE EVENT TRIGGER end_rls_command ON ddl_command_end
+    WHEN TAG IN ('CREATE POLICY', 'ALTER POLICY', 'DROP POLICY') EXECUTE PROCEDURE end_command();
+
+CREATE EVENT TRIGGER sql_drop_command ON sql_drop
+    WHEN TAG IN ('DROP POLICY') EXECUTE PROCEDURE drop_sql_command();
+
+CREATE POLICY p1 ON event_trigger_test USING (FALSE);
+ALTER POLICY p1 ON event_trigger_test USING (TRUE);
+ALTER POLICY p1 ON event_trigger_test RENAME TO p2;
+DROP POLICY p2 ON event_trigger_test;
+
+DROP EVENT TRIGGER start_rls_command;
+DROP EVENT TRIGGER end_rls_command;
+DROP EVENT TRIGGER sql_drop_command;

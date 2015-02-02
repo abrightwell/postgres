@@ -373,6 +373,17 @@ RestoreArchive(Archive *AHX)
 	}
 
 	/*
+	 * Enable row-security if necessary.
+	 */
+	if (PQserverVersion(AH->connection) >= 90500)
+	{
+		if (!ropt->enable_row_security)
+			ahprintf(AH, "SET row_security = off;\n");
+		else
+			ahprintf(AH, "SET row_security = on;\n");
+	}
+
+	/*
 	 * Establish important parameter values right away.
 	 */
 	_doSetFixedOutputState(AH);
@@ -3242,6 +3253,8 @@ _printTocEntry(ArchiveHandle *AH, TocEntry *te, RestoreOptions *ropt, bool isDat
 				 strcmp(te->desc, "INDEX") == 0 ||
 				 strcmp(te->desc, "RULE") == 0 ||
 				 strcmp(te->desc, "TRIGGER") == 0 ||
+				 strcmp(te->desc, "ROW SECURITY") == 0 ||
+				 strcmp(te->desc, "POLICY") == 0 ||
 				 strcmp(te->desc, "USER MAPPING") == 0)
 		{
 			/* these object types don't have separate owners */
