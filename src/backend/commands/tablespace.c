@@ -250,7 +250,7 @@ CreateTableSpace(CreateTableSpaceStmt *stmt)
 
 	/* However, the eventual owner of the tablespace need not be */
 	if (stmt->owner)
-		ownerId = get_role_oid(stmt->owner, false);
+		ownerId = get_rolespec_oid(stmt->owner, false);
 	else
 		ownerId = GetUserId();
 
