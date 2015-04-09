@@ -22,6 +22,7 @@
 #include "catalog/pg_database.h"
 #include "catalog/pg_namespace.h"
 #include "catalog/pg_proc.h"
+#include "catalog/pg_seclabel.h"
 #include "commands/dbcommands.h"
 #include "commands/seclabel.h"
 #include "libpq/auth.h"
@@ -131,13 +132,13 @@ sepgsql_set_client_label(const char *new_label)
 	}
 
 	/* Check process:{setcurrent} permission. */
-	sepgsql_avc_check_perms_label(sepgsql_get_client_label(),
+	sepgsql_check_perms_label(sepgsql_get_client_label(),
 								  SEPG_CLASS_PROCESS,
 								  SEPG_PROCESS__SETCURRENT,
 								  NULL,
 								  true);
 	/* Check process:{dyntransition} permission. */
-	sepgsql_avc_check_perms_label(tcontext,
+	sepgsql_check_perms_label(tcontext,
 								  SEPG_CLASS_PROCESS,
 								  SEPG_PROCESS__DYNTRANSITION,
 								  NULL,
@@ -277,6 +278,7 @@ sepgsql_client_auth(Port *port, int status)
 static bool
 sepgsql_needs_fmgr_hook(Oid functionId)
 {
+	char		 *tcontext;
 	ObjectAddress object;
 
 	if (next_needs_fmgr_hook &&
@@ -289,7 +291,7 @@ sepgsql_needs_fmgr_hook(Oid functionId)
 	 * functions as trusted-procedure, if the security policy has a rule that
 	 * switches security label of the client on execution.
 	 */
-	if (sepgsql_avc_trusted_proc(functionId) != NULL)
+	if (sepgsql_trusted_proc(functionId) != NULL)
 		return true;
 
 	/*
@@ -301,11 +303,15 @@ sepgsql_needs_fmgr_hook(Oid functionId)
 	object.classId = ProcedureRelationId;
 	object.objectId = functionId;
 	object.objectSubId = 0;
-	if (!sepgsql_avc_check_perms(&object,
-								 SEPG_CLASS_DB_PROCEDURE,
-								 SEPG_DB_PROCEDURE__EXECUTE |
-								 SEPG_DB_PROCEDURE__ENTRYPOINT,
-								 SEPGSQL_AVC_NOAUDIT, false))
+
+	tcontext = GetSecurityLabel(&object, SEPGSQL_LABEL_TAG);
+
+	if (!sepgsql_check_perms_label(tcontext,
+								   SEPG_CLASS_DB_PROCEDURE,
+								   SEPG_DB_PROCEDURE__EXECUTE |
+								   SEPG_DB_PROCEDURE__ENTRYPOINT,
+								   getObjectIdentity(&object),
+								   false))
 		return true;
 
 	return false;
@@ -339,7 +345,7 @@ sepgsql_fmgr_hook(FmgrHookEventType event,
 				oldcxt = MemoryContextSwitchTo(flinfo->fn_mcxt);
 				stack = palloc(sizeof(*stack));
 				stack->old_label = NULL;
-				stack->new_label = sepgsql_avc_trusted_proc(flinfo->fn_oid);
+				stack->new_label = sepgsql_trusted_proc(flinfo->fn_oid);
 				stack->next_private = 0;
 
 				MemoryContextSwitchTo(oldcxt);
@@ -357,17 +363,21 @@ sepgsql_fmgr_hook(FmgrHookEventType event,
 				if (stack->new_label)
 				{
 					ObjectAddress object;
+					char		 *tcontext;
 
 					object.classId = ProcedureRelationId;
 					object.objectId = flinfo->fn_oid;
 					object.objectSubId = 0;
-					sepgsql_avc_check_perms(&object,
+
+					tcontext = GetSecurityLabel(&object, SEPGSQL_LABEL_TAG);
+
+					sepgsql_check_perms_label(tcontext,
 											SEPG_CLASS_DB_PROCEDURE,
 											SEPG_DB_PROCEDURE__ENTRYPOINT,
 											getObjectDescription(&object),
 											true);
 
-					sepgsql_avc_check_perms_label(stack->new_label,
+					sepgsql_check_perms_label(stack->new_label,
 												  SEPG_CLASS_PROCESS,
 												  SEPG_PROCESS__TRANSITION,
 												  NULL, true);
@@ -658,6 +668,43 @@ sepgsql_mcstrans_out(PG_FUNCTION_ARGS)
 	freecon(qual_label);
 
 	PG_RETURN_TEXT_P(cstring_to_text(result));
+}
+
+PG_FUNCTION_INFO_V1(sepgsql_check_row_label);
+Datum
+sepgsql_check_row_label(PG_FUNCTION_ARGS)
+{
+	char	   *label = TextDatumGetCString(PG_GETARG_DATUM(0));
+	bool		result;
+
+	if (security_check_context_raw((security_context_t) label) < 0)
+		ereport(ERROR,
+				(errcode(ERRCODE_INVALID_NAME),
+				 errmsg("SELinux: invalid security label: \"%s\"\n", label)));
+
+	result = sepgsql_check_perms_label(label, SEPG_CLASS_DB_TUPLE,
+										   SEPG_DB_TUPLE__SELECT,
+										   NULL, false);
+
+	PG_RETURN_BOOL(result);
+}
+
+PG_FUNCTION_INFO_V1(sepgsql_create_row_label);
+Datum
+sepgsql_create_row_label(PG_FUNCTION_ARGS)
+{
+	Oid			table_id = PG_GETARG_OID(0);
+	char	   *scontext;
+	char	   *tcontext;
+	char	   *ncontext;
+
+	scontext = sepgsql_get_client_label();
+	tcontext = sepgsql_get_label(RelationRelationId, table_id, 0);
+    ncontext = sepgsql_compute_create(scontext, tcontext,
+									  SEPG_CLASS_DB_TUPLE,
+									  NULL);
+
+	PG_RETURN_TEXT_P(cstring_to_text(ncontext));
 }
 
 /*

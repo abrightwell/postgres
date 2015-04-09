@@ -87,7 +87,7 @@ sepgsql_schema_post_create(Oid namespaceId)
 	 */
 	initStringInfo(&audit_name);
 	appendStringInfo(&audit_name, "%s", quote_identifier(nsp_name));
-	sepgsql_avc_check_perms_label(ncontext,
+	sepgsql_check_perms_label(ncontext,
 								  SEPG_CLASS_DB_SCHEMA,
 								  SEPG_DB_SCHEMA__CREATE,
 								  audit_name.data,
@@ -117,6 +117,7 @@ sepgsql_schema_drop(Oid namespaceId)
 {
 	ObjectAddress object;
 	char	   *audit_name;
+	char	   *tcontext;
 
 	/*
 	 * check db_schema:{drop} permission
@@ -126,7 +127,9 @@ sepgsql_schema_drop(Oid namespaceId)
 	object.objectSubId = 0;
 	audit_name = getObjectIdentity(&object);
 
-	sepgsql_avc_check_perms(&object,
+	tcontext = GetSecurityLabel(&object, SEPGSQL_LABEL_TAG);
+
+	sepgsql_check_perms_label(tcontext,
 							SEPG_CLASS_DB_SCHEMA,
 							SEPG_DB_SCHEMA__DROP,
 							audit_name,
@@ -145,16 +148,19 @@ sepgsql_schema_relabel(Oid namespaceId, const char *seclabel)
 {
 	ObjectAddress object;
 	char	   *audit_name;
+	char	   *tcontext;
 
 	object.classId = NamespaceRelationId;
 	object.objectId = namespaceId;
 	object.objectSubId = 0;
 	audit_name = getObjectIdentity(&object);
 
+	tcontext = GetSecurityLabel(&object, SEPGSQL_LABEL_TAG);
+
 	/*
 	 * check db_schema:{setattr relabelfrom} permission
 	 */
-	sepgsql_avc_check_perms(&object,
+	sepgsql_check_perms_label(tcontext,
 							SEPG_CLASS_DB_SCHEMA,
 							SEPG_DB_SCHEMA__SETATTR |
 							SEPG_DB_SCHEMA__RELABELFROM,
@@ -164,7 +170,7 @@ sepgsql_schema_relabel(Oid namespaceId, const char *seclabel)
 	/*
 	 * check db_schema:{relabelto} permission
 	 */
-	sepgsql_avc_check_perms_label(seclabel,
+	sepgsql_check_perms_label(seclabel,
 								  SEPG_CLASS_DB_SCHEMA,
 								  SEPG_DB_SCHEMA__RELABELTO,
 								  audit_name,
@@ -183,13 +189,16 @@ check_schema_perms(Oid namespaceId, uint32 required, bool abort_on_violation)
 	ObjectAddress object;
 	char	   *audit_name;
 	bool		result;
+	char	   *tcontext;
 
 	object.classId = NamespaceRelationId;
 	object.objectId = namespaceId;
 	object.objectSubId = 0;
 	audit_name = getObjectIdentity(&object);
 
-	result = sepgsql_avc_check_perms(&object,
+	tcontext = GetSecurityLabel(&object, SEPGSQL_LABEL_TAG);
+
+	result = sepgsql_check_perms_label(tcontext,
 									 SEPG_CLASS_DB_SCHEMA,
 									 required,
 									 audit_name,

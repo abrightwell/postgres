@@ -78,7 +78,10 @@ sepgsql_proc_post_create(Oid functionId)
 	object.classId = NamespaceRelationId;
 	object.objectId = proForm->pronamespace;
 	object.objectSubId = 0;
-	sepgsql_avc_check_perms(&object,
+
+	tcontext = GetSecurityLabel(&object, SEPGSQL_LABEL_TAG);
+
+	sepgsql_check_perms_label(tcontext,
 							SEPG_CLASS_DB_SCHEMA,
 							SEPG_DB_SCHEMA__ADD_NAME,
 							getObjectIdentity(&object),
@@ -123,7 +126,7 @@ sepgsql_proc_post_create(Oid functionId)
 	if (proForm->proleakproof)
 		required |= SEPG_DB_PROCEDURE__INSTALL;
 
-	sepgsql_avc_check_perms_label(ncontext,
+	sepgsql_check_perms_label(ncontext,
 								  SEPG_CLASS_DB_PROCEDURE,
 								  required,
 								  audit_name.data,
@@ -158,6 +161,7 @@ sepgsql_proc_drop(Oid functionId)
 {
 	ObjectAddress object;
 	char	   *audit_name;
+	char	   *tcontext;
 
 	/*
 	 * check db_schema:{remove_name} permission
@@ -167,7 +171,9 @@ sepgsql_proc_drop(Oid functionId)
 	object.objectSubId = 0;
 	audit_name = getObjectIdentity(&object);
 
-	sepgsql_avc_check_perms(&object,
+	tcontext = GetSecurityLabel(&object, SEPGSQL_LABEL_TAG);
+
+	sepgsql_check_perms_label(tcontext,
 							SEPG_CLASS_DB_SCHEMA,
 							SEPG_DB_SCHEMA__REMOVE_NAME,
 							audit_name,
@@ -182,7 +188,9 @@ sepgsql_proc_drop(Oid functionId)
 	object.objectSubId = 0;
 	audit_name = getObjectIdentity(&object);
 
-	sepgsql_avc_check_perms(&object,
+	tcontext = GetSecurityLabel(&object, SEPGSQL_LABEL_TAG);
+
+	sepgsql_check_perms_label(tcontext,
 							SEPG_CLASS_DB_PROCEDURE,
 							SEPG_DB_PROCEDURE__DROP,
 							audit_name,
@@ -201,16 +209,19 @@ sepgsql_proc_relabel(Oid functionId, const char *seclabel)
 {
 	ObjectAddress object;
 	char	   *audit_name;
+	char	   *tcontext;
 
 	object.classId = ProcedureRelationId;
 	object.objectId = functionId;
 	object.objectSubId = 0;
 	audit_name = getObjectIdentity(&object);
 
+	tcontext = GetSecurityLabel(&object, SEPGSQL_LABEL_TAG);
+
 	/*
 	 * check db_procedure:{setattr relabelfrom} permission
 	 */
-	sepgsql_avc_check_perms(&object,
+	sepgsql_check_perms_label(tcontext,
 							SEPG_CLASS_DB_PROCEDURE,
 							SEPG_DB_PROCEDURE__SETATTR |
 							SEPG_DB_PROCEDURE__RELABELFROM,
@@ -220,7 +231,7 @@ sepgsql_proc_relabel(Oid functionId, const char *seclabel)
 	/*
 	 * check db_procedure:{relabelto} permission
 	 */
-	sepgsql_avc_check_perms_label(seclabel,
+	sepgsql_check_perms_label(seclabel,
 								  SEPG_CLASS_DB_PROCEDURE,
 								  SEPG_DB_PROCEDURE__RELABELTO,
 								  audit_name,
@@ -246,6 +257,7 @@ sepgsql_proc_setattr(Oid functionId)
 	uint32		required;
 	ObjectAddress object;
 	char	   *audit_name;
+	char	   *tcontext;
 
 	/*
 	 * Fetch newer catalog
@@ -295,7 +307,9 @@ sepgsql_proc_setattr(Oid functionId)
 	object.objectSubId = 0;
 	audit_name = getObjectIdentity(&object);
 
-	sepgsql_avc_check_perms(&object,
+	tcontext = GetSecurityLabel(&object, SEPGSQL_LABEL_TAG);
+
+	sepgsql_check_perms_label(tcontext,
 							SEPG_CLASS_DB_PROCEDURE,
 							required,
 							audit_name,
@@ -318,6 +332,7 @@ sepgsql_proc_execute(Oid functionId)
 {
 	ObjectAddress object;
 	char	   *audit_name;
+	char	   *tcontext;
 
 	/*
 	 * check db_procedure:{execute} permission
@@ -326,7 +341,10 @@ sepgsql_proc_execute(Oid functionId)
 	object.objectId = functionId;
 	object.objectSubId = 0;
 	audit_name = getObjectIdentity(&object);
-	sepgsql_avc_check_perms(&object,
+
+	tcontext = GetSecurityLabel(&object, SEPGSQL_LABEL_TAG);
+
+	sepgsql_check_perms_label(tcontext,
 							SEPG_CLASS_DB_PROCEDURE,
 							SEPG_DB_PROCEDURE__EXECUTE,
 							audit_name,

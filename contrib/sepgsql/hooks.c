@@ -440,9 +440,6 @@ _PG_init(void)
 							 NULL,
 							 NULL);
 
-	/* Initialize userspace access vector cache */
-	sepgsql_avc_init();
-
 	/* Initialize security label of the client and related stuff */
 	sepgsql_init_client_label();
 

@@ -1000,8 +1000,8 @@ fi
 
 # for contrib/sepgsql
 if test "$with_selinux" = yes; then
-  AC_CHECK_LIB(selinux, security_compute_create_name, [],
-               [AC_MSG_ERROR([library 'libselinux', version 2.1.10 or newer, is required for SELinux support])])
+  AC_CHECK_LIB(selinux, security_compute_create, [],
+               [AC_MSG_ERROR([library 'libselinux', version 2.0.94 or newer, is required for SELinux support])])
 fi
 
 # for contrib/uuid-ossp

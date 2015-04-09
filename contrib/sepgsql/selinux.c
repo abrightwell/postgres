@@ -11,6 +11,8 @@
  */
 #include "postgres.h"
 
+#include "catalog/pg_proc.h"
+#include "commands/seclabel.h"
 #include "lib/stringinfo.h"
 
 #include "sepgsql.h"
@@ -648,7 +650,7 @@ bool
 sepgsql_getenforce(void)
 {
 	if (sepgsql_mode == SEPGSQL_MODE_DEFAULT &&
-		selinux_status_getenforce() > 0)
+		security_getenforce() > 0)
 		return true;
 
 	return false;
@@ -854,10 +856,9 @@ sepgsql_compute_create(const char *scontext,
 	 * Ask SELinux what is the default context for the given object class on a
 	 * pair of security contexts
 	 */
-	if (security_compute_create_name_raw((security_context_t) scontext,
+	if (security_compute_create_raw((security_context_t) scontext,
 										 (security_context_t) tcontext,
 										 tclass_ex,
-										 objname,
 										 &ncontext) < 0)
 		ereport(ERROR,
 				(errcode(ERRCODE_INTERNAL_ERROR),
@@ -946,3 +947,62 @@ sepgsql_check_perms(const char *scontext,
 				 errmsg("SELinux: security policy violation")));
 	return result;
 }
+
+bool
+sepgsql_check_perms_label(const char *tcontext,
+						  uint16 tclass, uint32 required,
+						  const char *audit_name,
+						  bool abort_on_violation)
+{
+	char	   *scontext = sepgsql_get_client_label();
+
+	return sepgsql_check_perms(scontext, tcontext, tclass, required, audit_name,
+							   abort_on_violation);
+}
+
+static char *
+sepgsql_unlabeled(void)
+{
+	security_context_t unlabeled;
+
+	if (security_get_initial_context_raw("unlabeled", &unlabeled) < 0)
+		ereport(ERROR,
+				(errcode(ERRCODE_INTERNAL_ERROR),
+				 errmsg("SELinux: failed to get initial security label: %m")));
+
+	return unlabeled;
+}
+
+/*
+ * sepgsql_trusted_proc
+ *
+ * If the supplied function OID is configured as a trusted procedure, this
+ * function will return a security label to be used during the execution of
+ * that function.  Otherwise, it returns NULL.
+ */
+char *
+sepgsql_trusted_proc(Oid functionId)
+{
+	char			   *scontext = sepgsql_get_client_label();
+	char			   *tcontext;
+	char			   *ncontext;
+	ObjectAddress		tobject;
+
+	tobject.classId = ProcedureRelationId;
+	tobject.objectId = functionId;
+	tobject.objectSubId = 0;
+
+	tcontext = GetSecurityLabel(&tobject, SEPGSQL_LABEL_TAG);
+
+	if (security_check_context_raw((security_context_t) tcontext) != 0)
+		tcontext = sepgsql_unlabeled();
+
+	ncontext = sepgsql_compute_create(scontext, tcontext,
+									  SEPG_CLASS_PROCESS, NULL);
+
+	if (strcmp(scontext, ncontext) == 0)
+		ncontext = NULL;
+
+	return ncontext;
+}
+

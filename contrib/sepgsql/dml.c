@@ -155,6 +155,7 @@ check_relation_privileges(Oid relOid,
 	int			index;
 	char		relkind = get_rel_relkind(relOid);
 	bool		result = true;
+	char	   *tcontext;
 
 	/*
 	 * Hardwired Policies: SE-PostgreSQL enforces - clients cannot modify
@@ -186,10 +187,13 @@ check_relation_privileges(Oid relOid,
 	object.objectId = relOid;
 	object.objectSubId = 0;
 	audit_name = getObjectIdentity(&object);
+
+	tcontext = GetSecurityLabel(&object, SEPGSQL_LABEL_TAG);
+
 	switch (relkind)
 	{
 		case RELKIND_RELATION:
-			result = sepgsql_avc_check_perms(&object,
+			result = sepgsql_check_perms_label(tcontext,
 											 SEPG_CLASS_DB_TABLE,
 											 required,
 											 audit_name,
@@ -200,7 +204,7 @@ check_relation_privileges(Oid relOid,
 			Assert((required & ~SEPG_DB_TABLE__SELECT) == 0);
 
 			if (required & SEPG_DB_TABLE__SELECT)
-				result = sepgsql_avc_check_perms(&object,
+				result = sepgsql_check_perms_label(tcontext,
 												 SEPG_CLASS_DB_SEQUENCE,
 												 SEPG_DB_SEQUENCE__GET_VALUE,
 												 audit_name,
@@ -208,7 +212,7 @@ check_relation_privileges(Oid relOid,
 			break;
 
 		case RELKIND_VIEW:
-			result = sepgsql_avc_check_perms(&object,
+			result = sepgsql_check_perms_label(tcontext,
 											 SEPG_CLASS_DB_VIEW,
 											 SEPG_DB_VIEW__EXPAND,
 											 audit_name,
@@ -259,7 +263,9 @@ check_relation_privileges(Oid relOid,
 		object.objectSubId = attnum;
 		audit_name = getObjectDescription(&object);
 
-		result = sepgsql_avc_check_perms(&object,
+		tcontext = GetSecurityLabel(&object, SEPGSQL_LABEL_TAG);
+
+		result = sepgsql_check_perms_label(tcontext,
 										 SEPG_CLASS_DB_COLUMN,
 										 column_perms,
 										 audit_name,

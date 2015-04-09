@@ -2,6 +2,7 @@ policy_module(sepgsql-regtest, 1.07)
 
 gen_require(`
 	all_userspace_class_perms
+	type sepgsql_table_t;
 ')
 
 ## <desc>
@@ -40,18 +41,24 @@ optional_policy(`
 	unconfined_rw_pipes(sepgsql_regtest_dba_t)
 ')
 
+#optional_policy(`
+#	mcs_constrained(sepgsql_regtest_dba_t);
+#')
+
 # Type transition rules
-allow sepgsql_regtest_dba_t self : process { setcurrent };
+allow sepgsql_regtest_dba_t self : process { setcurrent dyntransition };
 allow sepgsql_regtest_dba_t sepgsql_regtest_user_t : process { dyntransition };
 allow sepgsql_regtest_dba_t sepgsql_regtest_foo_t : process { dyntransition };
 allow sepgsql_regtest_dba_t sepgsql_regtest_var_t : process { dyntransition };
 
 # special rule for system columns
 optional_policy(`
+
 	gen_require(`
 		attribute	sepgsql_table_type;
 		type		sepgsql_sysobj_t;
 	')
+
 	type_transition sepgsql_regtest_dba_t sepgsql_table_type:db_column sepgsql_sysobj_t "ctid";
 	type_transition sepgsql_regtest_dba_t sepgsql_table_type:db_column sepgsql_sysobj_t "oid";
 	type_transition sepgsql_regtest_dba_t sepgsql_table_type:db_column sepgsql_sysobj_t "xmin";
@@ -77,6 +84,11 @@ optional_policy(`
 	unconfined_stream_connect(sepgsql_regtest_user_t)
 	unconfined_rw_pipes(sepgsql_regtest_user_t)
 ')
+
+#optional_policy(`
+#	mcs_constrained(sepgsql_regtest_user_t);
+#')
+
 # Type transition rules
 allow sepgsql_regtest_user_t sepgsql_regtest_dba_t : process { transition };
 type_transition sepgsql_regtest_user_t sepgsql_regtest_trusted_proc_exec_t:process sepgsql_regtest_dba_t;
@@ -101,6 +113,8 @@ type sepgsql_regtest_foo_t;
 type sepgsql_regtest_var_t;
 type sepgsql_regtest_foo_table_t;
 type sepgsql_regtest_var_table_t;
+
+allow sepgsql_regtest_dba_t sepgsql_table_t:db_table { select insert };
 
 allow sepgsql_regtest_foo_t sepgsql_regtest_foo_table_t:db_table { getattr select update insert delete lock };
 allow sepgsql_regtest_foo_t sepgsql_regtest_foo_table_t:db_column { getattr select update insert };

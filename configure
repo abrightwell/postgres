@@ -8874,9 +8874,9 @@ fi
 
 # for contrib/sepgsql
 if test "$with_selinux" = yes; then
-  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for security_compute_create_name in -lselinux" >&5
-$as_echo_n "checking for security_compute_create_name in -lselinux... " >&6; }
-if ${ac_cv_lib_selinux_security_compute_create_name+:} false; then :
+  { $as_echo "$as_me:${as_lineno-$LINENO}: checking for security_compute_create in -lselinux" >&5
+$as_echo_n "checking for security_compute_create in -lselinux... " >&6; }
+if ${ac_cv_lib_selinux_security_compute_create+:} false; then :
   $as_echo_n "(cached) " >&6
 else
   ac_check_lib_save_LIBS=$LIBS
@@ -8890,11 +8890,11 @@ cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 #ifdef __cplusplus
 extern "C"
 #endif
-char security_compute_create_name ();
+char security_compute_create ();
 int
 main ()
 {
-return security_compute_create_name ();
+return security_compute_create ();
   ;
   return 0;
 }
