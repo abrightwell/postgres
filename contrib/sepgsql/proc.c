@@ -100,9 +100,7 @@ sepgsql_proc_post_create(Oid functionId)
 	tcontext = sepgsql_get_label(NamespaceRelationId,
 								 proForm->pronamespace, 0);
 	ncontext = sepgsql_compute_create(scontext, tcontext,
-									  SEPG_CLASS_DB_PROCEDURE,
-									  NameStr(proForm->proname));
-
+									  SEPG_CLASS_DB_PROCEDURE);
 	/*
 	 * check db_procedure:{create (install)} permission
 	 */

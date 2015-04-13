@@ -239,8 +239,7 @@ extern void sepgsql_compute_avd(const char *scontext,
 
 extern char *sepgsql_compute_create(const char *scontext,
 					   const char *tcontext,
-					   uint16 tclass,
-					   const char *objname);
+					   uint16 tclass);
 
 extern bool sepgsql_check_perms(const char *scontext,
 					const char *tcontext,

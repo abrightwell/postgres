@@ -838,8 +838,7 @@ sepgsql_compute_avd(const char *scontext,
 char *
 sepgsql_compute_create(const char *scontext,
 					   const char *tcontext,
-					   uint16 tclass,
-					   const char *objname)
+					   uint16 tclass)
 {
 	security_context_t ncontext;
 	security_class_t tclass_ex;
@@ -997,8 +996,7 @@ sepgsql_trusted_proc(Oid functionId)
 	if (security_check_context_raw((security_context_t) tcontext) != 0)
 		tcontext = sepgsql_unlabeled();
 
-	ncontext = sepgsql_compute_create(scontext, tcontext,
-									  SEPG_CLASS_PROCESS, NULL);
+	ncontext = sepgsql_compute_create(scontext, tcontext, SEPG_CLASS_PROCESS);
 
 	if (strcmp(scontext, ncontext) == 0)
 		ncontext = NULL;

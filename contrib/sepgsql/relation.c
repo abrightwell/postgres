@@ -90,9 +90,7 @@ sepgsql_attribute_post_create(Oid relOid, AttrNumber attnum)
 	scontext = sepgsql_get_client_label();
 	tcontext = sepgsql_get_label(RelationRelationId, relOid, 0);
 	ncontext = sepgsql_compute_create(scontext, tcontext,
-									  SEPG_CLASS_DB_COLUMN,
-									  NameStr(attForm->attname));
-
+									  SEPG_CLASS_DB_COLUMN);
 	/*
 	 * check db_column:{create} permission
 	 */
@@ -327,9 +325,7 @@ sepgsql_relation_post_create(Oid relOid)
 	scontext = sepgsql_get_client_label();
 	tcontext = sepgsql_get_label(NamespaceRelationId,
 								 classForm->relnamespace, 0);
-	rcontext = sepgsql_compute_create(scontext, tcontext, tclass,
-									  NameStr(classForm->relname));
-
+	rcontext = sepgsql_compute_create(scontext, tcontext, tclass);
 	/*
 	 * check db_xxx:{create} permission
 	 */
@@ -386,8 +382,7 @@ sepgsql_relation_post_create(Oid relOid)
 
 			ccontext = sepgsql_compute_create(scontext,
 											  rcontext,
-											  SEPG_CLASS_DB_COLUMN,
-											  NameStr(attForm->attname));
+											  SEPG_CLASS_DB_COLUMN);
 
 			/*
 			 * check db_column:{create} permission

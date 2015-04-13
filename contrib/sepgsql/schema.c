@@ -79,9 +79,7 @@ sepgsql_schema_post_create(Oid namespaceId)
 	tcontext = sepgsql_get_label(DatabaseRelationId, MyDatabaseId, 0);
 	ncontext = sepgsql_compute_create(sepgsql_get_client_label(),
 									  tcontext,
-									  SEPG_CLASS_DB_SCHEMA,
-									  nsp_name);
-
+									  SEPG_CLASS_DB_SCHEMA);
 	/*
 	 * check db_schema:{create}
 	 */

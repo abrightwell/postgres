@@ -701,8 +701,7 @@ sepgsql_create_row_label(PG_FUNCTION_ARGS)
 	scontext = sepgsql_get_client_label();
 	tcontext = sepgsql_get_label(RelationRelationId, table_id, 0);
     ncontext = sepgsql_compute_create(scontext, tcontext,
-									  SEPG_CLASS_DB_TUPLE,
-									  NULL);
+									  SEPG_CLASS_DB_TUPLE);
 
 	PG_RETURN_TEXT_P(cstring_to_text(ncontext));
 }
