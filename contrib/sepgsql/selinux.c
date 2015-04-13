@@ -598,6 +598,19 @@ static struct
 	},
 };
 
+static char *
+sepgsql_unlabeled(void)
+{
+	security_context_t unlabeled;
+
+	if (security_get_initial_context_raw("unlabeled", &unlabeled) < 0)
+		ereport(ERROR,
+				(errcode(ERRCODE_INTERNAL_ERROR),
+				 errmsg("SELinux: failed to get initial security label: %m")));
+
+	return unlabeled;
+}
+
 /*
  * sepgsql_mode
  *
@@ -911,7 +924,10 @@ sepgsql_check_perms(const char *scontext,
 	uint32		audited;
 	bool		result = true;
 
-	sepgsql_compute_avd(scontext, tcontext, tclass, &avd);
+	if (tcontext)
+		sepgsql_compute_avd(scontext, tcontext, tclass, &avd);
+	else
+		sepgsql_compute_avd(scontext, sepgsql_unlabeled(), tclass, &avd);
 
 	denied = required & ~avd.allowed;
 
@@ -959,18 +975,6 @@ sepgsql_check_perms_label(const char *tcontext,
 							   abort_on_violation);
 }
 
-static char *
-sepgsql_unlabeled(void)
-{
-	security_context_t unlabeled;
-
-	if (security_get_initial_context_raw("unlabeled", &unlabeled) < 0)
-		ereport(ERROR,
-				(errcode(ERRCODE_INTERNAL_ERROR),
-				 errmsg("SELinux: failed to get initial security label: %m")));
-
-	return unlabeled;
-}
 
 /*
  * sepgsql_trusted_proc
