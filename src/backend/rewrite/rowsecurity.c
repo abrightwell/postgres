@@ -258,7 +258,9 @@ get_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index,
 			WithCheckOption	   *wco;
 
 			wco = (WithCheckOption *) makeNode(WithCheckOption);
-			wco->viewname = pstrdup(RelationGetRelationName(rel));
+			wco->kind = root->commandType == CMD_INSERT ? WCO_RLS_INSERT_CHECK :
+														  WCO_RLS_UPDATE_CHECK;
+			wco->relname = pstrdup(RelationGetRelationName(rel));
 			wco->qual = (Node *) hook_with_check_expr_restrictive;
 			wco->cascaded = false;
 			*withCheckOptions = lappend(*withCheckOptions, wco);
@@ -273,7 +275,9 @@ get_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index,
 			WithCheckOption	   *wco;
 
 			wco = (WithCheckOption *) makeNode(WithCheckOption);
-			wco->viewname = pstrdup(RelationGetRelationName(rel));
+			wco->kind = root->commandType == CMD_INSERT ? WCO_RLS_INSERT_CHECK :
+														  WCO_RLS_UPDATE_CHECK;
+			wco->relname = pstrdup(RelationGetRelationName(rel));
 			wco->qual = (Node *) rowsec_with_check_expr;
 			wco->cascaded = false;
 			*withCheckOptions = lappend(*withCheckOptions, wco);
@@ -284,7 +288,9 @@ get_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index,
 			WithCheckOption	   *wco;
 
 			wco = (WithCheckOption *) makeNode(WithCheckOption);
-			wco->viewname = pstrdup(RelationGetRelationName(rel));
+			wco->kind = root->commandType == CMD_INSERT ? WCO_RLS_INSERT_CHECK :
+														  WCO_RLS_UPDATE_CHECK;
+			wco->relname = pstrdup(RelationGetRelationName(rel));
 			wco->qual = (Node *) hook_with_check_expr_permissive;
 			wco->cascaded = false;
 			*withCheckOptions = lappend(*withCheckOptions, wco);
@@ -296,13 +302,18 @@ get_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index,
 			List			   *combined_quals = NIL;
 			Expr			   *combined_qual_eval;
 
-			combined_quals = lcons(copyObject(rowsec_with_check_expr), combined_quals);
-			combined_quals = lcons(copyObject(hook_with_check_expr_permissive), combined_quals);
+			combined_quals = lcons(copyObject(rowsec_with_check_expr),
+								   combined_quals);
+
+			combined_quals = lcons(copyObject(hook_with_check_expr_permissive),
+								   combined_quals);
 
 			combined_qual_eval = makeBoolExpr(OR_EXPR, combined_quals, -1);
 
 			wco = (WithCheckOption *) makeNode(WithCheckOption);
-			wco->viewname = pstrdup(RelationGetRelationName(rel));
+			wco->kind = root->commandType == CMD_INSERT ? WCO_RLS_INSERT_CHECK :
+														  WCO_RLS_UPDATE_CHECK;
+			wco->relname = pstrdup(RelationGetRelationName(rel));
 			wco->qual = (Node *) combined_qual_eval;
 			wco->cascaded = false;
 			*withCheckOptions = lappend(*withCheckOptions, wco);
@@ -331,7 +342,8 @@ get_row_security_policies(Query* root, RangeTblEntry* rte, int rt_index,
 			Expr   *combined_qual_eval;
 
 			combined_quals = lcons(copyObject(rowsec_expr), combined_quals);
-			combined_quals = lcons(copyObject(hook_expr_permissive), combined_quals);
+			combined_quals = lcons(copyObject(hook_expr_permissive),
+								   combined_quals);
 
 			combined_qual_eval = makeBoolExpr(OR_EXPR, combined_quals, -1);
 
