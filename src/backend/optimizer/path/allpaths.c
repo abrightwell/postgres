@@ -1923,7 +1923,9 @@ compare_tlist_datatypes(List *tlist, List *colTypes,
  * 2. If unsafeVolatile is set, the qual must not contain any volatile
  * functions.
  *
- * 3. If unsafeLeaky is set, the qual must not contain any leaky functions.
+ * 3. If unsafeLeaky is set, the qual must not contain any leaky functions
+ * that are passed Var nodes, and therefore might reveal values from the
+ * subquery as side effects.
  *
  * 4. The qual must not refer to the whole-row output of the subquery
  * (since there is no easy way to name that within the subquery itself).
@@ -1950,7 +1952,7 @@ qual_is_pushdown_safe(Query *subquery, Index rti, Node *qual,
 
 	/* Refuse leaky quals if told to (point 3) */
 	if (safetyInfo->unsafeLeaky &&
-		contain_leaky_functions(qual))
+		contain_leaked_vars(qual))
 		return false;
 
 	/*
