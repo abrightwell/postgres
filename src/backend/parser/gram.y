@@ -220,7 +220,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 		AlterObjectSchemaStmt AlterOwnerStmt AlterSeqStmt AlterSystemStmt AlterTableStmt
 		AlterTblSpcStmt AlterExtensionStmt AlterExtensionContentsStmt AlterForeignTableStmt
 		AlterCompositeTypeStmt AlterUserStmt AlterUserMappingStmt AlterUserSetStmt
-		AlterRoleStmt AlterRoleSetStmt
+		AlterRoleStmt AlterRoleSetStmt AlterPolicyStmt
 		AlterDefaultPrivilegesStmt DefACLAction
 		AnalyzeStmt ClosePortalStmt ClusterStmt CommentStmt
 		ConstraintsSetStmt CopyStmt CreateAsStmt CreateCastStmt
@@ -229,11 +229,11 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 		CreateSchemaStmt CreateSeqStmt CreateStmt CreateTableSpaceStmt
 		CreateFdwStmt CreateForeignServerStmt CreateForeignTableStmt
 		CreateAssertStmt CreateTrigStmt CreateEventTrigStmt
-		CreateUserStmt CreateUserMappingStmt CreateRoleStmt
+		CreateUserStmt CreateUserMappingStmt CreateRoleStmt CreatePolicyStmt
 		CreatedbStmt DeclareCursorStmt DefineStmt DeleteStmt DiscardStmt DoStmt
 		DropGroupStmt DropOpClassStmt DropOpFamilyStmt DropPLangStmt DropStmt
 		DropAssertStmt DropTrigStmt DropRuleStmt DropCastStmt DropRoleStmt
-		DropUserStmt DropdbStmt DropTableSpaceStmt DropFdwStmt
+		DropPolicyStmt DropUserStmt DropdbStmt DropTableSpaceStmt DropFdwStmt
 		DropForeignServerStmt DropUserMappingStmt ExplainStmt FetchStmt
 		GrantStmt GrantRoleStmt IndexStmt InsertStmt ListenStmt LoadStmt
 		LockStmt NotifyStmt ExplainableStmt PreparableStmt
@@ -307,6 +307,10 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 %type <range>	qualified_name OptConstrFromTable
 
 %type <str>		all_Op MathOp
+
+%type <str>		row_security_cmd RowSecurityDefaultForCmd
+%type <node>	RowSecurityOptionalWithCheck RowSecurityOptionalExpr
+%type <list>	RowSecurityDefaultToRole RowSecurityOptionalToRole
 
 %type <str>		iso_level opt_encoding
 %type <node>	grantee
@@ -575,7 +579,7 @@ static Node *makeRecursiveViewSelect(char *relname, List *aliases, Node *query);
 	OBJECT_P OF OFF OFFSET OIDS ON ONLY OPERATOR OPTION OPTIONS OR
 	ORDER ORDINALITY OUT_P OUTER_P OVER OVERLAPS OVERLAY OWNED OWNER
 
-	PARSER PARTIAL PARTITION PASSING PASSWORD PLACING PLANS POSITION
+	PARSER PARTIAL PARTITION PASSING PASSWORD PLACING PLANS POLICY POSITION
 	PRECEDING PRECISION PRESERVE PREPARE PREPARED PRIMARY
 	PRIOR PRIVILEGES PROCEDURAL PROCEDURE PROGRAM
 
@@ -726,6 +730,7 @@ stmt :
 			| AlterGroupStmt
 			| AlterObjectSchemaStmt
 			| AlterOwnerStmt
+			| AlterPolicyStmt
 			| AlterSeqStmt
 			| AlterSystemStmt
 			| AlterTableStmt
@@ -760,6 +765,7 @@ stmt :
 			| CreateOpClassStmt
 			| CreateOpFamilyStmt
 			| AlterOpFamilyStmt
+			| CreatePolicyStmt
 			| CreatePLangStmt
 			| CreateSchemaStmt
 			| CreateSeqStmt
@@ -785,6 +791,7 @@ stmt :
 			| DropOpClassStmt
 			| DropOpFamilyStmt
 			| DropOwnedStmt
+			| DropPolicyStmt
 			| DropPLangStmt
 			| DropRuleStmt
 			| DropStmt
@@ -942,6 +949,10 @@ AlterOptRoleElem:
 						$$ = makeDefElem("canlogin", (Node *)makeInteger(TRUE));
 					else if (strcmp($1, "nologin") == 0)
 						$$ = makeDefElem("canlogin", (Node *)makeInteger(FALSE));
+					else if (strcmp($1, "bypassrls") == 0)
+						$$ = makeDefElem("bypassrls", (Node *)makeInteger(TRUE));
+					else if (strcmp($1, "nobypassrls") == 0)
+						$$ = makeDefElem("bypassrls", (Node *)makeInteger(FALSE));
 					else if (strcmp($1, "noinherit") == 0)
 					{
 						/*
@@ -2271,6 +2282,20 @@ alter_table_cmd:
 					AlterTableCmd *n = makeNode(AlterTableCmd);
 					n->subtype = AT_ReplicaIdentity;
 					n->def = $3;
+					$$ = (Node *)n;
+				}
+			/* ALTER TABLE <name> ENABLE ROW LEVEL SECURITY */
+			| ENABLE_P ROW LEVEL SECURITY
+				{
+					AlterTableCmd *n = makeNode(AlterTableCmd);
+					n->subtype = AT_EnableRowSecurity;
+					$$ = (Node *)n;
+				}
+			/* ALTER TABLE <name> DISABLE ROW LEVEL SECURITY */
+			| DISABLE_P ROW LEVEL SECURITY
+				{
+					AlterTableCmd *n = makeNode(AlterTableCmd);
+					n->subtype = AT_DisableRowSecurity;
 					$$ = (Node *)n;
 				}
 			| alter_generic_options
@@ -4411,6 +4436,105 @@ AlterUserMappingStmt: ALTER USER MAPPING FOR auth_ident SERVER name alter_generi
 
 /*****************************************************************************
  *
+ *		QUERIES:
+ *				CREATE POLICY name ON table FOR cmd TO role USING (qual)
+ *					WITH CHECK (with_check)
+ *				ALTER POLICY name ON table FOR cmd TO role USING (qual)
+ *					WITH CHECK (with_check)
+ *				DROP POLICY name ON table
+ *
+ *****************************************************************************/
+
+CreatePolicyStmt:
+			CREATE POLICY name ON qualified_name RowSecurityDefaultForCmd
+				RowSecurityDefaultToRole RowSecurityOptionalExpr
+				RowSecurityOptionalWithCheck
+				{
+					CreatePolicyStmt *n = makeNode(CreatePolicyStmt);
+					n->policy_name = $3;
+					n->table = $5;
+					n->cmd = $6;
+					n->roles = $7;
+					n->qual = $8;
+					n->with_check = $9;
+					$$ = (Node *) n;
+				}
+		;
+
+AlterPolicyStmt:
+			ALTER POLICY name ON qualified_name RowSecurityOptionalToRole
+				RowSecurityOptionalExpr RowSecurityOptionalWithCheck
+				{
+					AlterPolicyStmt *n = makeNode(AlterPolicyStmt);
+					n->policy_name = $3;
+					n->table = $5;
+					n->roles = $6;
+					n->qual = $7;
+					n->with_check = $8;
+					$$ = (Node *) n;
+				}
+		;
+
+DropPolicyStmt:
+			DROP POLICY name ON any_name opt_drop_behavior
+				{
+					DropStmt *n = makeNode(DropStmt);
+					n->removeType = OBJECT_POLICY;
+					n->objects = list_make1(lappend($5, makeString($3)));
+					n->arguments = NIL;
+					n->behavior = $6;
+					n->missing_ok = false;
+					n->concurrent = false;
+					$$ = (Node *) n;
+				}
+			| DROP POLICY IF_P EXISTS name ON any_name opt_drop_behavior
+				{
+					DropStmt *n = makeNode(DropStmt);
+					n->removeType = OBJECT_POLICY;
+					n->objects = list_make1(lappend($7, makeString($5)));
+					n->arguments = NIL;
+					n->behavior = $8;
+					n->missing_ok = true;
+					n->concurrent = false;
+					$$ = (Node *) n;
+				}
+		;
+
+RowSecurityOptionalExpr:
+			USING '(' a_expr ')'	{ $$ = $3; }
+			| /* EMPTY */			{ $$ = NULL; }
+		;
+
+RowSecurityOptionalWithCheck:
+			WITH CHECK '(' a_expr ')'		{ $$ = $4; }
+			| /* EMPTY */					{ $$ = NULL; }
+		;
+
+RowSecurityDefaultToRole:
+			TO role_list			{ $$ = $2; }
+			| /* EMPTY */			{ $$ = list_make1(makeString("public")); }
+		;
+
+RowSecurityOptionalToRole:
+			TO role_list			{ $$ = $2; }
+			| /* EMPTY */			{ $$ = NULL; }
+		;
+
+RowSecurityDefaultForCmd:
+			FOR row_security_cmd	{ $$ = $2; }
+			| /* EMPTY */			{ $$ = "all"; }
+		;
+
+row_security_cmd:
+			ALL				{ $$ = "all"; }
+		|	SELECT			{ $$ = "select"; }
+		|	INSERT			{ $$ = "insert"; }
+		|	UPDATE			{ $$ = "update"; }
+		|	DELETE_P		{ $$ = "delete"; }
+		;
+
+/*****************************************************************************
+ *
  *		QUERIES :
  *				CREATE TRIGGER ...
  *				DROP TRIGGER ...
@@ -5342,7 +5466,7 @@ opt_restart_seqs:
  *	COMMENT ON [ [ CONVERSION | COLLATION | DATABASE | DOMAIN |
  *                 EXTENSION | EVENT TRIGGER | FOREIGN DATA WRAPPER |
  *                 FOREIGN TABLE | INDEX | [PROCEDURAL] LANGUAGE |
- *                 MATERIALIZED VIEW | ROLE | SCHEMA | SEQUENCE |
+ *                 MATERIALIZED VIEW | POLICY | ROLE | SCHEMA | SEQUENCE |
  *                 SERVER | TABLE | TABLESPACE |
  *                 TEXT SEARCH CONFIGURATION | TEXT SEARCH DICTIONARY |
  *                 TEXT SEARCH PARSER | TEXT SEARCH TEMPLATE | TYPE |
@@ -5403,6 +5527,15 @@ CommentStmt:
 				{
 					CommentStmt *n = makeNode(CommentStmt);
 					n->objtype = OBJECT_CONSTRAINT;
+					n->objname = lappend($6, makeString($4));
+					n->objargs = NIL;
+					n->comment = $8;
+					$$ = (Node *) n;
+				}
+			| COMMENT ON POLICY name ON any_name IS comment_text
+				{
+					CommentStmt *n = makeNode(CommentStmt);
+					n->objtype = OBJECT_POLICY;
 					n->objname = lappend($6, makeString($4));
 					n->objargs = NIL;
 					n->comment = $8;
@@ -7154,6 +7287,26 @@ RenameStmt: ALTER AGGREGATE func_name aggr_args RENAME TO name
 					n->objarg = list_make1(makeString($6));
 					n->newname = $9;
 					n->missing_ok = false;
+					$$ = (Node *)n;
+				}
+			| ALTER POLICY name ON qualified_name RENAME TO name
+				{
+					RenameStmt *n = makeNode(RenameStmt);
+					n->renameType = OBJECT_POLICY;
+					n->relation = $5;
+					n->subname = $3;
+					n->newname = $8;
+					n->missing_ok = false;
+					$$ = (Node *)n;
+				}
+			| ALTER POLICY IF_P EXISTS name ON qualified_name RENAME TO name
+				{
+					RenameStmt *n = makeNode(RenameStmt);
+					n->renameType = OBJECT_POLICY;
+					n->relation = $7;
+					n->subname = $5;
+					n->newname = $10;
+					n->missing_ok = true;
 					$$ = (Node *)n;
 				}
 			| ALTER SCHEMA name RENAME TO name
@@ -12941,6 +13094,7 @@ unreserved_keyword:
 			| PASSING
 			| PASSWORD
 			| PLANS
+			| POLICY
 			| PRECEDING
 			| PREPARE
 			| PREPARED

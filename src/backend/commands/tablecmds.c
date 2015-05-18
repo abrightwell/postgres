@@ -46,6 +46,7 @@
 #include "commands/cluster.h"
 #include "commands/comment.h"
 #include "commands/defrem.h"
+#include "commands/policy.h"
 #include "commands/sequence.h"
 #include "commands/tablecmds.h"
 #include "commands/tablespace.h"
@@ -403,6 +404,8 @@ static void ATExecAddOf(Relation rel, const TypeName *ofTypename, LOCKMODE lockm
 static void ATExecDropOf(Relation rel, LOCKMODE lockmode);
 static void ATExecReplicaIdentity(Relation rel, ReplicaIdentityStmt *stmt, LOCKMODE lockmode);
 static void ATExecGenericOptions(Relation rel, List *options);
+static void ATExecEnableRowSecurity(Relation rel);
+static void ATExecDisableRowSecurity(Relation rel);
 
 static void copy_relation_data(SMgrRelation rel, SMgrRelation dst,
 				   ForkNumber forkNum, char relpersistence);
@@ -2858,6 +2861,8 @@ AlterTableGetLockLevel(List *cmds)
 			case AT_AddIndexConstraint:
 			case AT_ReplicaIdentity:
 			case AT_SetNotNull:
+			case AT_EnableRowSecurity:
+			case AT_DisableRowSecurity:
 				cmd_lockmode = AccessExclusiveLock;
 				break;
 
@@ -3239,6 +3244,8 @@ ATPrepCmd(List **wqueue, Relation rel, AlterTableCmd *cmd,
 		case AT_DropInherit:	/* NO INHERIT */
 		case AT_AddOf:			/* OF */
 		case AT_DropOf: /* NOT OF */
+		case AT_EnableRowSecurity:
+		case AT_DisableRowSecurity:
 			ATSimplePermissions(rel, ATT_TABLE);
 			/* These commands never recurse */
 			/* No command-specific prep needed */
@@ -3526,6 +3533,12 @@ ATExecCmd(List **wqueue, AlteredTableInfo *tab, Relation rel,
 			break;
 		case AT_ReplicaIdentity:
 			ATExecReplicaIdentity(rel, (ReplicaIdentityStmt *) cmd->def, lockmode);
+			break;
+		case AT_EnableRowSecurity:
+			ATExecEnableRowSecurity(rel);
+			break;
+		case AT_DisableRowSecurity:
+			ATExecDisableRowSecurity(rel);
 			break;
 		case AT_GenericOptions:
 			ATExecGenericOptions(rel, (List *) cmd->def);
@@ -7892,6 +7905,24 @@ ATExecAlterColumnType(AlteredTableInfo *tab, Relation rel,
 								   colName)));
 				break;
 
+			case OCLASS_POLICY:
+
+				/*
+				 * A policy can depend on a column because the column is
+				 * specified in the policy's USING or WITH CHECK qual
+				 * expressions.  It might be possible to rewrite and recheck
+				 * the policy expression, but punt for now.  It's certainly
+				 * easy enough to remove and recreate the policy; still,
+				 * FIXME someday.
+				 */
+				ereport(ERROR,
+						(errcode(ERRCODE_FEATURE_NOT_SUPPORTED),
+						 errmsg("cannot alter type of a column used in a policy definition"),
+						 errdetail("%s depends on column \"%s\"",
+								   getObjectDescription(&foundObject),
+								   colName)));
+				break;
+
 			case OCLASS_DEFAULT:
 
 				/*
@@ -10526,6 +10557,62 @@ ATExecReplicaIdentity(Relation rel, ReplicaIdentityStmt *stmt, LOCKMODE lockmode
 	relation_mark_replica_identity(rel, stmt->identity_type, indexOid, true);
 
 	index_close(indexRel, NoLock);
+}
+
+/*
+ * ALTER TABLE ENABLE/DISABLE ROW LEVEL SECURITY
+ */
+static void
+ATExecEnableRowSecurity(Relation rel)
+{
+	Relation		pg_class;
+	Oid				relid;
+	HeapTuple		tuple;
+
+	relid = RelationGetRelid(rel);
+
+	pg_class = heap_open(RelationRelationId, RowExclusiveLock);
+
+	tuple = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(relid));
+
+	if (!HeapTupleIsValid(tuple))
+		elog(ERROR, "cache lookup failed for relation %u", relid);
+
+	((Form_pg_class) GETSTRUCT(tuple))->relrowsecurity = true;
+	simple_heap_update(pg_class, &tuple->t_self, tuple);
+
+	/* keep catalog indexes current */
+	CatalogUpdateIndexes(pg_class, tuple);
+
+	heap_close(pg_class, RowExclusiveLock);
+	heap_freetuple(tuple);
+}
+
+static void
+ATExecDisableRowSecurity(Relation rel)
+{
+	Relation		pg_class;
+	Oid				relid;
+	HeapTuple		tuple;
+
+	relid = RelationGetRelid(rel);
+
+	/* Pull the record for this relation and update it */
+	pg_class = heap_open(RelationRelationId, RowExclusiveLock);
+
+	tuple = SearchSysCacheCopy1(RELOID, ObjectIdGetDatum(relid));
+
+	if (!HeapTupleIsValid(tuple))
+		elog(ERROR, "cache lookup failed for relation %u", relid);
+
+	((Form_pg_class) GETSTRUCT(tuple))->relrowsecurity = false;
+	simple_heap_update(pg_class, &tuple->t_self, tuple);
+
+	/* keep catalog indexes current */
+	CatalogUpdateIndexes(pg_class, tuple);
+
+	heap_close(pg_class, RowExclusiveLock);
+	heap_freetuple(tuple);
 }
 
 /*

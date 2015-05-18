@@ -72,6 +72,7 @@
 #include "storage/smgr.h"
 #include "tcop/tcopprot.h"
 #include "utils/rel.h"
+#include "utils/sortsupport.h"
 #include "utils/tuplesort.h"
 
 

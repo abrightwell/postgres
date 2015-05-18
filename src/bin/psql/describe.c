@@ -737,7 +737,7 @@ permissionsList(const char *pattern)
 	PQExpBufferData buf;
 	PGresult   *res;
 	printQueryOpt myopt = pset.popt;
-	static const bool translate_columns[] = {false, false, true, false, false};
+	static const bool translate_columns[] = {false, false, true, false, false, false};
 
 	initPQExpBuffer(&buf);
 
@@ -773,7 +773,38 @@ permissionsList(const char *pattern)
 						  "    FROM pg_catalog.pg_attribute a\n"
 						  "    WHERE attrelid = c.oid AND NOT attisdropped AND attacl IS NOT NULL\n"
 						  "  ), E'\\n') AS \"%s\"",
-						  gettext_noop("Column access privileges"));
+						  gettext_noop("Column privileges"));
+
+	if (pset.sversion >= 90400)
+		appendPQExpBuffer(&buf,
+						  ",\n  pg_catalog.array_to_string(ARRAY(\n"
+						  "    SELECT polname\n"
+						  "    || CASE WHEN polcmd != '*' THEN\n"
+						  "           E' (' || polcmd || E'):'\n"
+						  "       ELSE E':' \n"
+						  "       END\n"
+						  "    || CASE WHEN polqual IS NOT NULL THEN\n"
+						  "           E'\\n  (u): ' || pg_catalog.pg_get_expr(polqual, polrelid)\n"
+						  "       ELSE E''\n"
+						  "       END\n"
+						  "    || CASE WHEN polwithcheck IS NOT NULL THEN\n"
+						  "           E'\\n  (c): ' || pg_catalog.pg_get_expr(polwithcheck, polrelid)\n"
+						  "       ELSE E''\n"
+						  "       END"
+						  "    || CASE WHEN polroles <> '{0}' THEN\n"
+						  "           E'\\n  to: ' || pg_catalog.array_to_string(\n"
+						  "               ARRAY(\n"
+						  "                   SELECT rolname\n"
+						  "                   FROM pg_catalog.pg_roles\n"
+						  "                   WHERE oid = ANY (polroles)\n"
+						  "                   ORDER BY 1\n"
+						  "               ), E', ')\n"
+						  "       ELSE E''\n"
+						  "       END\n"
+						  "    FROM pg_catalog.pg_policy pol\n"
+						  "    WHERE polrelid = c.oid), E'\\n')\n"
+						  "    AS \"%s\"",
+						  gettext_noop("Policies"));
 
 	appendPQExpBufferStr(&buf, "\nFROM pg_catalog.pg_class c\n"
 	   "     LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace\n"
@@ -1168,6 +1199,7 @@ describeOneTableDetails(const char *schemaname,
 		bool		hasindex;
 		bool		hasrules;
 		bool		hastriggers;
+		bool		rowsecurity;
 		bool		hasoids;
 		Oid			tablespace;
 		char	   *reloptions;
@@ -1193,7 +1225,24 @@ describeOneTableDetails(const char *schemaname,
 	{
 		printfPQExpBuffer(&buf,
 			  "SELECT c.relchecks, c.relkind, c.relhasindex, c.relhasrules, "
-						  "c.relhastriggers, c.relhasoids, "
+						  "c.relhastriggers, c.relrowsecurity, c.relhasoids, "
+						  "%s, c.reltablespace, "
+						  "CASE WHEN c.reloftype = 0 THEN '' ELSE c.reloftype::pg_catalog.regtype::pg_catalog.text END, "
+						  "c.relpersistence, c.relreplident\n"
+						  "FROM pg_catalog.pg_class c\n "
+		   "LEFT JOIN pg_catalog.pg_class tc ON (c.reltoastrelid = tc.oid)\n"
+						  "WHERE c.oid = '%s';",
+						  (verbose ?
+						   "pg_catalog.array_to_string(c.reloptions || "
+						   "array(select 'toast.' || x from pg_catalog.unnest(tc.reloptions) x), ', ')\n"
+						   : "''"),
+						  oid);
+	}
+	else if (pset.sversion >= 90400)
+	{
+		printfPQExpBuffer(&buf,
+			  "SELECT c.relchecks, c.relkind, c.relhasindex, c.relhasrules, "
+						  "c.relhastriggers, false, c.relhasoids, "
 						  "%s, c.reltablespace, "
 						  "CASE WHEN c.reloftype = 0 THEN '' ELSE c.reloftype::pg_catalog.regtype::pg_catalog.text END, "
 						  "c.relpersistence, c.relreplident\n"
@@ -1210,7 +1259,7 @@ describeOneTableDetails(const char *schemaname,
 	{
 		printfPQExpBuffer(&buf,
 			  "SELECT c.relchecks, c.relkind, c.relhasindex, c.relhasrules, "
-						  "c.relhastriggers, c.relhasoids, "
+						  "c.relhastriggers, false, c.relhasoids, "
 						  "%s, c.reltablespace, "
 						  "CASE WHEN c.reloftype = 0 THEN '' ELSE c.reloftype::pg_catalog.regtype::pg_catalog.text END, "
 						  "c.relpersistence\n"
@@ -1227,7 +1276,7 @@ describeOneTableDetails(const char *schemaname,
 	{
 		printfPQExpBuffer(&buf,
 			  "SELECT c.relchecks, c.relkind, c.relhasindex, c.relhasrules, "
-						  "c.relhastriggers, c.relhasoids, "
+						  "c.relhastriggers, false, c.relhasoids, "
 						  "%s, c.reltablespace, "
 						  "CASE WHEN c.reloftype = 0 THEN '' ELSE c.reloftype::pg_catalog.regtype::pg_catalog.text END\n"
 						  "FROM pg_catalog.pg_class c\n "
@@ -1243,7 +1292,7 @@ describeOneTableDetails(const char *schemaname,
 	{
 		printfPQExpBuffer(&buf,
 			  "SELECT c.relchecks, c.relkind, c.relhasindex, c.relhasrules, "
-						  "c.relhastriggers, c.relhasoids, "
+						  "c.relhastriggers, false, c.relhasoids, "
 						  "%s, c.reltablespace\n"
 						  "FROM pg_catalog.pg_class c\n "
 		   "LEFT JOIN pg_catalog.pg_class tc ON (c.reltoastrelid = tc.oid)\n"
@@ -1258,7 +1307,7 @@ describeOneTableDetails(const char *schemaname,
 	{
 		printfPQExpBuffer(&buf,
 					  "SELECT relchecks, relkind, relhasindex, relhasrules, "
-						  "reltriggers <> 0, relhasoids, "
+						  "reltriggers <> 0, false, relhasoids, "
 						  "%s, reltablespace\n"
 						  "FROM pg_catalog.pg_class WHERE oid = '%s';",
 						  (verbose ?
@@ -1269,7 +1318,7 @@ describeOneTableDetails(const char *schemaname,
 	{
 		printfPQExpBuffer(&buf,
 					  "SELECT relchecks, relkind, relhasindex, relhasrules, "
-						  "reltriggers <> 0, relhasoids, "
+						  "reltriggers <> 0, false, relhasoids, "
 						  "'', reltablespace\n"
 						  "FROM pg_catalog.pg_class WHERE oid = '%s';",
 						  oid);
@@ -1278,7 +1327,7 @@ describeOneTableDetails(const char *schemaname,
 	{
 		printfPQExpBuffer(&buf,
 					  "SELECT relchecks, relkind, relhasindex, relhasrules, "
-						  "reltriggers <> 0, relhasoids, "
+						  "reltriggers <> 0, false, relhasoids, "
 						  "'', ''\n"
 						  "FROM pg_catalog.pg_class WHERE oid = '%s';",
 						  oid);
@@ -1301,18 +1350,19 @@ describeOneTableDetails(const char *schemaname,
 	tableinfo.hasindex = strcmp(PQgetvalue(res, 0, 2), "t") == 0;
 	tableinfo.hasrules = strcmp(PQgetvalue(res, 0, 3), "t") == 0;
 	tableinfo.hastriggers = strcmp(PQgetvalue(res, 0, 4), "t") == 0;
-	tableinfo.hasoids = strcmp(PQgetvalue(res, 0, 5), "t") == 0;
+	tableinfo.rowsecurity = strcmp(PQgetvalue(res, 0, 5), "t") == 0;
+	tableinfo.hasoids = strcmp(PQgetvalue(res, 0, 6), "t") == 0;
 	tableinfo.reloptions = (pset.sversion >= 80200) ?
-		pg_strdup(PQgetvalue(res, 0, 6)) : NULL;
+		pg_strdup(PQgetvalue(res, 0, 7)) : NULL;
 	tableinfo.tablespace = (pset.sversion >= 80000) ?
-		atooid(PQgetvalue(res, 0, 7)) : 0;
+		atooid(PQgetvalue(res, 0, 8)) : 0;
 	tableinfo.reloftype = (pset.sversion >= 90000 &&
-						   strcmp(PQgetvalue(res, 0, 8), "") != 0) ?
-		pg_strdup(PQgetvalue(res, 0, 8)) : NULL;
+						   strcmp(PQgetvalue(res, 0, 9), "") != 0) ?
+		pg_strdup(PQgetvalue(res, 0, 9)) : NULL;
 	tableinfo.relpersistence = (pset.sversion >= 90100) ?
-		*(PQgetvalue(res, 0, 9)) : 0;
+		*(PQgetvalue(res, 0, 10)) : 0;
 	tableinfo.relreplident = (pset.sversion >= 90400) ?
-		*(PQgetvalue(res, 0, 10)) : 'd';
+		*(PQgetvalue(res, 0, 11)) : 'd';
 	PQclear(res);
 	res = NULL;
 
@@ -1943,6 +1993,75 @@ describeOneTableDetails(const char *schemaname,
 			PQclear(result);
 		}
 
+		/* print any row-level policies */
+		if (pset.sversion >= 90400)
+		{
+			printfPQExpBuffer(&buf,
+						   "SELECT pol.polname,\n"
+						   "CASE WHEN pol.polroles = '{0}' THEN NULL ELSE array_to_string(array(select rolname from pg_roles where oid = any (pol.polroles) order by 1),',') END,\n"
+						   "pg_catalog.pg_get_expr(pol.polqual, pol.polrelid),\n"
+						   "pg_catalog.pg_get_expr(pol.polwithcheck, pol.polrelid),\n"
+						   "CASE pol.polcmd \n"
+						   "WHEN 'r' THEN 'SELECT'\n"
+						   "WHEN 'a' THEN 'INSERT'\n"
+						   "WHEN 'w' THEN 'UPDATE'\n"
+						   "WHEN 'd' THEN 'DELETE'\n"
+						   "WHEN '*' THEN 'ALL'\n"
+						   "END AS cmd\n"
+							  "FROM pg_catalog.pg_policy pol\n"
+				  "WHERE pol.polrelid = '%s' ORDER BY 1;",
+							  oid);
+
+			result = PSQLexec(buf.data, false);
+			if (!result)
+				goto error_return;
+			else
+				tuples = PQntuples(result);
+
+			/*
+			 * Handle cases where RLS is enabled and there are policies,
+			 * or there aren't policies, or RLS isn't enabled but there
+			 * are policies
+			 */
+			if (tableinfo.rowsecurity && tuples > 0)
+				printTableAddFooter(&cont, _("Policies:"));
+
+			if (tableinfo.rowsecurity && tuples == 0)
+				printTableAddFooter(&cont, _("Policies (Row Security Enabled): (None)"));
+
+			if (!tableinfo.rowsecurity && tuples > 0)
+				printTableAddFooter(&cont, _("Policies (Row Security Disabled):"));
+
+			/* Might be an empty set - that's ok */
+			for (i = 0; i < tuples; i++)
+			{
+				printfPQExpBuffer(&buf, "    POLICY \"%s\"",
+									  PQgetvalue(result, i, 0));
+
+				if (!PQgetisnull(result, i, 4))
+					appendPQExpBuffer(&buf, " FOR %s",
+									  PQgetvalue(result, i, 4));
+
+				if (!PQgetisnull(result, i, 1))
+				{
+					appendPQExpBuffer(&buf, "\n      TO %s",
+									  PQgetvalue(result, i, 1));
+				}
+
+				if (!PQgetisnull(result, i, 2))
+					appendPQExpBuffer(&buf, "\n      USING %s",
+									  PQgetvalue(result, i, 2));
+
+				if (!PQgetisnull(result, i, 3))
+					appendPQExpBuffer(&buf, "\n      WITH CHECK %s",
+									  PQgetvalue(result, i, 3));
+
+				printTableAddFooter(&cont, buf.data);
+
+			}
+			PQclear(result);
+		}
+
 		/* print rules */
 		if (tableinfo.hasrules && tableinfo.relkind != 'm')
 		{
@@ -2524,6 +2643,11 @@ describeRoles(const char *pattern, bool verbose)
 			appendPQExpBufferStr(&buf, "\n, r.rolreplication");
 		}
 
+		if (pset.sversion >= 90400)
+		{
+			appendPQExpBufferStr(&buf, "\n, r.rolbypassrls");
+		}
+
 		appendPQExpBufferStr(&buf, "\nFROM pg_catalog.pg_roles r\n");
 
 		processSQLNamePattern(pset.db, &buf, pattern, false, false,
@@ -2586,6 +2710,10 @@ describeRoles(const char *pattern, bool verbose)
 		if (pset.sversion >= 90100)
 			if (strcmp(PQgetvalue(res, i, (verbose ? 10 : 9)), "t") == 0)
 				add_role_attribute(&buf, _("Replication"));
+
+		if (pset.sversion >= 90500)
+			if (strcmp(PQgetvalue(res, i, (verbose ? 11 : 10)), "t") == 0)
+				add_role_attribute(&buf, _("Bypass RLS"));
 
 		conns = atoi(PQgetvalue(res, i, 6));
 		if (conns >= 0)
